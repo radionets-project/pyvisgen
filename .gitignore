@@ -1,0 +1,24 @@
+#slurm
+*.slurm
+*.log
+
+# images
+*.jpg
+*.pdf
+*.gif
+*.png
+
+# make
+*_done
+*/build
+
+
+*.pyc
+*.vscode
+*.eggs
+*.egg-info
+.flake8
+.makerc
+.coverage
+dist/
+*.csv

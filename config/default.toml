@@ -1,0 +1,10 @@
+[sampling_options]
+fov_center_ra = "12:30:49.423382"
+fov_center_dec = "12:23:28.04366"
+fov_size = 0.00018382
+corr_int_time = 10.0
+scan_start = "2016:95:00:00:00"
+scan_duration = 300
+scans = 72
+interval_length = 1200
+channel = "227297:4096"
