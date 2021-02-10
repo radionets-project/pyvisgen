@@ -1,5 +1,7 @@
 # vipy
 
+[![codecov](https://codecov.io/gh/radionets-project/vipy/branch/main/graph/badge.svg?token=84ATCQQAMN)](https://codecov.io/gh/radionets-project/vipy)
+
 Possible names:
 * pyvisgen
 * pyvs
