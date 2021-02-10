@@ -2,9 +2,21 @@ import toml
 
 
 def read_config(conf):
+    """[summary]
+
+    Parameters
+    ----------
+    conf : toml file
+        path to config file
+
+    Returns
+    -------
+    sim_conf : dictionary
+        simulation configuration
+    """
     config = toml.load(conf)
     sim_conf = {}
-    
+
     sim_conf["fov_center_ra"] = config["sampling_options"]["fov_center_ra"]
     sim_conf["fov_center_dec"] = config["sampling_options"]["fov_center_dec"]
     sim_conf["fov_size"] = config["sampling_options"]["fov_size"]
@@ -14,6 +26,4 @@ def read_config(conf):
     sim_conf["scans"] = config["sampling_options"]["scans"]
     sim_conf["channel"] = config["sampling_options"]["channel"]
     sim_conf["interval_length"] = config["sampling_options"]["interval_length"]
-
-
     return sim_conf
