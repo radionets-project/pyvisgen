@@ -2,7 +2,7 @@ import toml
 
 
 def read_config(conf):
-    """[summary]
+    """Read toml simulation configuration file and convert it into a dictionary.
 
     Parameters
     ----------
