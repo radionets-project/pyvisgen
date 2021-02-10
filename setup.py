@@ -17,6 +17,7 @@ setup(
         "scipy",
         "pandas",
         "toml",
+        "pytest",
     ],
     setup_requires=["pytest-runner"],
     tests_require=["pytest"],
