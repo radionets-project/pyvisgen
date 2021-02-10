@@ -1,8 +1,4 @@
-# vipy
-
-[![codecov](https://codecov.io/gh/radionets-project/vipy/branch/main/graph/badge.svg?token=84ATCQQAMN)](https://codecov.io/gh/radionets-project/vipy)
-
-[![Actions Status](https://github.com/radionets-project/vipy/workflows/CI/badge.svg)](https://github.com/radionets-project/vipy/actions)
+# vipy [![Actions Status](https://github.com/radionets-project/vipy/workflows/CI/badge.svg)](https://github.com/radionets-project/vipy/actions) [![codecov](https://codecov.io/gh/radionets-project/vipy/branch/main/graph/badge.svg?token=84ATCQQAMN)](https://codecov.io/gh/radionets-project/vipy)
 
 Possible names:
 * pyvisgen
