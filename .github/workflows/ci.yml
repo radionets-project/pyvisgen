@@ -25,6 +25,6 @@ jobs:
           pip install .
 
       - name: tests
-        run: py.test
+        run: python -m pytest --cov vipy --cov-report=xml
 
       - uses: codecov/codecov-action@v1
