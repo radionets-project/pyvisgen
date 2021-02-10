@@ -29,7 +29,7 @@ def array(array_name):
 
     Returns
     -------
-    stations : dataclass
+    stations : dataclass object
         Station infos combinde in dataclass
     """
     f = array_name + ".txt"
