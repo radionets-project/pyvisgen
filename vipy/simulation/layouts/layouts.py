@@ -8,6 +8,7 @@ file_dir = Path(__file__).parent.resolve()
 
 @dataclass
 class Station:
+    st_num: int
     name: str
     x: float
     y: float
@@ -21,7 +22,7 @@ class Station:
 
 def array(array_name):
     """Reads telescope layout txt file and converts it into a dataclass.
-
+    
     Parameters
     ----------
     array_name : str
@@ -36,6 +37,7 @@ def array(array_name):
     array = pd.read_csv(file_dir / f, sep=" ")
     stations = [
         Station(
+            index,
             row["station_name"],
             row["X"],
             row["Y"],

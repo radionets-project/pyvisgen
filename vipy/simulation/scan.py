@@ -10,24 +10,30 @@ import scipy.signal as sig
 @dataclass
 class baseline:
     name: str
+    st1: int
+    st2: int
     u: float
     v: float
     w: float
     valid: bool
 
+    def baselineNum(self):
+        #baseline = 256*ant1 + ant2 + (array#-1)/100
+        return 256*(self.st1+1) + self.st2+1
+
 
 def get_baselines(src_crd, time, array):
     """Calculates baselines from source coordinates and time of observation for
-    every antenna station in station array. (is dataclass used here?)
-    (Calculation for 1 timestep?)
+    every antenna station in station array. 
+    
 
     Parameters
     ----------
-    src_crd : astropy SkyCoord object (?)
+    src_crd : astropy SkyCoord object 
         ra and dec of source location / pointing center
     time : astropy time object
         time of observation
-    array : dataclass object (?)
+    array : list of dataclass object Station
         station information
 
     Returns
@@ -81,8 +87,9 @@ def get_baselines(src_crd, time, array):
             ):
                 valid = False
 
-            # collect baselines
-            baselines.append(baseline(st1.name + "-" + st2.name, u, v, w, valid))
+            #collect baselines
+            baselines.append(baseline(st1.name + '-' + st2.name, st1.st_num, st2.st_num, u, v, w, valid))
+            
     return baselines
 
 
