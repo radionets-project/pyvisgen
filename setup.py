@@ -2,8 +2,8 @@ from setuptools import setup, find_packages
 
 setup(
     name="vipy",
-    version="0.1",
-    description="Simulate radio interferometric data",
+    version="0.0.1",
+    description="Simulate radio interferometer observations and visibility generation.",
     url="https://github.com/radionets-project/vipy",
     author="Kevin Schmidt, Felix Geyer, Stefan Fröse",
     author_email="kevin3.schmidt@tu-dortmund.de",
