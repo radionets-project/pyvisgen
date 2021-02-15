@@ -31,7 +31,7 @@ def get_array_layout(array_name):
 
     Returns
     -------
-    stations : dataclass object
+    list of dataclass objects
         Station infos combinde in dataclass
     """
     f = array_name + ".txt"
