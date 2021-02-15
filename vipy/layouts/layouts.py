@@ -19,8 +19,10 @@ class Station:
     altitude: float
 
 
-def array(array_name):
+def get_array_layout(array_name):
     """Reads telescope layout txt file and converts it into a dataclass.
+    Available arrays:
+    - EHT
 
     Parameters
     ----------
