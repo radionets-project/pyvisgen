@@ -19,6 +19,7 @@ setup(
         "toml",
         "pytest",
         "pytest-cov",
+        "jupyter",
     ],
     setup_requires=["pytest-runner"],
     tests_require=["pytest"],
