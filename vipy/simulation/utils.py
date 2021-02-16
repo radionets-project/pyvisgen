@@ -2,6 +2,7 @@ import toml
 from astropy.coordinates import SkyCoord
 import astropy.units as u
 import numpy as np
+from astropy.time import Time
 
 
 def read_config(conf):
@@ -75,16 +76,14 @@ def calc_time_steps(conf):
 
     time_start = Time(
         [
-            start_time + interval * i * un.second + j * integration_time * un.second
+            start_time + interval * i * u.second + j * integration_time * u.second
             for i in range(num_scans)
             for j in range(int(scan_duration / int_time))
         ]
     )
     time_stop = Time(
         [
-            start_time
-            + interval * i * un.second
-            + (j + 1) * integration_time * un.second
+            start_time + interval * i * u.second + (j + 1) * integration_time * u.second
             for i in range(num_scans)
             for j in range(int(scan_duration / int_time))
         ]
