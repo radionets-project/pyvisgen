@@ -5,8 +5,7 @@ def test_read_config():
 
     assert type(conf) == dict
     assert list(conf.keys()) == [
-        "fov_center_ra",
-        "fov_center_dec",
+        "src_coord",
         "fov_size",
         "corr_int_time",
         "scan_start",
