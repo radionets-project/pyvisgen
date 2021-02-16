@@ -1,3 +1,6 @@
+import numpy as np
+
+
 def test_read_config():
     from vipy.simulation.utils import read_config
 
@@ -14,3 +17,35 @@ def test_read_config():
         "channel",
         "interval_length",
     ]
+
+
+def test_single_occurance():
+    from vipy.simulation.utils import single_occurance
+
+    arr = np.array([1, 2, 2, 3, 4, 4])
+
+    indx = single_occurance(arr)
+
+    assert (indx == np.array([0, 1, 3, 4])).all()
+
+
+def test_get_pairs():
+    from vipy.layouts.layouts import get_array_layout
+    from vipy.simulation.utils import get_pairs
+
+    layout = get_array_layout("eht")
+    delta_x, delta_y, delta_z = get_pairs(layout)
+
+    assert delta_x.shape == (56, 1)
+    assert delta_x.shape == delta_y.shape == delta_z.shape
+
+
+def test_calc_time_steps():
+    from vipy.simulation.utils import read_config
+    from vipy.simulation.utils import calc_time_steps
+
+    conf = read_config("config/default.toml")
+    time_start, time_stop = calc_time_steps(conf)
+
+    assert time_start.shape == (2160,)
+    assert time_start.shape == time_stop.shape
