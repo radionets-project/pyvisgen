@@ -12,7 +12,7 @@
 *_done
 */build
 
-
+*.ipynb_checkpoints
 *.pyc
 *.vscode
 *.eggs
