@@ -1,14 +1,41 @@
 from dataclasses import dataclass
 from astropy import units as un
-from astropy.coordinates import SkyCoord, EarthLocation, AltAz
+from astropy.coordinates import SkyCoord, EarthLocation, AltAz, Angle
 import numpy as np
 from scipy.special import j1
 import scipy.constants as const
 import scipy.signal as sig
+from vipy.simulation.utils import single_occurance, get_pairs
 
 
 @dataclass
-class baseline:
+class Baselines:
+    name: [str]
+    u: [float]
+    v: [float]
+    w: [float]
+    valid: [bool]
+
+    def __getitem__(self, i):
+        baseline = Baseline(
+            self.name[i],
+            self.u[i],
+            self.v[i],
+            self.w[i],
+            self.valid[i],
+        )
+        return baseline
+
+    def add(self, baselines):
+        self.name = np.concatenate([self.name, baselines.name])
+        self.u = np.concatenate([self.u, baselines.u])
+        self.v = np.concatenate([self.v, baselines.v])
+        self.w = np.concatenate([self.w, baselines.w])
+        self.valid = np.concatenate([self.valid, baselines.valid])
+
+
+@dataclass
+class Baseline:
     name: str
     u: float
     v: float
@@ -16,9 +43,9 @@ class baseline:
     valid: bool
 
 
-def get_baselines(src_crd, time, array):
+def get_baselines(src_crd, time, array_layout):
     """Calculates baselines from source coordinates and time of observation for
-    every antenna station in station array. (is dataclass used here?)
+    every antenna station in array_layout.
     (Calculation for 1 timestep?)
 
     Parameters
@@ -27,7 +54,7 @@ def get_baselines(src_crd, time, array):
         ra and dec of source location / pointing center
     time : astropy time object
         time of observation
-    array : dataclass object (?)
+    array_layout : dataclass object
         station information
 
     Returns
@@ -35,54 +62,97 @@ def get_baselines(src_crd, time, array):
     dataclass object
         baselines between telescopes with visinility flags
     """
+    # Calculate for all times
     # calculate GHA, Greenwich as reference for EHT
-    lst = time.sidereal_time("apparent", "greenwich")
-    ha = lst - src_crd.ra
+    ha_all = Angle(
+        [t.sidereal_time("apparent", "greenwich") - src_crd.ra for t in time]
+    )
 
     # calculate elevations
-    el_st = [
-        src_crd.transform_to(
-            AltAz(
-                obstime=time,
-                location=EarthLocation.from_geocentric(st.x, st.y, st.z, unit=un.m),
-            )
-        ).alt.degree
-        for st in array
-    ]
+    el_st_all = src_crd.transform_to(
+        AltAz(
+            obstime=time.reshape(len(time), -1),
+            location=EarthLocation.from_geocentric(
+                np.repeat([array_layout.x], len(time), axis=0),
+                np.repeat([array_layout.y], len(time), axis=0),
+                np.repeat([array_layout.z], len(time), axis=0),
+                unit=un.m,
+            ),
+        )
+    ).alt.degree
 
-    # calculate baselines
-    baselines = []
-    for i, st1 in enumerate(array):
-        for j, st2 in enumerate(array[i + 1 :]):
-            delta_x = st1.x - st2.x
-            delta_y = st1.y - st2.y
-            delta_z = st1.z - st2.z
+    # fails for 1 timestep
+    assert len(ha_all.value) == len(el_st_all)
 
-            # coord transformation uvw
-            u = np.sin(ha) * delta_x + np.cos(ha) * delta_y
-            v = (
-                -np.sin(src_crd.ra) * np.cos(ha) * delta_x
-                + np.sin(src_crd.ra) * np.sin(ha) * delta_y
-                + np.cos(src_crd.ra) * delta_z
-            )
-            w = (
-                np.cos(src_crd.ra) * np.cos(ha) * delta_x
-                - np.cos(src_crd.ra) * np.sin(ha) * delta_y
-                + np.sin(src_crd.ra) * delta_z
-            )
+    # always the same
+    delta_x, delta_y, delta_z = get_pairs(array_layout)
+    indices = single_occurance(delta_x)
+    delta_x = delta_x[indices]
+    delta_y = delta_y[indices]
+    delta_z = delta_z[indices]
+    mask = [i * len(array_layout.x) + i for i in range(len(array_layout.x))]
+    pairs = np.delete(
+        np.array(np.meshgrid(array_layout.name, array_layout.name)).T.reshape(-1, 2),
+        mask,
+        axis=0,
+    )[indices]
 
-            # check baseline
-            valid = True
-            if (
-                el_st[i] < st1.el_low
-                or el_st[i] > st1.el_high
-                or el_st[i + j + 1] < st2.el_low
-                or el_st[i + j + 1] > st2.el_high
-            ):
-                valid = False
+    els_low = np.delete(
+        np.array(np.meshgrid(array_layout.el_low, array_layout.el_low)).T.reshape(
+            -1, 2
+        ),
+        mask,
+        axis=0,
+    )[indices]
 
-            # collect baselines
-            baselines.append(baseline(st1.name + "-" + st2.name, u, v, w, valid))
+    els_high = np.delete(
+        np.array(np.meshgrid(array_layout.el_high, array_layout.el_high)).T.reshape(
+            -1, 2
+        ),
+        mask,
+        axis=0,
+    )[indices]
+
+    # Loop over ha and el_st
+    baselines = Baselines([], [], [], [], [])
+    for ha, el_st in zip(ha_all, el_st_all):
+        u = np.sin(ha) * delta_x + np.cos(ha) * delta_y
+        v = (
+            -np.sin(src_crd.ra) * np.cos(ha) * delta_x
+            + np.sin(src_crd.ra) * np.sin(ha) * delta_y
+            + np.cos(src_crd.ra) * delta_z
+        )
+        w = (
+            np.cos(src_crd.ra) * np.cos(ha) * delta_x
+            - np.cos(src_crd.ra) * np.sin(ha) * delta_y
+            + np.sin(src_crd.ra) * delta_z
+        )
+        assert u.shape == v.shape == w.shape
+
+        els_st = np.delete(
+            np.array(np.meshgrid(el_st, el_st)).T.reshape(-1, 2),
+            mask,
+            axis=0,
+        )[indices]
+
+        valid = np.ones(u.shape).astype(bool)
+
+        m1 = (els_st < els_low).any(axis=1)
+        m2 = (els_st > els_high).any(axis=1)
+        valid_mask = np.ma.mask_or(m1, m2)
+        valid[valid_mask] = False
+
+        names = pairs[:, 0] + "-" + pairs[:, 1]
+
+        names = names
+        u = u.reshape(-1)
+        v = v.reshape(-1)
+        w = w.reshape(-1)
+        valid = valid.reshape(-1)
+
+        # collect baselines
+        base = Baselines(names, u, v, w, valid)
+        baselines.add(base)
     return baselines
 
 
