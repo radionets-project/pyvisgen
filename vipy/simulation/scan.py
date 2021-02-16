@@ -11,6 +11,8 @@ from vipy.simulation.utils import single_occurance, get_pairs
 @dataclass
 class Baselines:
     name: [str]
+    st1: [int]
+    st2: [int]
     u: [float]
     v: [float]
     w: [float]
@@ -19,6 +21,8 @@ class Baselines:
     def __getitem__(self, i):
         baseline = Baseline(
             self.name[i],
+            self.st1[i],
+            self.st2[i],
             self.u[i],
             self.v[i],
             self.w[i],
@@ -28,6 +32,8 @@ class Baselines:
 
     def add(self, baselines):
         self.name = np.concatenate([self.name, baselines.name])
+        self.st1 = np.concatenate([self.st1, baselines.st1])
+        self.st2 = np.concatenate([self.st2, baselines.st2])
         self.u = np.concatenate([self.u, baselines.u])
         self.v = np.concatenate([self.v, baselines.v])
         self.w = np.concatenate([self.w, baselines.w])
@@ -37,20 +43,24 @@ class Baselines:
 @dataclass
 class Baseline:
     name: str
+    st1: int
+    st2: int
     u: float
     v: float
     w: float
     valid: bool
 
+    def baselineNum(self):
+        return 256 * (self.st1 + 1) + self.st2 + 1
+
 
 def get_baselines(src_crd, time, array_layout):
     """Calculates baselines from source coordinates and time of observation for
     every antenna station in array_layout.
-    (Calculation for 1 timestep?)
 
     Parameters
     ----------
-    src_crd : astropy SkyCoord object (?)
+    src_crd : astropy SkyCoord object
         ra and dec of source location / pointing center
     time : astropy time object
         time of observation
@@ -97,6 +107,14 @@ def get_baselines(src_crd, time, array_layout):
         axis=0,
     )[indices]
 
+    st_nums = np.delete(
+        np.array(np.meshgrid(array_layout.st_num, array_layout.st_num)).T.reshape(
+            -1, 2
+        ),
+        mask,
+        axis=0,
+    )[indices]
+
     els_low = np.delete(
         np.array(np.meshgrid(array_layout.el_low, array_layout.el_low)).T.reshape(
             -1, 2
@@ -114,7 +132,7 @@ def get_baselines(src_crd, time, array_layout):
     )[indices]
 
     # Loop over ha and el_st
-    baselines = Baselines([], [], [], [], [])
+    baselines = Baselines([], [], [], [], [], [], [])
     for ha, el_st in zip(ha_all, el_st_all):
         u = np.sin(ha) * delta_x + np.cos(ha) * delta_y
         v = (
@@ -144,14 +162,13 @@ def get_baselines(src_crd, time, array_layout):
 
         names = pairs[:, 0] + "-" + pairs[:, 1]
 
-        names = names
         u = u.reshape(-1)
         v = v.reshape(-1)
         w = w.reshape(-1)
         valid = valid.reshape(-1)
 
         # collect baselines
-        base = Baselines(names, u, v, w, valid)
+        base = Baselines(names, st_nums[:, 0], st_nums[:, 1], u, v, w, valid)
         baselines.add(base)
     return baselines
 

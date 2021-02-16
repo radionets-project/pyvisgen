@@ -9,6 +9,7 @@ file_dir = Path(__file__).parent.resolve()
 
 @dataclass
 class Stations:
+    st_num: [int]
     name: [str]
     x: [float]
     y: [float]
@@ -21,6 +22,7 @@ class Stations:
 
     def __getitem__(self, i):
         station = Station(
+            self.st_num[i],
             self.name[i],
             self.x[i],
             self.y[i],
@@ -39,6 +41,7 @@ class Stations:
 
 @dataclass
 class Station:
+    st_num: int
     name: str
     x: float
     y: float
@@ -62,12 +65,13 @@ def get_array_layout(array_name):
 
     Returns
     -------
-    list of dataclass objects
+    dataclass objects
         Station infos combinde in dataclass
     """
     f = array_name + ".txt"
     array = pd.read_csv(file_dir / f, sep=" ")
     stations = Stations(
+        np.arange(len(array)),
         array["station_name"].values,
         array["X"].values,
         array["Y"].values,
