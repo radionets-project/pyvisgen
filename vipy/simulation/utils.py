@@ -63,3 +63,30 @@ def get_pairs(array_layout):
         .reshape(-1, 1)
     )
     return delta_x, delta_y, delta_z
+
+
+def calc_time_steps(conf):
+    start_time = Time(conf["scan_start"], format="yday")
+    interval = conf["interval_length"]
+    integration_time = conf["corr_int_time"]
+    num_scans = conf["scans"]
+    scan_duration = conf["scan_duration"]
+    int_time = conf["corr_int_time"]
+
+    time_start = Time(
+        [
+            start_time + interval * i * un.second + j * integration_time * un.second
+            for i in range(num_scans)
+            for j in range(int(scan_duration / int_time))
+        ]
+    )
+    time_stop = Time(
+        [
+            start_time
+            + interval * i * un.second
+            + (j + 1) * integration_time * un.second
+            for i in range(num_scans)
+            for j in range(int(scan_duration / int_time))
+        ]
+    )
+    return time_start, time_stop
