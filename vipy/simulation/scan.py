@@ -177,23 +177,19 @@ def create_bgrid(fov, samples, src_crd):
     spacing = fov / samples
 
     bgrid = np.zeros((samples, samples, 2))
+    mgrid = np.meshgrid(np.arange(32), np.arange(32))
 
-    sr = np.sin(src_crd.ra.rad)  # calculated but unused
-    cr = np.cos(src_crd.ra.rad)  # calculated but unused
     sd = np.sin(src_crd.dec.rad)
     cd = np.cos(src_crd.dec.rad)
 
-    for i in range(samples):
-        for j in range(samples):
-            delx = (i - samples / 2.0) * spacing
-            dely = (j - samples / 2.0) * spacing
+    delx = (mgrid[1] - samples / 2.0) * spacing
+    dely = (mgrid[0] - samples / 2.0) * spacing
 
-            alpha = np.arctan(delx / (cd - dely * sd)) + src_crd.ra.rad
-            delta = np.arcsin((sd + dely * cd) / np.sqrt(1 + delx ** 2 + dely ** 2))
+    alpha = np.arctan(delx / (cd - dely * sd)) + src_crd.ra.rad
+    delta = np.arcsin((sd + dely * cd) / np.sqrt(1 + delx ** 2 + dely ** 2))
 
-            bgrid[i, j, 0] = alpha
-            bgrid[i, j, 1] = delta
-
+    bgrid[..., 0] = alpha
+    bgrid[..., 1] = delta
     return bgrid
 
 
