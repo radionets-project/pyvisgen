@@ -1,41 +1,72 @@
 from dataclasses import dataclass
 from astropy import units as un
-from astropy.coordinates import SkyCoord, EarthLocation, AltAz
+from astropy.coordinates import SkyCoord, EarthLocation, AltAz, Angle
 import numpy as np
 from scipy.special import j1
 import scipy.constants as const
 import scipy.signal as sig
 from astroplan import Observer
-import vipy.simulation.layouts.layouts as layouts
+from vipy.simulation.utils import single_occurance, get_pairs
+from vipy.layouts import layouts
 
 
 @dataclass
-class baseline:
+class Baselines:
+    name: [str]
+    st1: [object]
+    st2: [object]
+    u: [float]
+    v: [float]
+    w: [float]
+    valid: [bool]
+
+    def __getitem__(self, i):
+        baseline = Baseline(
+            self.name[i],
+            self.st1[i],
+            self.st2[i],
+            self.u[i],
+            self.v[i],
+            self.w[i],
+            self.valid[i],
+        )
+        return baseline
+
+    def add(self, baselines):
+        self.name = np.concatenate([self.name, baselines.name])
+        self.st1 = np.concatenate([self.st1, baselines.st1])
+        self.st2 = np.concatenate([self.st2, baselines.st2])
+        self.u = np.concatenate([self.u, baselines.u])
+        self.v = np.concatenate([self.v, baselines.v])
+        self.w = np.concatenate([self.w, baselines.w])
+        self.valid = np.concatenate([self.valid, baselines.valid])
+
+
+@dataclass
+class Baseline:
     name: str
-    st1: layouts.Station
-    st2: layouts.Station
+    st1: object
+    st2: object
     u: float
     v: float
     w: float
     valid: bool
 
     def baselineNum(self):
-        #baseline = 256*ant1 + ant2 + (array#-1)/100
-        return 256*(self.st1.st_num+1) + self.st2.st_num+1
+        return 256 * (self.st1.st_num + 1) + self.st2.st_num + 1
 
 
-def get_baselines(src_crd, time, array):
+def get_baselines(src_crd, time, array_layout):
     """Calculates baselines from source coordinates and time of observation for
-    every antenna station in station array. 
-    
+    every antenna station in array_layout.
 
     Parameters
     ----------
-    src_crd : astropy SkyCoord object 
+    src_crd : astropy SkyCoord object
         ra and dec of source location / pointing center
-    time : astropy time object
+    time : w time object
         time of observation
-    array : list of dataclass object Station
+    array_layout : dataclass object
         station information
 
     Returns
@@ -43,55 +74,104 @@ def get_baselines(src_crd, time, array):
     dataclass object
         baselines between telescopes with visinility flags
     """
+    # Calculate for all times
     # calculate GHA, Greenwich as reference for EHT
-    lst = time.sidereal_time("apparent", "greenwich")
-    ha = lst - src_crd.ra
+    ha_all = Angle(
+        [t.sidereal_time("apparent", "greenwich") - src_crd.ra for t in time]
+    )
 
     # calculate elevations
-    el_st = [
-        src_crd.transform_to(
-            AltAz(
-                obstime=time,
-                location=EarthLocation.from_geocentric(st.x, st.y, st.z, unit=un.m),
-            )
-        ).alt.degree
-        for st in array
-    ]
+    el_st_all = src_crd.transform_to(
+        AltAz(
+            obstime=time.reshape(len(time), -1),
+            location=EarthLocation.from_geocentric(
+                np.repeat([array_layout.x], len(time), axis=0),
+                np.repeat([array_layout.y], len(time), axis=0),
+                np.repeat([array_layout.z], len(time), axis=0),
+                unit=un.m,
+            ),
+        )
+    ).alt.degree
 
-    # calculate baselines
-    baselines = []
-    for i, st1 in enumerate(array):
-        for j, st2 in enumerate(array[i + 1 :]):
-            delta_x = st1.x - st2.x
-            delta_y = st1.y - st2.y
-            delta_z = st1.z - st2.z
+    # fails for 1 timestep
+    assert len(ha_all.value) == len(el_st_all)
 
-            # coord transformation uvw
-            u = np.sin(ha) * delta_x + np.cos(ha) * delta_y
-            v = (
-                -np.sin(src_crd.ra) * np.cos(ha) * delta_x
-                + np.sin(src_crd.ra) * np.sin(ha) * delta_y
-                + np.cos(src_crd.ra) * delta_z
-            )
-            w = (
-                np.cos(src_crd.ra) * np.cos(ha) * delta_x
-                - np.cos(src_crd.ra) * np.sin(ha) * delta_y
-                + np.sin(src_crd.ra) * delta_z
-            )
+    # always the same
+    delta_x, delta_y, delta_z = get_pairs(array_layout)
+    indices = single_occurance(delta_x)
+    delta_x = delta_x[indices]
+    delta_y = delta_y[indices]
+    delta_z = delta_z[indices]
+    mask = [i * len(array_layout.x) + i for i in range(len(array_layout.x))]
+    pairs = np.delete(
+        np.array(np.meshgrid(array_layout.name, array_layout.name)).T.reshape(-1, 2),
+        mask,
+        axis=0,
+    )[indices]
 
-            # check baseline
-            valid = True
-            if (
-                el_st[i] < st1.el_low
-                or el_st[i] > st1.el_high
-                or el_st[i + j + 1] < st2.el_low
-                or el_st[i + j + 1] > st2.el_high
-            ):
-                valid = False
+    st_nums = np.delete(
+        np.array(np.meshgrid(array_layout.st_num, array_layout.st_num)).T.reshape(
+            -1, 2
+        ),
+        mask,
+        axis=0,
+    )[indices]
 
-            #collect baselines
-            baselines.append(baseline(st1.name + '-' + st2.name, st1, st2, u, v, w, valid))
-            
+    els_low = np.delete(
+        np.array(np.meshgrid(array_layout.el_low, array_layout.el_low)).T.reshape(
+            -1, 2
+        ),
+        mask,
+        axis=0,
+    )[indices]
+
+    els_high = np.delete(
+        np.array(np.meshgrid(array_layout.el_high, array_layout.el_high)).T.reshape(
+            -1, 2
+        ),
+        mask,
+        axis=0,
+    )[indices]
+
+    # Loop over ha and el_st
+    baselines = Baselines([], [], [], [], [], [], [])
+    for ha, el_st in zip(ha_all, el_st_all):
+        u = np.sin(ha) * delta_x + np.cos(ha) * delta_y
+        v = (
+            -np.sin(src_crd.ra) * np.cos(ha) * delta_x
+            + np.sin(src_crd.ra) * np.sin(ha) * delta_y
+            + np.cos(src_crd.ra) * delta_z
+        )
+        w = (
+            np.cos(src_crd.ra) * np.cos(ha) * delta_x
+            - np.cos(src_crd.ra) * np.sin(ha) * delta_y
+            + np.sin(src_crd.ra) * delta_z
+        )
+        assert u.shape == v.shape == w.shape
+
+        els_st = np.delete(
+            np.array(np.meshgrid(el_st, el_st)).T.reshape(-1, 2),
+            mask,
+            axis=0,
+        )[indices]
+
+        valid = np.ones(u.shape).astype(bool)
+
+        m1 = (els_st < els_low).any(axis=1)
+        m2 = (els_st > els_high).any(axis=1)
+        valid_mask = np.ma.mask_or(m1, m2)
+        valid[valid_mask] = False
+
+        names = pairs[:, 0] + "-" + pairs[:, 1]
+
+        u = u.reshape(-1)
+        v = v.reshape(-1)
+        w = w.reshape(-1)
+        valid = valid.reshape(-1)
+
+        # collect baselines
+        base = Baselines(names, array_layout[st_nums[:, 0]], array_layout[st_nums[:, 1]], u, v, w, valid)
+        baselines.add(base)
     return baselines
 
 
@@ -116,23 +196,19 @@ def create_bgrid(fov, samples, src_crd):
     spacing = fov / samples
 
     bgrid = np.zeros((samples, samples, 2))
+    mgrid = np.meshgrid(np.arange(samples), np.arange(samples))
 
-    sr = np.sin(src_crd.ra.rad)  # calculated but unused
-    cr = np.cos(src_crd.ra.rad)  # calculated but unused
     sd = np.sin(src_crd.dec.rad)
     cd = np.cos(src_crd.dec.rad)
 
-    for i in range(samples):
-        for j in range(samples):
-            delx = (i - samples / 2.0) * spacing
-            dely = (j - samples / 2.0) * spacing
+    delx = (mgrid[1] - samples / 2.0) * spacing
+    dely = (mgrid[0] - samples / 2.0) * spacing
 
-            alpha = np.arctan(delx / (cd - dely * sd)) + src_crd.ra.rad
-            delta = np.arcsin((sd + dely * cd) / np.sqrt(1 + delx ** 2 + dely ** 2))
+    alpha = np.arctan(delx / (cd - dely * sd)) + src_crd.ra.rad
+    delta = np.arcsin((sd + dely * cd) / np.sqrt(1 + delx ** 2 + dely ** 2))
 
-            bgrid[i, j, 0] = alpha
-            bgrid[i, j, 1] = delta
-
+    bgrid[..., 0] = alpha
+    bgrid[..., 1] = delta
     return bgrid
 
 
@@ -146,62 +222,76 @@ def lm(grid, src_crd):
 
 
 def getJones(lm, baselines, wave, time, src_crd, array):
-    # J = D E P K
+    # J = E P K
     # for every entry in baselines exists one station pair (st1,st2)
     # st1 has a jones matrix, st2 has a jones matrix
     # Calculate Jones matrices for every baseline
-    JJ = np.zeros((lm.shape[0],lm.shape[1],len(baselines),4,4),dtype=complex)
-    D = np.eye(2)
+    JJ = np.zeros((lm.shape[0],lm.shape[1],baselines.name.shape[0],4,4),dtype=complex)
 
     # parallactic angle
-    beta = [Observer(EarthLocation(st.x*un.m,st.y*un.m,st.z*un.m)).parallactic_angle(time, src_crd) for st in array]
-
-    for i, b in enumerate(baselines):
-        # calculate E Matrices
-        E1 = getE(lm, b.st1, wave)
-        E2 = getE(lm, b.st2, wave)
-
-        # calculate P Matrices
-        P1 = getP(beta[b.st1.st_num])
-        P2 = getP(beta[b.st2.st_num])
-        
-
-        # calculate K matrices
-        K1 = getK(b,lm,wave)
-        K2 = K1
+    beta = np.array([Observer(EarthLocation(st.x*un.m,st.y*un.m,st.z*un.m)).parallactic_angle(time, src_crd) for st in array])
 
 
-        for k in range(lm.shape[0]):
-            for l in range(lm.shape[1]):
-                JJ[k,l,i] = np.kron(D@E1[k,l]@P1,(D@E2[k,l]@P2).conj().T)*K1[k,l]
+    # calculate E Matrices
+    E1 = getE(lm, baselines.st1, wave)
+    E2 = getE(lm, baselines.st2, wave)
+
+    
+
+    # calculate P Matrices
+    vectorized_num = np.vectorize(lambda st: st.st_num)
+    P1 = getP(vectorized_num(baselines.st1))
+    P2 = getP(vectorized_num(baselines.st2))
+
+    
+
+    # calculate K matrices
+    K = getK(baselines,lm,wave)
+    K = np.repeat(K, 4, axis=2).reshape(K.shape[0], K.shape[1], K.shape[2], 4)
+    K = np.repeat(K, 4, axis=3).reshape(K.shape[0], K.shape[1], K.shape[2], 4, 4)
+
+    J1 = E1@P1
+    J2 = E2@P2
+
+    JJ = np.einsum('...lm,...no->...lnmo',J1,J2).reshape(256,256,28,4,4)*K
+    # for k in range(lm.shape[0]):
+    #     for l in range(lm.shape[1]):
+    #         JJ[k,l] = np.kron(E1[k,l]@P1,(E2[k,l]@P2).conj().T)#*K1[k,l]
     return JJ
 
-def getE(lm, station, wave):
+def getE(lm, stations, wave):
     # calculate matrix E for every point in grid
-    E = np.zeros((lm.shape[0],lm.shape[1],2,2))
-    E[...,0,0] = jinc(np.pi * station.diam / wave * np.sin(np.sqrt(lm[...,0]**2+lm[...,1]**2)))
+    E = np.zeros((lm.shape[0],lm.shape[1], stations.shape[0],2,2))
+
+    #get diameters of all stations and do vectorizing stuff
+    vectorized_diam = np.vectorize(lambda st: st.diam)
+    diameters = vectorized_diam(stations)
+    di = np.zeros((lm.shape[0],lm.shape[1], stations.shape[0]))
+    di[:,:] = diameters 
+
+    E[...,0,0] = jinc(np.pi * di / wave * np.repeat(np.sin(np.sqrt(lm[...,0]**2+lm[...,1]**2)), stations.shape[0], 1).reshape((lm.shape[0],lm.shape[1], stations.shape[0])))
     E[...,1,1] = E[...,0,0]
     return E
 
 
 def getP(beta):
     #calculate matrix P with parallactic angle beta
-    P = np.zeros((2,2))
+    P = np.zeros((beta.shape[0],2,2))
 
-    P[0,0] = np.cos(beta)
-    P[0,1] = -np.sin(beta)
-    P[1,0] = np.sin(beta)
-    P[1,1] = np.cos(beta)
+    P[:,0,0] = np.cos(beta)
+    P[:,0,1] = -np.sin(beta)
+    P[:,1,0] = np.sin(beta)
+    P[:,1,1] = np.cos(beta)
     return P
 
 
-def getK(b,lm,wave):
-    # K = np.zeros((lm.shape[0],lm.shape[1],2,2),dtype=complex)
-    # K[...,0,0] = np.exp(1j*2*np.pi*(b.u*lm[...,0]+b.v*lm[...,1])/wave)
-    # K[...,0,1] = 0
-    # K[...,1,0] = 0
-    # K[...,1,1] = K[...,0,0]
-    return np.exp(1j*2*np.pi*(b.u*lm[...,0]+b.v*lm[...,1])/wave)
+def getK(baselines,lm,wave):
+    u = np.zeros((lm.shape[0],lm.shape[1], baselines.name.shape[0]))
+    v = np.zeros((lm.shape[0],lm.shape[1], baselines.name.shape[0]))
+    u[:,:] = baselines.u
+    v[:,:] = baselines.v
+
+    return np.exp(1j*2*np.pi*(u*np.repeat(lm[...,0],baselines.name.shape[0],1).reshape(lm.shape[0],lm.shape[1],baselines.name.shape[0])+v*np.repeat(lm[...,1],baselines.name.shape[0],1).reshape(lm.shape[0],lm.shape[1],baselines.name.shape[0]))/wave)
 
 
 def integrateV(JJ, I, dl, dm):
