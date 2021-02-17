@@ -5,13 +5,15 @@ import numpy as np
 from scipy.special import j1
 import scipy.constants as const
 import scipy.signal as sig
+from astroplan import Observer
+import vipy.simulation.layouts.layouts as layouts
 
 
 @dataclass
 class baseline:
     name: str
-    st1: int
-    st2: int
+    st1: layouts.Station
+    st2: layouts.Station
     u: float
     v: float
     w: float
@@ -19,7 +21,7 @@ class baseline:
 
     def baselineNum(self):
         #baseline = 256*ant1 + ant2 + (array#-1)/100
-        return 256*(self.st1+1) + self.st2+1
+        return 256*(self.st1.st_num+1) + self.st2.st_num+1
 
 
 def get_baselines(src_crd, time, array):
@@ -88,7 +90,7 @@ def get_baselines(src_crd, time, array):
                 valid = False
 
             #collect baselines
-            baselines.append(baseline(st1.name + '-' + st2.name, st1.st_num, st2.st_num, u, v, w, valid))
+            baselines.append(baseline(st1.name + '-' + st2.name, st1, st2, u, v, w, valid))
             
     return baselines
 
@@ -134,6 +136,81 @@ def create_bgrid(fov, samples, src_crd):
     return bgrid
 
 
+def lm(grid, src_crd):
+    lm = np.zeros(grid.shape)
+    ra = grid[...,0]
+    dec = grid[...,1]
+    lm[...,0] = np.cos(src_crd.dec.rad) * np.sin(src_crd.ra.rad-ra)
+    lm[...,1] = np.sin(dec)*np.cos(src_crd.dec.rad) - np.cos(dec)*np.sin(src_crd.dec.rad)*np.cos(src_crd.ra.rad-ra)
+    return lm
+
+
+def getJones(lm, baselines, wave, time, src_crd, array):
+    # J = D E P K
+    # for every entry in baselines exists one station pair (st1,st2)
+    # st1 has a jones matrix, st2 has a jones matrix
+    # Calculate Jones matrices for every baseline
+    JJ = np.zeros((lm.shape[0],lm.shape[1],len(baselines),4,4),dtype=complex)
+    D = np.eye(2)
+
+    # parallactic angle
+    beta = [Observer(EarthLocation(st.x*un.m,st.y*un.m,st.z*un.m)).parallactic_angle(time, src_crd) for st in array]
+
+    for i, b in enumerate(baselines):
+        # calculate E Matrices
+        E1 = getE(lm, b.st1, wave)
+        E2 = getE(lm, b.st2, wave)
+
+        # calculate P Matrices
+        P1 = getP(beta[b.st1.st_num])
+        P2 = getP(beta[b.st2.st_num])
+        
+
+        # calculate K matrices
+        K1 = getK(b,lm,wave)
+        K2 = K1
+
+
+        for k in range(lm.shape[0]):
+            for l in range(lm.shape[1]):
+                JJ[k,l,i] = np.kron(D@E1[k,l]@P1,(D@E2[k,l]@P2).conj().T)*K1[k,l]
+    return JJ
+
+def getE(lm, station, wave):
+    # calculate matrix E for every point in grid
+    E = np.zeros((lm.shape[0],lm.shape[1],2,2))
+    E[...,0,0] = jinc(np.pi * station.diam / wave * np.sin(np.sqrt(lm[...,0]**2+lm[...,1]**2)))
+    E[...,1,1] = E[...,0,0]
+    return E
+
+
+def getP(beta):
+    #calculate matrix P with parallactic angle beta
+    P = np.zeros((2,2))
+
+    P[0,0] = np.cos(beta)
+    P[0,1] = -np.sin(beta)
+    P[1,0] = np.sin(beta)
+    P[1,1] = np.cos(beta)
+    return P
+
+
+def getK(b,lm,wave):
+    # K = np.zeros((lm.shape[0],lm.shape[1],2,2),dtype=complex)
+    # K[...,0,0] = np.exp(1j*2*np.pi*(b.u*lm[...,0]+b.v*lm[...,1])/wave)
+    # K[...,0,1] = 0
+    # K[...,1,0] = 0
+    # K[...,1,1] = K[...,0,0]
+    return np.exp(1j*2*np.pi*(b.u*lm[...,0]+b.v*lm[...,1])/wave)
+
+
+def integrateV(JJ, I, dl, dm):
+    S = 0.5* np.array([[1,1,0,0],[0,0,1,1j],[0,0,1,-1j],[1,-1,0,0]])
+    vec = np.einsum('lmbij,lmj->lmbi',JJ@S, I)
+    return np.sum(vec, axis=(0,1))#/(dl*dm)
+
+
+
 def jinc(x):
     """Create jinc function.
 
@@ -147,14 +224,17 @@ def jinc(x):
     array
         value of jinc function at x
     """
-    if x == 0:
-        return 1
-    return 2 * j1(x) / x
+    # if x == 0:
+    #     return 1
+    jinc = 2 * j1(x) / x
+    jinc[x==0] = 1
+    return jinc
 
 
-def get_beam(src_crd, array, bgrid, freq):
+def get_beam(src_crd, time, array, bgrid, freq):
     """Calculates telescope beam from source coordinate, telescope array,
-    and observation frequency using bgrid.
+    and observation frequency using bgrid. Uses Jones matrix calculus.
+    J = D E P K
 
     Parameters
     ----------
@@ -172,14 +252,25 @@ def get_beam(src_crd, array, bgrid, freq):
     array
         telescope beam
     """
-    beam = np.zeros((len(array), bgrid.shape[0], bgrid.shape[0]))
+    beam = np.zeros((len(array), bgrid.shape[0], bgrid.shape[0], 2, 2))
+
+    D = np.eye(2)
+
+
     for i in range(bgrid.shape[0]):
         for j in range(bgrid.shape[0]):
             crd = SkyCoord(ra=bgrid[i, j, 0], dec=bgrid[i, j, 1], unit=(un.rad, un.rad))
             dist = src_crd.separation(crd)
             wave = const.c / freq
+
+            locs = [EarthLocation(st.x*un.m,st.y*un.m,st.z*un.m) for st in array]
+            beta = [Observer(locs[i]).parallactic_angle(time, src_crd) for i in range(len(locs))]
             for n, st in enumerate(array):
-                beam[n, i, j] = jinc(np.pi * st.diam / wave * np.sin(dist))
+                P = np.array([[np.cos(beta[n]), -np.sin(beta[n])],[np.sin(beta[n]), np.cos(beta[n])]])
+
+                E = np.array([[jinc(np.pi * st.diam / wave * np.sin(dist)),0],[0,jinc(np.pi * st.diam / wave * np.sin(dist))]])
+
+                beam[n, i, j] = D@E@P
     return beam
 
 
@@ -198,13 +289,21 @@ def get_beam_conv(beam, num_telescopes):
     array
         convolution beams in Fourier space
     """
-    M = np.array([])
-    for i, j1 in enumerate(beam):
-        for j, j2 in enumerate(beam[i + 1 :]):
-            M = np.append(M, j1 * j2)
-
     num_basel = int((num_telescopes ** 2 - num_telescopes) / 2)
-    M = np.reshape(M, (num_basel, beam.shape[1], beam.shape[1]))
+    M = np.zeros((num_basel, beam.shape[1], beam.shape[1], 4, 4))
+    num_tel = 0
+    for i, b1 in enumerate(beam):
+        for j, b2 in enumerate(beam[i + 1 :]):
+            m = np.zeros((beam.shape[1], beam.shape[1], 4, 4))
+            for k in range(beam.shape[1]):
+                for l in range(beam.shape[1]):
+                    m[k,l] = np.kron(b1[k,l],np.conjugate(b1[k,l]))
+            M[num_tel] = m
+            print(num_tel)
+            num_tel += 1
+
+    # num_basel = int((num_telescopes ** 2 - num_telescopes) / 2)
+    # M = np.reshape(M, (num_basel, beam.shape[1], beam.shape[1], 4, 4))
     M_ft = np.fft.fft2(M)
     return M_ft
 
@@ -247,13 +346,13 @@ def get_uvPatch(img_ft, bgrid, freq, bw, start_uv, stop_uv, cellsize):
     u1 = np.array(u0) + np.array(udim)
     v1 = np.array(v0) + np.array(vdim)
 
-    spu = (np.ceil(u0 / cellsize) + int(img_ft.shape[0] / 2)).astype(int)
-    spv = (np.ceil(v0 / cellsize) + int(img_ft.shape[0] / 2)).astype(int)
+    spu = (np.ceil(u0 / cellsize) + int(img_ft.shape[1] / 2)).astype(int)
+    spv = (np.ceil(v0 / cellsize) + int(img_ft.shape[1] / 2)).astype(int)
 
-    epu = (np.ceil(u1 / cellsize) + int(img_ft.shape[0] / 2)).astype(int)
-    epv = (np.ceil(v1 / cellsize) + int(img_ft.shape[0] / 2)).astype(int)
+    epu = (np.ceil(u1 / cellsize) + int(img_ft.shape[1] / 2)).astype(int)
+    epv = (np.ceil(v1 / cellsize) + int(img_ft.shape[1] / 2)).astype(int)
 
-    patch = [img_ft[spu[i] : epu[i], spv[i] : epv[i]] for i in range(spu.shape[0])]
+    patch = [img_ft[:,spu[i] : epu[i], spv[i] : epv[i]] for i in range(spu.shape[0])]
     return patch
 
 
@@ -272,7 +371,7 @@ def conv(patch, M_ft):
     array
         convolved sky patch
     """
-    conv = [sig.convolve2d(patch[i], M_ft[i], mode="valid") for i in range(len(patch))]
+    conv = [np.array([sig.convolve2d(patch[i][0], M_ft[i][0], mode="valid"),sig.convolve2d(patch[i][1], M_ft[i][1], mode="valid"),sig.convolve2d(patch[i][2], M_ft[i][2], mode="valid"),sig.convolve2d(patch[i][3], M_ft[i][3], mode="valid")]) for i in range(len(patch))]
     return conv
 
 
