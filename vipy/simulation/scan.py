@@ -213,6 +213,21 @@ def create_bgrid(fov, samples, src_crd):
 
 
 def lm(grid, src_crd):
+    """Calculates lm grid of the source. Depends on beam (rename to FOV grid?)
+    and source position
+
+    Parameters
+    ----------
+    grid : 2d array
+        beam/fov grid of source
+    src_crd : astropy SkyCoord
+        Position of source 
+
+    Returns
+    -------
+    2d array
+        fov grid in lm/cosine coordinates for FOV
+    """
     lm = np.zeros(grid.shape)
     ra = grid[...,0]
     dec = grid[...,1]
@@ -221,7 +236,32 @@ def lm(grid, src_crd):
     return lm
 
 
-def getJones(lm, baselines, wave, time, src_crd, array):
+def getJones(lm, baselines, wave, time, src_crd, array_layout):
+    """Calculate all Jones matrices for stations in every baselines given and returns
+    Kronecker product (Mueller matrix).
+
+    Parameters
+    ----------
+    lm : 2d array
+        lm grid for FOV
+    baselines : dataclass object
+        all calculated baselines for measurement
+    wave : float
+        wavelenght for observation
+    time : astropy time object
+        times for every set of baselines measured
+    src_crd : astropy SkyCoord
+        position of source
+    array_layout : dataclass object
+        station information
+
+    Returns
+    -------
+    5d array
+        Shape of first two axes is given by fov grid. Shape of third axis is given by number of baselines.
+        Last two axes have shape of 4 (Mueller matrix).
+        This output return a Mueller matrix for every baseline and pixel in lm grid.
+    """
     # J = E P K
     # for every entry in baselines exists one station pair (st1,st2)
     # st1 has a jones matrix, st2 has a jones matrix
@@ -229,7 +269,7 @@ def getJones(lm, baselines, wave, time, src_crd, array):
     JJ = np.zeros((lm.shape[0],lm.shape[1],baselines.name.shape[0],4,4),dtype=complex)
 
     # parallactic angle
-    beta = np.array([Observer(EarthLocation(st.x*un.m,st.y*un.m,st.z*un.m)).parallactic_angle(time, src_crd) for st in array])
+    beta = np.array([Observer(EarthLocation(st.x*un.m,st.y*un.m,st.z*un.m)).parallactic_angle(time, src_crd) for st in array_layout])
 
 
     # calculate E Matrices
@@ -253,13 +293,29 @@ def getJones(lm, baselines, wave, time, src_crd, array):
     J1 = E1@P1
     J2 = E2@P2
 
-    JJ = np.einsum('...lm,...no->...lnmo',J1,J2).reshape(256,256,28,4,4)*K
-    # for k in range(lm.shape[0]):
-    #     for l in range(lm.shape[1]):
-    #         JJ[k,l] = np.kron(E1[k,l]@P1,(E2[k,l]@P2).conj().T)#*K1[k,l]
+    #Kronecker product
+    JJ = np.einsum('...lm,...no->...lnmo',J1,J2).reshape(lm.shape[0],lm.shape[1],baselines.name.shape[0],4,4)*K
+
     return JJ
 
 def getE(lm, stations, wave):
+    """Calculates Jones matrix E for every pixel in lm grid and every station given.
+
+    Parameters
+    ----------
+    lm : 2d array
+        lm grid for FOV
+    stations : dataclass object
+        station information
+    wave : float
+        wavelenght
+
+    Returns
+    -------
+    5d array
+        Returns Jones matrix for every pixel in lm grid and every station.
+        Shape is given by lm-grid axes, station axis, and (2,2) Jones matrix axes
+    """
     # calculate matrix E for every point in grid
     E = np.zeros((lm.shape[0],lm.shape[1], stations.shape[0],2,2))
 
@@ -275,6 +331,19 @@ def getE(lm, stations, wave):
 
 
 def getP(beta):
+    """Calculates Jones matrix P for given parallactic angles beta
+
+    Parameters
+    ----------
+    beta : float array
+        parallactic angles
+
+    Returns
+    -------
+    3d array
+        Return Jones matrix for every angle.
+        Shape is given by beta axis and (2,2) Jones matrix axes
+    """
     #calculate matrix P with parallactic angle beta
     P = np.zeros((beta.shape[0],2,2))
 
@@ -286,19 +355,29 @@ def getP(beta):
 
 
 def getK(baselines,lm,wave):
+    """Calculates Fouriertransformation Kernel for every baseline and pixel in lm grid.
+
+    Parameters
+    ----------
+    baselines : dataclass object
+        basline information
+    lm : 2d array
+        lm grid for FOV
+    wave : float
+        wavelength
+
+    Returns
+    -------
+    3d array
+        Return Fourier Kernel for every pixel in lm grid and given baslines.
+        Shape is given by lm axes and baseline axis
+    """
     u = np.zeros((lm.shape[0],lm.shape[1], baselines.name.shape[0]))
     v = np.zeros((lm.shape[0],lm.shape[1], baselines.name.shape[0]))
-    u[:,:] = baselines.u
-    v[:,:] = baselines.v
+    u[:,:] = baselines.u/wave
+    v[:,:] = baselines.v/wave
 
     return np.exp(1j*2*np.pi*(u*np.repeat(lm[...,0],baselines.name.shape[0],1).reshape(lm.shape[0],lm.shape[1],baselines.name.shape[0])+v*np.repeat(lm[...,1],baselines.name.shape[0],1).reshape(lm.shape[0],lm.shape[1],baselines.name.shape[0]))/wave)
-
-
-def integrateV(JJ, I, dl, dm):
-    S = 0.5* np.array([[1,1,0,0],[0,0,1,1j],[0,0,1,-1j],[1,-1,0,0]])
-    vec = np.einsum('lmbij,lmj->lmbi',JJ@S, I)
-    return np.sum(vec, axis=(0,1))#/(dl*dm)
-
 
 
 def jinc(x):
@@ -321,162 +400,20 @@ def jinc(x):
     return jinc
 
 
-def get_beam(src_crd, time, array, bgrid, freq):
-    """Calculates telescope beam from source coordinate, telescope array,
-    and observation frequency using bgrid. Uses Jones matrix calculus.
-    J = D E P K
+def integrate(JJ_f1, JJ_f2, I, base_num, delta_t, delta_f, delta_l, delta_m):
+    #Stokes matrix
+    S = 0.5* np.array([[1,1,0,0],[0,0,1,1j],[0,0,1,-1j],[1,-1,0,0]])
+    JJ_f1 = np.einsum('lmbij,lmj->lmbi',JJ_f1@S, I)
+    JJ_f2 = np.einsum('lmbij,lmj->lmbi',JJ_f2@S, I)
 
-    Parameters
-    ----------
-    src_crd : astropy SkyCoord object
-        ra and dec of source location / pointing center
-    array : dataclass object (?)
-        station information
-    bgrid : 2d array
-        2d grid correponding to field of view
-    freq : float
-        observation frequency
+    JJ_f = np.stack((JJ_f1, JJ_f2))
+    del JJ_f1, JJ_f2
 
-    Returns
-    -------
-    array
-        telescope beam
-    """
-    beam = np.zeros((len(array), bgrid.shape[0], bgrid.shape[0], 2, 2))
+    int_m = np.trapz(JJ_f, axis=2)
+    int_l = np.trapz(int_m, axis=1)
+    int_f = np.trapz(int_l, axis=0)
+    int_t = np.trapz(np.stack((int_f[:-base_num], int_f[base_num:])), axis=0)
 
-    D = np.eye(2)
+    integral = int_t/(delta_t*delta_f*delta_l*delta_m)
 
-
-    for i in range(bgrid.shape[0]):
-        for j in range(bgrid.shape[0]):
-            crd = SkyCoord(ra=bgrid[i, j, 0], dec=bgrid[i, j, 1], unit=(un.rad, un.rad))
-            dist = src_crd.separation(crd)
-            wave = const.c / freq
-
-            locs = [EarthLocation(st.x*un.m,st.y*un.m,st.z*un.m) for st in array]
-            beta = [Observer(locs[i]).parallactic_angle(time, src_crd) for i in range(len(locs))]
-            for n, st in enumerate(array):
-                P = np.array([[np.cos(beta[n]), -np.sin(beta[n])],[np.sin(beta[n]), np.cos(beta[n])]])
-
-                E = np.array([[jinc(np.pi * st.diam / wave * np.sin(dist)),0],[0,jinc(np.pi * st.diam / wave * np.sin(dist))]])
-
-                beam[n, i, j] = D@E@P
-    return beam
-
-
-def get_beam_conv(beam, num_telescopes):
-    """Calculate convolution beam in Fourier space.
-
-    Parameters
-    ----------
-    beam : array
-        beams of different stations
-    num_telescopes : int
-        number of stations
-
-    Returns
-    -------
-    array
-        convolution beams in Fourier space
-    """
-    num_basel = int((num_telescopes ** 2 - num_telescopes) / 2)
-    M = np.zeros((num_basel, beam.shape[1], beam.shape[1], 4, 4))
-    num_tel = 0
-    for i, b1 in enumerate(beam):
-        for j, b2 in enumerate(beam[i + 1 :]):
-            m = np.zeros((beam.shape[1], beam.shape[1], 4, 4))
-            for k in range(beam.shape[1]):
-                for l in range(beam.shape[1]):
-                    m[k,l] = np.kron(b1[k,l],np.conjugate(b1[k,l]))
-            M[num_tel] = m
-            print(num_tel)
-            num_tel += 1
-
-    # num_basel = int((num_telescopes ** 2 - num_telescopes) / 2)
-    # M = np.reshape(M, (num_basel, beam.shape[1], beam.shape[1], 4, 4))
-    M_ft = np.fft.fft2(M)
-    return M_ft
-
-
-def get_uvPatch(img_ft, bgrid, freq, bw, start_uv, stop_uv, cellsize):
-    start_freq = freq - bw / 2
-    stop_freq = freq + bw / 2
-
-    u_11 = [st.u * start_freq / const.c for st in start_uv]  # start freq, start uv
-    v_11 = [st.v * start_freq / const.c for st in start_uv]  # start freq, start uv
-    u_12 = [st.u * stop_freq / const.c for st in start_uv]  # stop freq, start uv
-    v_12 = [st.v * stop_freq / const.c for st in start_uv]  # stop freq, start uv
-    u_21 = [st.u * start_freq / const.c for st in stop_uv]  # start freq, stop uv
-    v_21 = [st.v * start_freq / const.c for st in stop_uv]  # start freq, stop uv
-    u_22 = [st.u * stop_freq / const.c for st in stop_uv]  # stop freq, stop uv
-    v_22 = [st.v * stop_freq / const.c for st in stop_uv]  # stop freq, stop uv
-
-    # get corners of rectangular patch
-    u_max = max(max(u_11, u_12), max(u_21, u_22))
-    v_max = max(max(v_11, v_12), max(v_21, v_22))
-    u_min = min(min(u_11, u_12), min(u_21, u_22))
-    v_min = min(min(v_11, v_12), min(v_21, v_22))
-
-    # get patch
-    udim = [
-        abs(u_max[i] - u_min[i]) + 4.0 * cellsize + bgrid.shape[1] * cellsize
-        for i in range(len(u_max))
-    ]
-    vdim = [
-        abs(v_max[i] - v_min[i]) + 4.0 * cellsize + bgrid.shape[1] * cellsize
-        for i in range(len(u_max))
-    ]
-
-    npu = np.ceil(udim / cellsize)  # defined but unused
-    npv = np.ceil(vdim / cellsize)  # defined but unused
-
-    u0 = [b.u for b in start_uv]
-    v0 = [b.v for b in start_uv]
-
-    u1 = np.array(u0) + np.array(udim)
-    v1 = np.array(v0) + np.array(vdim)
-
-    spu = (np.ceil(u0 / cellsize) + int(img_ft.shape[1] / 2)).astype(int)
-    spv = (np.ceil(v0 / cellsize) + int(img_ft.shape[1] / 2)).astype(int)
-
-    epu = (np.ceil(u1 / cellsize) + int(img_ft.shape[1] / 2)).astype(int)
-    epv = (np.ceil(v1 / cellsize) + int(img_ft.shape[1] / 2)).astype(int)
-
-    patch = [img_ft[:,spu[i] : epu[i], spv[i] : epv[i]] for i in range(spu.shape[0])]
-    return patch
-
-
-def conv(patch, M_ft):
-    """Calculates convolution between sky patch and telescope beam.
-
-    Parameters
-    ----------
-    patch : array
-        sky patches
-    M_ft : array
-        telescope's convolution beams in Fourier space
-
-    Returns
-    -------
-    array
-        convolved sky patch
-    """
-    conv = [np.array([sig.convolve2d(patch[i][0], M_ft[i][0], mode="valid"),sig.convolve2d(patch[i][1], M_ft[i][1], mode="valid"),sig.convolve2d(patch[i][2], M_ft[i][2], mode="valid"),sig.convolve2d(patch[i][3], M_ft[i][3], mode="valid")]) for i in range(len(patch))]
-    return conv
-
-
-def integrate(conv):
-    """Integrates convolved sky patch to calculate visibility.
-
-    Parameters
-    ----------
-    conv : array
-        sky patch convolved with telescope beam
-
-    Returns
-    -------
-    complex
-        visibility
-    """
-    vis = [np.sum(conv[i]) for i in range(len(conv))]
-    return vis
+    return integral
