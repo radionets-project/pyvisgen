@@ -74,18 +74,17 @@ def calc_time_steps(conf):
     scan_duration = conf["scan_duration"]
     int_time = conf["corr_int_time"]
 
-    time_start = Time(
-        [
-            start_time + interval * i * u.second + j * integration_time * u.second
-            for i in range(num_scans)
-            for j in range(int(scan_duration / int_time))
-        ]
+    time_lst = [
+        start_time + interval * i * u.second + j * integration_time * u.second
+        for i in range(num_scans)
+        for j in range(int(scan_duration / int_time))
+    ]
+    # append one extra time because stop times can be achieved by shifting start time by scan_duration / int_time
+    time_lst.append(
+        start_time
+        + interval * (num_scans - 1) * u.second
+        + int(scan_duration / int_time) * integration_time * u.second
     )
-    time_stop = Time(
-        [
-            start_time + interval * i * u.second + (j + 1) * integration_time * u.second
-            for i in range(num_scans)
-            for j in range(int(scan_duration / int_time))
-        ]
-    )
-    return time_start, time_stop
+    time = Time(time_lst)
+
+    return time
