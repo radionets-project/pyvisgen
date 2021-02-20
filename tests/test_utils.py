@@ -44,8 +44,7 @@ def test_calc_time_steps():
     from vipy.simulation.utils import read_config
     from vipy.simulation.utils import calc_time_steps
 
-    conf = read_config("config/default.toml")
-    time_start, time_stop = calc_time_steps(conf)
+    conf = read_config("/net/nfshome/home/sfroese/vipy/config/default.toml")
+    time = calc_time_steps(conf)
 
-    assert time_start.shape == (2160,)
-    assert time_start.shape == time_stop.shape
+    assert time.shape == (2161,)
