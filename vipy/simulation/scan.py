@@ -291,6 +291,8 @@ def getJones(lm, baselines, wave, time, src_crd, array_layout):
         ]
     )
 
+    
+
     # calculate E Matrices
     E_st = getE(lm, array_layout, wave)
 
@@ -302,8 +304,10 @@ def getJones(lm, baselines, wave, time, src_crd, array_layout):
     E2 = torch.tensor(E_st[:, :, st2_num, :, :])
 
     # calculate P Matrices
-    P1 = torch.tensor(getP(st1_num))
-    P2 = torch.tensor(getP(st2_num))
+    b1 = np.array([beta[st1_num[i],int(i/(st1_num.shape[0]/beta.shape[1]))] for i in range(st1_num.shape[0])])
+    b2 = np.array([beta[st2_num[i],int(i/(st2_num.shape[0]/beta.shape[1]))] for i in range(st2_num.shape[0])])
+    P1 = torch.tensor(getP(b1))
+    P2 = torch.tensor(getP(b2))
 
     # calculate K matrices
     K = torch.tensor(getK(baselines, lm, wave))
