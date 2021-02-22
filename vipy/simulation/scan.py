@@ -296,30 +296,35 @@ def getJones(lm, baselines, wave, time, src_crd, array_layout):
     # calculate E Matrices
     E_st = getE(lm, array_layout, wave)
 
-    vectorized_num = np.vectorize(lambda st: st.st_num)
-    st1_num = vectorized_num(baselines.st1)
-    st2_num = vectorized_num(baselines.st2)
+    vectorized_num = np.vectorize(lambda st: st.st_num, otypes=[int])
+    valid = baselines.valid.astype(bool)
+
+    st1_num = vectorized_num(baselines.st1[valid])
+    st2_num = vectorized_num(baselines.st2[valid])
+    
+    if st1_num.shape[0] == 0:
+        return torch.zeros(1)
 
     E1 = torch.tensor(E_st[:, :, st1_num, :, :])
     E2 = torch.tensor(E_st[:, :, st2_num, :, :])
 
     # calculate P Matrices
-    b1 = np.array([beta[st1_num[i],int(i/(st1_num.shape[0]/beta.shape[1]))] for i in range(st1_num.shape[0])])
-    b2 = np.array([beta[st2_num[i],int(i/(st2_num.shape[0]/beta.shape[1]))] for i in range(st2_num.shape[0])])
+    time_step_of_baseline = np.array([int(i/(baselines.st1.shape[0]/beta.shape[1])) for i in range(baselines.st1.shape[0])])[valid]
+    b1 = np.array([beta[st1_num[i],time_step_of_baseline[i]] for i in range(st1_num.shape[0])])
+    b2 = np.array([beta[st2_num[i],time_step_of_baseline[i]] for i in range(st2_num.shape[0])])
     P1 = torch.tensor(getP(b1))
     P2 = torch.tensor(getP(b2))
 
     # calculate K matrices
     K = torch.tensor(getK(baselines, lm, wave))
-    # K = np.repeat(K, 4, axis=2).reshape(K.shape[0], K.shape[1], K.shape[2], 4)
-    # K = np.repeat(K, 4, axis=3).reshape(K.shape[0], K.shape[1], K.shape[2], 4, 4)
+
 
     J1 = torch.matmul(E1, P1)
     J2 = torch.matmul(E2, P2)
 
     # Kronecker product
     JJ = torch.einsum("...lm,...no->...lnmo", J1, J2).reshape(
-        lm.shape[0], lm.shape[1], baselines.name.shape[0], 4, 4
+        lm.shape[0], lm.shape[1], st1_num.shape[0], 4, 4
     )
     JJ = torch.einsum("lmbij,lmb->lmbij", JJ, K)
 
@@ -382,7 +387,7 @@ def getP(beta):
     """
     # calculate matrix P with parallactic angle beta
     P = np.zeros((beta.shape[0], 2, 2))
-
+    
     P[:, 0, 0] = np.cos(beta)
     P[:, 0, 1] = -np.sin(beta)
     P[:, 1, 0] = np.sin(beta)
@@ -408,8 +413,9 @@ def getK(baselines, lm, wave):
         Return Fourier Kernel for every pixel in lm grid and given baslines.
         Shape is given by lm axes and baseline axis
     """
-    u = torch.tensor(baselines.u / wave)
-    v = torch.tensor(baselines.v / wave)
+    valid = baselines.valid.astype(bool)
+    u = torch.tensor(baselines.u[valid] / wave)
+    v = torch.tensor(baselines.v[valid] / wave)
     l = torch.tensor(lm[:, :, 0])
     m = torch.tensor(lm[:, :, 1])
 
