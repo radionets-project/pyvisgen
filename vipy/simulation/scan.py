@@ -9,6 +9,7 @@ from astroplan import Observer
 from vipy.simulation.utils import single_occurance, get_pairs
 from vipy.layouts import layouts
 import torch
+import itertools
 
 
 @dataclass
@@ -291,17 +292,20 @@ def getJones(lm, baselines, wave, time, src_crd, array_layout):
         ]
     )
 
-    
-
     # calculate E Matrices
     E_st = getE(lm, array_layout, wave)
 
     vectorized_num = np.vectorize(lambda st: st.st_num, otypes=[int])
     valid = baselines.valid.astype(bool)
 
-    st1_num = vectorized_num(baselines.st1[valid])
-    st2_num = vectorized_num(baselines.st2[valid])
-    
+    stat_num = array_layout.st_num.shape[0]
+    base_num = int(stat_num * (stat_num - 1) / 2)
+
+    st1, st2 = get_valid_baselines(baselines, base_num)
+
+    st1_num = vectorized_num(st1)
+    st2_num = vectorized_num(st2)
+
     if st1_num.shape[0] == 0:
         return torch.zeros(1)
 
@@ -309,15 +313,14 @@ def getJones(lm, baselines, wave, time, src_crd, array_layout):
     E2 = torch.tensor(E_st[:, :, st2_num, :, :])
 
     # calculate P Matrices
-    time_step_of_baseline = np.array([int(i/(baselines.st1.shape[0]/beta.shape[1])) for i in range(baselines.st1.shape[0])])[valid]
-    b1 = np.array([beta[st1_num[i],time_step_of_baseline[i]] for i in range(st1_num.shape[0])])
-    b2 = np.array([beta[st2_num[i],time_step_of_baseline[i]] for i in range(st2_num.shape[0])])
+    tsob = time_step_of_baseline(baselines, base_num)
+    b1 = np.array([beta[st1_num[i], tsob[i]] for i in range(st1_num.shape[0])])
+    b2 = np.array([beta[st2_num[i], tsob[i]] for i in range(st2_num.shape[0])])
     P1 = torch.tensor(getP(b1))
     P2 = torch.tensor(getP(b2))
 
     # calculate K matrices
-    K = torch.tensor(getK(baselines, lm, wave))
-
+    K = getK(baselines, lm, wave, base_num)
 
     J1 = torch.matmul(E1, P1)
     J2 = torch.matmul(E2, P2)
@@ -387,7 +390,7 @@ def getP(beta):
     """
     # calculate matrix P with parallactic angle beta
     P = np.zeros((beta.shape[0], 2, 2))
-    
+
     P[:, 0, 0] = np.cos(beta)
     P[:, 0, 1] = -np.sin(beta)
     P[:, 1, 0] = np.sin(beta)
@@ -395,7 +398,7 @@ def getP(beta):
     return P
 
 
-def getK(baselines, lm, wave):
+def getK(baselines, lm, wave, base_num):
     """Calculates Fouriertransformation Kernel for every baseline and pixel in lm grid.
 
     Parameters
@@ -410,17 +413,29 @@ def getK(baselines, lm, wave):
     Returns
     -------
     3d array
-        Return Fourier Kernel for every pixel in lm grid and given baslines.
+        Return Fourier Kernel for every pixel in lm grid and given baselines.
         Shape is given by lm axes and baseline axis
     """
-    valid = baselines.valid.astype(bool)
-    u = torch.tensor(baselines.u[valid] / wave)
-    v = torch.tensor(baselines.v[valid] / wave)
+    # new valid baseline calculus. for details see function get_valid_baselines()
+    valid = baselines.valid.reshape(-1, base_num)
+    mask = np.array(valid[:-1]).astype(bool) & np.array(valid[1:]).astype(bool)
+
+    u = baselines.u.reshape(-1, base_num) / wave
+    v = baselines.v.reshape(-1, base_num) / wave
+
+    u_start = u[:-1][mask]
+    u_stop = u[1:][mask]
+    v_start = v[:-1][mask]
+    v_stop = v[1:][mask]
+
+    u_cmplt = np.append(u_start, u_stop)
+    v_cmplt = np.append(v_start, v_stop)
+
     l = torch.tensor(lm[:, :, 0])
     m = torch.tensor(lm[:, :, 1])
 
-    ul = torch.einsum("b,ij->ijb", u, l)
-    vm = torch.einsum("b,ij->ijb", v, m)
+    ul = torch.einsum("b,ij->ijb", torch.tensor(u_cmplt), l)
+    vm = torch.einsum("b,ij->ijb", torch.tensor(v_cmplt), m)
 
     K = torch.exp(2 * np.pi * 1j * (ul + vm))
 
@@ -442,8 +457,10 @@ def jinc(x):
     """
     # if x == 0:
     #     return 1
-    jinc = 2 * j1(x) / x
-    jinc[x == 0] = 1
+    # jinc = 2 * j1(x) / x
+    # jinc[x == 0] = 1
+    jinc = np.ones(x.shape)
+    jinc[x != 0] = 2 * j1(x[x != 0]) / x[x != 0]
     return jinc
 
 
@@ -488,8 +505,88 @@ def integrate(JJ_f1, JJ_f2, I, base_num, delta_t, delta_f, delta_l, delta_m):
     int_m = torch.trapz(JJ_f, axis=2)
     int_l = torch.trapz(int_m, axis=1)
     int_f = torch.trapz(int_l, axis=0)
-    int_t = torch.trapz(torch.stack((int_f[:-base_num], int_f[base_num:])), axis=0)
+    int_t = torch.trapz(
+        torch.stack(torch.split(int_f, int(int_f.shape[0] / 2), dim=0)), axis=0
+    )
 
     integral = int_t / (delta_t * delta_f * delta_l * delta_m)
 
     return integral
+
+
+def get_valid_baselines(baselines, base_num):
+    """Calculates all valid baselines. This depens on the baselines that are visible at start and stop times
+
+    Parameters
+    ----------
+    baselines : dataclass object
+        baseline spec
+    base_num : number of all baselines per time step
+        N*(N-1)/2
+
+    Returns
+    -------
+    2 1d arrays
+        Returns valid stations for every baselines as array
+    """
+    # reshape valid mask to (time, total baselines per time)
+    valid = baselines.valid.reshape(-1, base_num)
+
+    # generate a mask to only take baselines that are visible at start and stop time
+    # example:  telescope is visible at time t_0 but not visible at time t_1, therefore throw away baseline
+    # this is checked for every pair of time: t_0-t_1, t_1-t_2,...
+    # t_0<-mask[0]->t_1, t_1<-mask[1]->t_2,...
+    mask = np.array(valid[:-1]).astype(bool) & np.array(valid[1:]).astype(bool)
+
+    # reshape stations to apply mask
+    st1 = baselines.st1.reshape(-1, base_num)
+    st2 = baselines.st2.reshape(-1, base_num)
+
+    # apply mask
+    # bas_stx[:-1][mask] gives all start stx
+    # bas_stx[1:][mask] gives all stop stx
+    st1_start = st1[:-1][mask]
+    st1_stop = st1[1:][mask]
+    st2_start = st2[:-1][mask]
+    st2_stop = st2[1:][mask]
+
+    st1_cmplt = np.append(st1_start, st1_stop)
+    st2_cmplt = np.append(st2_start, st2_stop)
+
+    return st1_cmplt, st2_cmplt
+
+
+def time_step_of_baseline(baselines, base_num):
+    """Calculates the time step for every valid baseline
+
+    Parameters
+    ----------
+    baselines : dataclass object
+        baseline specs
+    base_num : number of all baselines per time step
+        N*(N-1)/2
+
+    Returns
+    -------
+    1d array
+        Return array with every time step repeated N times, where N is the number of valid baselines per time step
+    """
+    # reshape valid mask to (time, total baselines per time)
+    valid = baselines.valid.reshape(-1, base_num)
+
+    # generate a mask to only take baselines that are visible at start and stop time
+    # example:  telescope is visible at time t_0 but not visible at time t_1, therefore throw away baseline
+    # this is checked for every pair of time: t_0-t_1, t_1-t_2,...
+    # t_0<-mask[0]->t_1, t_1<-mask[1]->t_2,...
+    mask = np.array(valid[:-1]).astype(bool) & np.array(valid[1:]).astype(bool)
+
+    # DIFFERENCE TO get_valid_baselines
+    # calculate sum over axis 1 to get number of valid baselines at each time step
+    valid_per_step = np.sum(mask, axis=1)
+
+    # write time for every valid basline into list and reshape
+    time_step = [[t_idx] * vps for t_idx, vps in enumerate(valid_per_step)]
+    time_step = np.array(list(itertools.chain(*time_step)))
+    time_step = np.append(time_step, time_step + 1)  # +1???
+
+    return time_step
