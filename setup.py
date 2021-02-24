@@ -2,7 +2,7 @@ from setuptools import setup, find_packages
 
 setup(
     name="vipy",
-    version="0.0.2",
+    version="0.0.3",
     description="Simulate radio interferometer observations and visibility generation.",
     url="https://github.com/radionets-project/vipy",
     author="Kevin Schmidt, Felix Geyer, Stefan Fröse",
@@ -20,6 +20,9 @@ setup(
         "pytest",
         "pytest-cov",
         "jupyter",
+        "astroplan",
+        "torch",
+        "tqdm",
     ],
     setup_requires=["pytest-runner"],
     tests_require=["pytest"],

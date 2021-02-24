@@ -5,14 +5,18 @@ import numpy as np
 from scipy.special import j1
 import scipy.constants as const
 import scipy.signal as sig
+from astroplan import Observer
 from vipy.simulation.utils import single_occurance, get_pairs
+from vipy.layouts import layouts
+import torch
+import itertools
 
 
 @dataclass
 class Baselines:
     name: [str]
-    st1: [int]
-    st2: [int]
+    st1: [object]
+    st2: [object]
     u: [float]
     v: [float]
     w: [float]
@@ -43,15 +47,15 @@ class Baselines:
 @dataclass
 class Baseline:
     name: str
-    st1: int
-    st2: int
+    st1: object
+    st2: object
     u: float
     v: float
     w: float
     valid: bool
 
     def baselineNum(self):
-        return 256 * (self.st1 + 1) + self.st2 + 1
+        return 256 * (self.st1.st_num + 1) + self.st2.st_num + 1
 
 
 def get_baselines(src_crd, time, array_layout):
@@ -62,7 +66,7 @@ def get_baselines(src_crd, time, array_layout):
     ----------
     src_crd : astropy SkyCoord object
         ra and dec of source location / pointing center
-    time : astropy time object
+    time : w time object
         time of observation
     array_layout : dataclass object
         station information
@@ -168,7 +172,15 @@ def get_baselines(src_crd, time, array_layout):
         valid = valid.reshape(-1)
 
         # collect baselines
-        base = Baselines(names, st_nums[:, 0], st_nums[:, 1], u, v, w, valid)
+        base = Baselines(
+            names,
+            array_layout[st_nums[:, 0]],
+            array_layout[st_nums[:, 1]],
+            u,
+            v,
+            w,
+            valid,
+        )
         baselines.add(base)
     return baselines
 
@@ -194,7 +206,7 @@ def create_bgrid(fov, samples, src_crd):
     spacing = fov / samples
 
     bgrid = np.zeros((samples, samples, 2))
-    mgrid = np.meshgrid(np.arange(32), np.arange(32))
+    mgrid = np.meshgrid(np.arange(samples), np.arange(samples))
 
     sd = np.sin(src_crd.dec.rad)
     cd = np.cos(src_crd.dec.rad)
@@ -210,6 +222,226 @@ def create_bgrid(fov, samples, src_crd):
     return bgrid
 
 
+def lm(grid, src_crd):
+    """Calculates lm grid of the source. Depends on beam (rename to FOV grid?)
+    and source position
+
+    Parameters
+    ----------
+    grid : 2d array
+        beam/fov grid of source
+    src_crd : astropy SkyCoord
+        Position of source
+
+    Returns
+    -------
+    2d array
+        fov grid in lm/cosine coordinates for FOV
+    """
+    lm = np.zeros(grid.shape)
+    ra = grid[..., 0]
+    dec = grid[..., 1]
+    lm[..., 0] = np.cos(src_crd.dec.rad) * np.sin(src_crd.ra.rad - ra)
+    lm[..., 1] = np.sin(dec) * np.cos(src_crd.dec.rad) - np.cos(dec) * np.sin(
+        src_crd.dec.rad
+    ) * np.cos(src_crd.ra.rad - ra)
+    return lm
+
+
+def getJones(lm, baselines, wave, time, src_crd, array_layout):
+    """Calculate all Jones matrices for stations in every baselines given and returns
+    Kronecker product (Mueller matrix).
+
+    Parameters
+    ----------
+    lm : 2d array
+        lm grid for FOV
+    baselines : dataclass object
+        all calculated baselines for measurement
+    wave : float
+        wavelenght for observation
+    time : astropy time object
+        times for every set of baselines measured
+    src_crd : astropy SkyCoord
+        position of source
+    array_layout : dataclass object
+        station information
+
+    Returns
+    -------
+    5d array
+        Shape of first two axes is given by fov grid. Shape of third axis is given by number of baselines.
+        Last two axes have shape of 4 (Mueller matrix).
+        This output return a Mueller matrix for every baseline and pixel in lm grid.
+    """
+    # J = E P K
+    # for every entry in baselines exists one station pair (st1,st2)
+    # st1 has a jones matrix, st2 has a jones matrix
+    # Calculate Jones matrices for every baseline
+    JJ = np.zeros(
+        (lm.shape[0], lm.shape[1], baselines.name.shape[0], 4, 4), dtype=complex
+    )
+
+    # parallactic angle
+    beta = np.array(
+        [
+            Observer(
+                EarthLocation(st.x * un.m, st.y * un.m, st.z * un.m)
+            ).parallactic_angle(time, src_crd)
+            for st in array_layout
+        ]
+    )
+
+    # calculate E Matrices
+    E_st = getE(lm, array_layout, wave)
+
+    vectorized_num = np.vectorize(lambda st: st.st_num, otypes=[int])
+    valid = baselines.valid.astype(bool)
+
+    stat_num = array_layout.st_num.shape[0]
+    base_num = int(stat_num * (stat_num - 1) / 2)
+
+    st1, st2 = get_valid_baselines(baselines, base_num)
+
+    st1_num = vectorized_num(st1)
+    st2_num = vectorized_num(st2)
+
+    if st1_num.shape[0] == 0:
+        return torch.zeros(1)
+
+    E1 = torch.tensor(E_st[:, :, st1_num, :, :])
+    E2 = torch.tensor(E_st[:, :, st2_num, :, :])
+
+    # calculate P Matrices
+    tsob = time_step_of_baseline(baselines, base_num)
+    b1 = np.array([beta[st1_num[i], tsob[i]] for i in range(st1_num.shape[0])])
+    b2 = np.array([beta[st2_num[i], tsob[i]] for i in range(st2_num.shape[0])])
+    P1 = torch.tensor(getP(b1))
+    P2 = torch.tensor(getP(b2))
+
+    # calculate K matrices
+    K = getK(baselines, lm, wave, base_num)
+
+    J1 = torch.matmul(E1, P1)
+    J2 = torch.matmul(E2, P2)
+
+    # Kronecker product
+    JJ = torch.einsum("...lm,...no->...lnmo", J1, J2).reshape(
+        lm.shape[0], lm.shape[1], st1_num.shape[0], 4, 4
+    )
+    JJ = torch.einsum("lmbij,lmb->lmbij", JJ, K)
+
+    return JJ
+
+
+def getE(lm, array_layout, wave):
+    """Calculates Jones matrix E for every pixel in lm grid and every station given.
+
+    Parameters
+    ----------
+    lm : 2d array
+        lm grid for FOV
+    array_layout : dataclass object
+        station information
+    wave : float
+        wavelenght
+
+    Returns
+    -------
+    5d array
+        Returns Jones matrix for every pixel in lm grid and every station.
+        Shape is given by lm-grid axes, station axis, and (2,2) Jones matrix axes
+    """
+    # calculate matrix E for every point in grid
+    E = np.zeros((lm.shape[0], lm.shape[1], array_layout.st_num.shape[0], 2, 2))
+
+    # get diameters of all stations and do vectorizing stuff
+    diameters = array_layout.diam
+    di = np.zeros((lm.shape[0], lm.shape[1], array_layout.st_num.shape[0]))
+    di[:, :] = diameters
+
+    E[..., 0, 0] = jinc(
+        np.pi
+        * di
+        / wave
+        * np.repeat(
+            np.sin(np.sqrt(lm[..., 0] ** 2 + lm[..., 1] ** 2)),
+            array_layout.st_num.shape[0],
+            1,
+        ).reshape((lm.shape[0], lm.shape[1], array_layout.st_num.shape[0]))
+    )
+    E[..., 1, 1] = E[..., 0, 0]
+    return E
+
+
+def getP(beta):
+    """Calculates Jones matrix P for given parallactic angles beta
+
+    Parameters
+    ----------
+    beta : float array
+        parallactic angles
+
+    Returns
+    -------
+    3d array
+        Return Jones matrix for every angle.
+        Shape is given by beta axis and (2,2) Jones matrix axes
+    """
+    # calculate matrix P with parallactic angle beta
+    P = np.zeros((beta.shape[0], 2, 2))
+
+    P[:, 0, 0] = np.cos(beta)
+    P[:, 0, 1] = -np.sin(beta)
+    P[:, 1, 0] = np.sin(beta)
+    P[:, 1, 1] = np.cos(beta)
+    return P
+
+
+def getK(baselines, lm, wave, base_num):
+    """Calculates Fouriertransformation Kernel for every baseline and pixel in lm grid.
+
+    Parameters
+    ----------
+    baselines : dataclass object
+        basline information
+    lm : 2d array
+        lm grid for FOV
+    wave : float
+        wavelength
+
+    Returns
+    -------
+    3d array
+        Return Fourier Kernel for every pixel in lm grid and given baselines.
+        Shape is given by lm axes and baseline axis
+    """
+    # new valid baseline calculus. for details see function get_valid_baselines()
+    valid = baselines.valid.reshape(-1, base_num)
+    mask = np.array(valid[:-1]).astype(bool) & np.array(valid[1:]).astype(bool)
+
+    u = baselines.u.reshape(-1, base_num) / wave
+    v = baselines.v.reshape(-1, base_num) / wave
+
+    u_start = u[:-1][mask]
+    u_stop = u[1:][mask]
+    v_start = v[:-1][mask]
+    v_stop = v[1:][mask]
+
+    u_cmplt = np.append(u_start, u_stop)
+    v_cmplt = np.append(v_start, v_stop)
+
+    l = torch.tensor(lm[:, :, 0])
+    m = torch.tensor(lm[:, :, 1])
+
+    ul = torch.einsum("b,ij->ijb", torch.tensor(u_cmplt), l)
+    vm = torch.einsum("b,ij->ijb", torch.tensor(v_cmplt), m)
+
+    K = torch.exp(2 * np.pi * 1j * (ul + vm))
+
+    return K
+
+
 def jinc(x):
     """Create jinc function.
 
@@ -223,147 +455,138 @@ def jinc(x):
     array
         value of jinc function at x
     """
-    if x == 0:
-        return 1
-    return 2 * j1(x) / x
+    # if x == 0:
+    #     return 1
+    # jinc = 2 * j1(x) / x
+    # jinc[x == 0] = 1
+    jinc = np.ones(x.shape)
+    jinc[x != 0] = 2 * j1(x[x != 0]) / x[x != 0]
+    return jinc
 
 
-def get_beam(src_crd, array, bgrid, freq):
-    """Calculates telescope beam from source coordinate, telescope array,
-    and observation frequency using bgrid.
-
-    Parameters
-    ----------
-    src_crd : astropy SkyCoord object
-        ra and dec of source location / pointing center
-    array : dataclass object (?)
-        station information
-    bgrid : 2d array
-        2d grid correponding to field of view
-    freq : float
-        observation frequency
-
-    Returns
-    -------
-    array
-        telescope beam
-    """
-    beam = np.zeros((len(array), bgrid.shape[0], bgrid.shape[0]))
-    for i in range(bgrid.shape[0]):
-        for j in range(bgrid.shape[0]):
-            crd = SkyCoord(ra=bgrid[i, j, 0], dec=bgrid[i, j, 1], unit=(un.rad, un.rad))
-            dist = src_crd.separation(crd)
-            wave = const.c / freq
-            for n, st in enumerate(array):
-                beam[n, i, j] = jinc(np.pi * st.diam / wave * np.sin(dist))
-    return beam
-
-
-def get_beam_conv(beam, num_telescopes):
-    """Calculate convolution beam in Fourier space.
+def integrate(JJ_f1, JJ_f2, I, base_num, delta_t, delta_f, delta_l, delta_m):
+    """Integration over frequency, time, l, m
 
     Parameters
     ----------
-    beam : array
-        beams of different stations
-    num_telescopes : int
-        number of stations
+    JJ_f1 : 5d array
+        Mueller matrices for frequency-bw
+    JJ_f2 : 5d array
+        Mueller matrices for frequency-bw
+    I : 3d array
+        Stokes vector
+    base_num : int
+        number of baselines per corr_int_time
+    delta_t : float
+        t1-t0
+    delta_f : float
+        bandwidth bw
+    delta_l : float
+        l width
+    delta_m : float
+        m width
 
     Returns
     -------
-    array
-        convolution beams in Fourier space
+    2d array
+        Returns visibility vector for each baseline calculated.
     """
-    M = np.array([])
-    for i, j1 in enumerate(beam):
-        for j, j2 in enumerate(beam[i + 1 :]):
-            M = np.append(M, j1 * j2)
+    # Stokes matrix
+    S = 0.5 * torch.tensor(
+        [[1, 1, 0, 0], [0, 0, 1, 1j], [0, 0, 1, -1j], [1, -1, 0, 0]],
+        dtype=torch.cdouble,
+    )
+    JJ_f1 = torch.einsum("lmbij,lmj->lmbi", JJ_f1 @ S, I)
+    JJ_f2 = torch.einsum("lmbij,lmj->lmbi", JJ_f2 @ S, I)
 
-    num_basel = int((num_telescopes ** 2 - num_telescopes) / 2)
-    M = np.reshape(M, (num_basel, beam.shape[1], beam.shape[1]))
-    M_ft = np.fft.fft2(M)
-    return M_ft
+    JJ_f = torch.stack((JJ_f1, JJ_f2))
+    del JJ_f1, JJ_f2
 
+    int_m = torch.trapz(JJ_f, axis=2)
+    int_l = torch.trapz(int_m, axis=1)
+    int_f = torch.trapz(int_l, axis=0)
+    int_t = torch.trapz(
+        torch.stack(torch.split(int_f, int(int_f.shape[0] / 2), dim=0)), axis=0
+    )
 
-def get_uvPatch(img_ft, bgrid, freq, bw, start_uv, stop_uv, cellsize):
-    start_freq = freq - bw / 2
-    stop_freq = freq + bw / 2
+    integral = int_t / (delta_t * delta_f * delta_l * delta_m)
 
-    u_11 = [st.u * start_freq / const.c for st in start_uv]  # start freq, start uv
-    v_11 = [st.v * start_freq / const.c for st in start_uv]  # start freq, start uv
-    u_12 = [st.u * stop_freq / const.c for st in start_uv]  # stop freq, start uv
-    v_12 = [st.v * stop_freq / const.c for st in start_uv]  # stop freq, start uv
-    u_21 = [st.u * start_freq / const.c for st in stop_uv]  # start freq, stop uv
-    v_21 = [st.v * start_freq / const.c for st in stop_uv]  # start freq, stop uv
-    u_22 = [st.u * stop_freq / const.c for st in stop_uv]  # stop freq, stop uv
-    v_22 = [st.v * stop_freq / const.c for st in stop_uv]  # stop freq, stop uv
-
-    # get corners of rectangular patch
-    u_max = max(max(u_11, u_12), max(u_21, u_22))
-    v_max = max(max(v_11, v_12), max(v_21, v_22))
-    u_min = min(min(u_11, u_12), min(u_21, u_22))
-    v_min = min(min(v_11, v_12), min(v_21, v_22))
-
-    # get patch
-    udim = [
-        abs(u_max[i] - u_min[i]) + 4.0 * cellsize + bgrid.shape[1] * cellsize
-        for i in range(len(u_max))
-    ]
-    vdim = [
-        abs(v_max[i] - v_min[i]) + 4.0 * cellsize + bgrid.shape[1] * cellsize
-        for i in range(len(u_max))
-    ]
-
-    npu = np.ceil(udim / cellsize)  # defined but unused
-    npv = np.ceil(vdim / cellsize)  # defined but unused
-
-    u0 = [b.u for b in start_uv]
-    v0 = [b.v for b in start_uv]
-
-    u1 = np.array(u0) + np.array(udim)
-    v1 = np.array(v0) + np.array(vdim)
-
-    spu = (np.ceil(u0 / cellsize) + int(img_ft.shape[0] / 2)).astype(int)
-    spv = (np.ceil(v0 / cellsize) + int(img_ft.shape[0] / 2)).astype(int)
-
-    epu = (np.ceil(u1 / cellsize) + int(img_ft.shape[0] / 2)).astype(int)
-    epv = (np.ceil(v1 / cellsize) + int(img_ft.shape[0] / 2)).astype(int)
-
-    patch = [img_ft[spu[i] : epu[i], spv[i] : epv[i]] for i in range(spu.shape[0])]
-    return patch
+    return integral
 
 
-def conv(patch, M_ft):
-    """Calculates convolution between sky patch and telescope beam.
+def get_valid_baselines(baselines, base_num):
+    """Calculates all valid baselines. This depens on the baselines that are visible at start and stop times
 
     Parameters
     ----------
-    patch : array
-        sky patches
-    M_ft : array
-        telescope's convolution beams in Fourier space
+    baselines : dataclass object
+        baseline spec
+    base_num : number of all baselines per time step
+        N*(N-1)/2
 
     Returns
     -------
-    array
-        convolved sky patch
+    2 1d arrays
+        Returns valid stations for every baselines as array
     """
-    conv = [sig.convolve2d(patch[i], M_ft[i], mode="valid") for i in range(len(patch))]
-    return conv
+    # reshape valid mask to (time, total baselines per time)
+    valid = baselines.valid.reshape(-1, base_num)
+
+    # generate a mask to only take baselines that are visible at start and stop time
+    # example:  telescope is visible at time t_0 but not visible at time t_1, therefore throw away baseline
+    # this is checked for every pair of time: t_0-t_1, t_1-t_2,...
+    # t_0<-mask[0]->t_1, t_1<-mask[1]->t_2,...
+    mask = np.array(valid[:-1]).astype(bool) & np.array(valid[1:]).astype(bool)
+
+    # reshape stations to apply mask
+    st1 = baselines.st1.reshape(-1, base_num)
+    st2 = baselines.st2.reshape(-1, base_num)
+
+    # apply mask
+    # bas_stx[:-1][mask] gives all start stx
+    # bas_stx[1:][mask] gives all stop stx
+    st1_start = st1[:-1][mask]
+    st1_stop = st1[1:][mask]
+    st2_start = st2[:-1][mask]
+    st2_stop = st2[1:][mask]
+
+    st1_cmplt = np.append(st1_start, st1_stop)
+    st2_cmplt = np.append(st2_start, st2_stop)
+
+    return st1_cmplt, st2_cmplt
 
 
-def integrate(conv):
-    """Integrates convolved sky patch to calculate visibility.
+def time_step_of_baseline(baselines, base_num):
+    """Calculates the time step for every valid baseline
 
     Parameters
     ----------
-    conv : array
-        sky patch convolved with telescope beam
+    baselines : dataclass object
+        baseline specs
+    base_num : number of all baselines per time step
+        N*(N-1)/2
 
     Returns
     -------
-    complex
-        visibility
+    1d array
+        Return array with every time step repeated N times, where N is the number of valid baselines per time step
     """
-    vis = [np.sum(conv[i]) for i in range(len(conv))]
-    return vis
+    # reshape valid mask to (time, total baselines per time)
+    valid = baselines.valid.reshape(-1, base_num)
+
+    # generate a mask to only take baselines that are visible at start and stop time
+    # example:  telescope is visible at time t_0 but not visible at time t_1, therefore throw away baseline
+    # this is checked for every pair of time: t_0-t_1, t_1-t_2,...
+    # t_0<-mask[0]->t_1, t_1<-mask[1]->t_2,...
+    mask = np.array(valid[:-1]).astype(bool) & np.array(valid[1:]).astype(bool)
+
+    # DIFFERENCE TO get_valid_baselines
+    # calculate sum over axis 1 to get number of valid baselines at each time step
+    valid_per_step = np.sum(mask, axis=1)
+
+    # write time for every valid basline into list and reshape
+    time_step = [[t_idx] * vps for t_idx, vps in enumerate(valid_per_step)]
+    time_step = np.array(list(itertools.chain(*time_step)))
+    time_step = np.append(time_step, time_step + 1)  # +1???
+
+    return time_step
