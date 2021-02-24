@@ -47,4 +47,4 @@ def test_calc_time_steps():
     conf = read_config("config/default.toml")
     time = calc_time_steps(conf)
 
-    assert time.shape == (2161,)
+    assert time.shape == (2232,)
