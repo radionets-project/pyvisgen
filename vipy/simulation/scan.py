@@ -503,6 +503,7 @@ def integrate(JJ_f1, JJ_f2, I, base_num, delta_t, delta_f, delta_l, delta_m):
     del JJ_f1, JJ_f2
 
     int_m = torch.trapz(JJ_f, axis=2)
+    del JJ_f
     int_l = torch.trapz(int_m, axis=1)
     int_f = torch.trapz(int_l, axis=0)
     int_t = torch.trapz(
