@@ -21,18 +21,21 @@ class Stations:
     altitude: [float]
 
     def __getitem__(self, i):
-        station = Station(
-            self.st_num[i],
-            self.name[i],
-            self.x[i],
-            self.y[i],
-            self.z[i],
-            self.diam[i],
-            self.el_low[i],
-            self.el_high[i],
-            self.sefd[i],
-            self.altitude[i],
-        )
+        if isinstance(i, np.ndarray):
+            return [self.__getitem__(int(_i)) for _i in i]
+        else:
+            station = Station(
+                self.st_num[i],
+                self.name[i],
+                self.x[i],
+                self.y[i],
+                self.z[i],
+                self.diam[i],
+                self.el_low[i],
+                self.el_high[i],
+                self.sefd[i],
+                self.altitude[i],
+            )
         return station
 
     def get_station(self, name):
