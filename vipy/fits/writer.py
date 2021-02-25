@@ -4,6 +4,7 @@ from astropy import wcs
 import astropy.units as un
 from astropy.time import Time
 import pandas as pd
+import astropy.constants as const
 
 
 def create_vis_hdu(data, conf, layout="EHT", source_name="sim-source-0"):
@@ -43,14 +44,15 @@ def create_vis_hdu(data, conf, layout="EHT", source_name="sim-source-0"):
     ws = wcs.WCS(naxis=7)
     ws.wcs.crpix = [1, 1, 1, 1, 1, 1, 1]
     ws.wcs.cdelt = np.array([1, 1, -1, freq_d, 1, 1, 1])
-    ws.wcs.crval = [1, 1, -1, freq, 1, ra, dec]
+    ws.wcs.crval = [1, 1, -5, freq, 1, ra, dec]
     ws.wcs.ctype = ["", "COMPLEX", "STOKES", "FREQ", "IF", "RA", "DEC"]
     h = ws.to_header()
 
-    scale = 1 / freq
-    u_scale = u * scale
-    v_scale = v * scale
-    w_scale = w * scale
+    scale = 1  # / freq
+    u_scale = u / const.c
+    v_scale = v / const.c
+    w_scale = w / const.c
+    print(u_scale)
     groupdata_vis = fits.GroupData(
         DATA,
         bitpix=-32,
@@ -242,7 +244,7 @@ def create_antenna_hdu(layout_txt, conf, layout="EHT"):
     ORBPARM = np.array([], dtype=">f8")
     col3 = fits.Column(name="ORBPARM", format="0D", unit=" ", array=ORBPARM)
 
-    NOSTA = np.arange(len(array), dtype=">i4")
+    NOSTA = np.arange(len(array), dtype=">i4") + 1
     col4 = fits.Column(name="NOSTA", format="1J", unit=" ", array=NOSTA)
 
     MNTSTA = np.zeros(len(array), dtype=">i4")
