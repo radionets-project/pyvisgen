@@ -14,9 +14,10 @@ def create_vis_hdu(data, conf, layout="EHT", source_name="sim-source-0"):
 
     w = data.w
 
-    DATE = (
-        data.date
+    DATE = data.date - int(
+        data.date.min()
     )  # placeholder, julian date of vis, central time in the integration period
+    print(DATE)
 
     # I think this is not really needed, but dunno, documentation is again insane
     _DATE = (
@@ -72,7 +73,7 @@ def create_vis_hdu(data, conf, layout="EHT", source_name="sim-source-0"):
 
     # add scales and zeors
     parbscales = [scale, scale, scale, 1, 1, 1, 1]
-    parbzeros = [0, 0, 0, 0, 0, 0, 0]
+    parbzeros = [0, 0, 0, 0, int(data.date.min()), 0, 0]
 
     for i in range(len(parbscales)):
         hdu_vis.header["PSCAL" + str(i + 1)] = parbscales[i]
