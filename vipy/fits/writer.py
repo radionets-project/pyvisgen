@@ -31,9 +31,10 @@ def create_vis_hdu(data, conf, layout="EHT", source_name="sim-source-0"):
     # visibility data
     values = data.get_values()
     vis = np.swapaxes(
-        np.stack([values.real, values.imag, np.ones(values.shape)], axis=1), 1, 2
-    ).reshape(-1, 1, 1, 1, 1, 4, 3)
-    DATA = vis  # placeholder, get from sim
+        np.swapaxes(
+            np.stack([values.real, values.imag, np.ones(values.shape)], axis=1), 1, 2
+        ),0,1,).reshape(-1, 1, 1, 1, 1, 4, 3)
+    DATA = vis  
     # in dim 4 = IFs , dim = 1, dim 4 = number of jones, 3 = real, imag, weight
 
     # wcs
@@ -58,9 +59,9 @@ def create_vis_hdu(data, conf, layout="EHT", source_name="sim-source-0"):
         DATA,
         bitpix=-32,
         parnames=[
-            "UU---SIN",
-            "VV---SIN",
-            "WW---SIN",
+            "UU--",
+            "VV--",
+            "WW--",
             "BASELINE",
             "DATE",
             "_DATE",
@@ -189,12 +190,12 @@ def create_frequency_hdu(conf):
         name="IF FREQ", format=str(IF_FREQ.shape[-1]) + "D", unit="Hz", array=IF_FREQ
     )
 
-    CH_WIDTH = np.repeat(np.array([[freq_d]], dtype=">f4"), 4, axis=1)
+    CH_WIDTH = np.repeat(np.array([[freq_d]], dtype=">f4"), 1, axis=1)
     col3 = fits.Column(
         name="CH WIDTH", format=str(CH_WIDTH.shape[-1]) + "E", unit="Hz", array=CH_WIDTH
     )
 
-    TOTAL_BANDWIDTH = np.repeat(np.array([[freq_d]], dtype=">f4"), 4, axis=1)
+    TOTAL_BANDWIDTH = np.repeat(np.array([[freq_d]], dtype=">f4"), 1, axis=1)
     col4 = fits.Column(
         name="TOTAL BANDWIDTH",
         format=str(TOTAL_BANDWIDTH.shape[-1]) + "E",
@@ -370,7 +371,7 @@ def create_antenna_hdu(layout_txt, conf, layout="EHT"):
     return hdu_ant
 
 
-def create_hdu_list(data, conf, path="../vipy/layouts/eht.txt"):
+def create_hdu_list(data, conf, path="../vipy/layouts/vlba.txt"):
     vis_hdu = create_vis_hdu(data, conf)
     time_hdu = create_time_hdu(data)
     freq_hdu = create_frequency_hdu(conf)
