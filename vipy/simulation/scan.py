@@ -185,103 +185,165 @@ def get_baselines(src_crd, time, array_layout):
     return baselines
 
 
-def create_bgrid(fov, samples, src_crd):
-    """Calculates beam grids of telescopes depending on field of view,
-    number of grid samples, and source coordinates.
+def rd_grid(fov, samples, src_crd):
+    """Calculates RA and Dec values for a given fov around a source position
 
     Parameters
     ----------
     fov : float
-        filed of view of observation (telescope?)
+        FOV size
     samples : int
-        number of grid samples
-    src_crd : astropy SkyCoord object
-        ra and dec of source location / pointing center
-
-    Returns
-    -------
-    2d array
-        2d beam grids correponding to field of view
-    """
-    spacing = fov / samples
-
-    bgrid = np.zeros((samples, samples, 2))
-    mgrid = np.meshgrid(np.arange(samples), np.arange(samples))
-
-    sd = np.sin(src_crd.dec.rad)
-    cd = np.cos(src_crd.dec.rad)
-
-    delx = (mgrid[1] - samples / 2.0) * spacing
-    dely = (mgrid[0] - samples / 2.0) * spacing
-
-    alpha = np.arctan(delx / (cd - dely * sd)) + src_crd.ra.rad
-    delta = np.arcsin((sd + dely * cd) / np.sqrt(1 + delx ** 2 + dely ** 2))
-
-    bgrid[..., 0] = alpha
-    bgrid[..., 1] = delta
-    return bgrid
-
-
-def lm(grid, src_crd):
-    """Calculates lm grid of the source. Depends on beam (rename to FOV grid?)
-    and source position
-
-    Parameters
-    ----------
-    grid : 2d array
-        beam/fov grid of source
-    src_crd : astropy SkyCoord
-        Position of source
-
-    Returns
-    -------
-    2d array
-        fov grid in lm/cosine coordinates for FOV
-    """
-    lm = np.zeros(grid.shape)
-    ra = grid[..., 0]
-    dec = grid[..., 1]
-    lm[..., 0] = np.cos(src_crd.dec.rad) * np.sin(src_crd.ra.rad - ra)
-    lm[..., 1] = np.sin(dec) * np.cos(src_crd.dec.rad) - np.cos(dec) * np.sin(
-        src_crd.dec.rad
-    ) * np.cos(src_crd.ra.rad - ra)
-    return lm
-
-
-def getJones(lm, baselines, wave, time, src_crd, array_layout):
-    """Calculate all Jones matrices for stations in every baselines given and returns
-    Kronecker product (Mueller matrix).
-
-    Parameters
-    ----------
-    lm : 2d array
-        lm grid for FOV
-    baselines : dataclass object
-        all calculated baselines for measurement
-    wave : float
-        wavelenght for observation
-    time : astropy time object
-        times for every set of baselines measured
+        number of pixels
     src_crd : astropy SkyCoord
         position of source
-    array_layout : dataclass object
-        station information
 
     Returns
     -------
-    5d array
-        Shape of first two axes is given by fov grid. Shape of third axis is given by number of baselines.
-        Last two axes have shape of 4 (Mueller matrix).
-        This output return a Mueller matrix for every baseline and pixel in lm grid.
+    3d array
+        Returns a 3d array with every pixel containing a RA and Dec value
     """
-    # J = E P K
-    # for every entry in baselines exists one station pair (st1,st2)
-    # st1 has a jones matrix, st2 has a jones matrix
-    # Calculate Jones matrices for every baseline
-    JJ = np.zeros(
-        (lm.shape[0], lm.shape[1], baselines.name.shape[0], 4, 4), dtype=complex
-    )
+    res = fov/samples
 
+    rd_grid = np.zeros((samples,samples,2))
+    for i in range(samples):
+        rd_grid[i,:,0] = np.array([(i-samples/2)*res + src_crd.ra.rad for i in range(samples)])
+        rd_grid[:,i,1] = np.array([-(i-samples/2)*res + src_crd.dec.rad for i in range(samples)])
+
+    return rd_grid
+
+
+def lm_grid(rd_grid, src_crd):
+    """Calculates sine projection for fov
+
+    Parameters
+    ----------
+    rd_grid : 3d array
+        array containing a RA and Dec value in every pixel
+    src_crd : astropy SkyCoord
+        source position
+
+    Returns
+    -------
+    3d array
+        Returns a 3d array with every pixel containing a l and m value
+    """
+    lm_grid = np.zeros(rd_grid.shape)
+    lm_grid[:,:,0] = np.cos(rd_grid[:,:,1]) * np.sin(rd_grid[:,:,0] - src_crd.ra.rad)
+    lm_grid[:,:,1] = np.sin(rd_grid[:,:,1]) * np.cos(src_crd.dec.rad) - np.cos(src_crd.dec.rad) * np.sin(src_crd.dec.rad) * np.cos(rd_grid[:,:,0] - src_crd.ra.rad)
+    
+    return lm_grid
+
+
+def uncorrupted(lm, baselines, wave, time, src_crd, array_layout, I):
+    """Calculates uncorrupted visibility
+
+    Parameters
+    ----------
+    lm : 3d array
+        every pixel containing a l and m value
+    baselines : dataclass
+        baseline information
+    wave : float
+        wavelength of observation
+    time : astropy Time
+        Time steps of observation
+    src_crd : astropy SkyCoord
+        source position
+    array_layout : dataclass
+        station information
+    I : 2d array
+        source brightness distribution / input img
+
+    Returns
+    -------
+    4d array
+        Returns visibility for every lm and baseline 
+    """
+    stat_num = array_layout.st_num.shape[0]
+    base_num = int(stat_num * (stat_num - 1) / 2)
+
+
+    vectorized_num = np.vectorize(lambda st: st.st_num, otypes=[int])
+    st1, st2 = get_valid_baselines(baselines, base_num)
+
+    st1_num = vectorized_num(st1)
+
+    if st1_num.shape[0] == 0:
+        return torch.zeros(1)
+
+    K = getK(baselines, lm, wave, base_num)
+
+    B = np.zeros((lm.shape[0], lm.shape[1], 2, 2), dtype=complex)
+
+    B[:,:,0,0] = I[:,:,0]+I[:,:,1]
+    B[:,:,0,1] = I[:,:,2]+1j*I[:,:,3]
+    B[:,:,1,0] = I[:,:,2]-1j*I[:,:,3]
+    B[:,:,1,1] = I[:,:,0]-I[:,:,1]
+
+    X = torch.einsum('lmij,lmb->lmbij', torch.tensor(B), K)
+
+    return X
+
+
+def corrupted(lm, baselines, wave, time, src_crd, array_layout, I, rd):
+    """Calculates corrupted visibility
+
+    Parameters
+    ----------
+    lm : 3d array
+        every pixel containing a l and m value
+    baselines : dataclass
+        baseline information
+    wave : float
+        wavelength of observation
+    time : astropy Time
+        Time steps of observation
+    src_crd : astropy SkyCoord
+        source position
+    array_layout : dataclass
+        station information
+    I : 2d array
+        source brightness distribution / input img
+    rd : 3d array
+        RA and dec values for every pixel
+
+    Returns
+    -------
+    4d array
+        Returns visibility for every lm and baseline 
+    """
+    stat_num = array_layout.st_num.shape[0]
+    base_num = int(stat_num * (stat_num - 1) / 2)
+
+
+    vectorized_num = np.vectorize(lambda st: st.st_num, otypes=[int])
+    st1, st2 = get_valid_baselines(baselines, base_num)
+    st1_num = vectorized_num(st1)
+    st2_num = vectorized_num(st2)
+    if st1_num.shape[0] == 0:
+        return torch.zeros(1)
+
+    K = getK(baselines, lm, wave, base_num)
+
+    B = np.zeros((lm.shape[0], lm.shape[1], 2, 2), dtype=complex)
+
+    B[:,:,0,0] = I[:,:,0]+I[:,:,1]
+    B[:,:,0,1] = I[:,:,2]+1j*I[:,:,3]
+    B[:,:,1,0] = I[:,:,2]-1j*I[:,:,3]
+    B[:,:,1,1] = I[:,:,0]-I[:,:,1]
+
+    # coherency
+    X = torch.einsum('lmij,lmb->lmbij', torch.tensor(B), K)
+
+    # telescope response
+    E_st = getE(rd, array_layout, wave, src_crd)
+    E1 = torch.tensor(E_st[:, :, st1_num, :, :], dtype=torch.cdouble)
+    E2 = torch.tensor(E_st[:, :, st2_num, :, :], dtype=torch.cdouble)
+
+    EX = torch.einsum('lmbij,lmbjk->lmbik',E1,X)
+    EXE = torch.einsum('lmbij,lmbjk->lmbik',EX,torch.transpose(torch.conj(E2),3,4))
+
+    # P matrix
     # parallactic angle
     beta = np.array(
         [
@@ -291,50 +353,46 @@ def getJones(lm, baselines, wave, time, src_crd, array_layout):
             for st in array_layout
         ]
     )
-
-    # calculate E Matrices
-    E_st = getE(lm, array_layout, wave)
-
-    vectorized_num = np.vectorize(lambda st: st.st_num, otypes=[int])
-    valid = baselines.valid.astype(bool)
-
-    stat_num = array_layout.st_num.shape[0]
-    base_num = int(stat_num * (stat_num - 1) / 2)
-
-    st1, st2 = get_valid_baselines(baselines, base_num)
-
-    st1_num = vectorized_num(st1)
-    st2_num = vectorized_num(st2)
-
-    if st1_num.shape[0] == 0:
-        return torch.zeros(1)
-
-    E1 = torch.tensor(E_st[:, :, st1_num, :, :])
-    E2 = torch.tensor(E_st[:, :, st2_num, :, :])
-
-    # calculate P Matrices
     tsob = time_step_of_baseline(baselines, base_num)
     b1 = np.array([beta[st1_num[i], tsob[i]] for i in range(st1_num.shape[0])])
     b2 = np.array([beta[st2_num[i], tsob[i]] for i in range(st2_num.shape[0])])
-    P1 = torch.tensor(getP(b1))
-    P2 = torch.tensor(getP(b2))
+    P1 = torch.tensor(getP(b1),dtype=torch.cdouble)
+    P2 = torch.tensor(getP(b2),dtype=torch.cdouble)
 
-    # calculate K matrices
-    K = getK(baselines, lm, wave, base_num)
+    PEXE = torch.einsum('bij,lmbjk->lmbik',P1,EXE)
+    PEXEP = torch.einsum('lmbij,bjk->lmbik',PEXE,torch.transpose(torch.conj(P2),1,2))
 
-    J1 = torch.matmul(E1, P1)
-    J2 = torch.matmul(E2, P2)
-
-    # Kronecker product
-    JJ = torch.einsum("...lm,...no->...lnmo", J1, J2).reshape(
-        lm.shape[0], lm.shape[1], st1_num.shape[0], 4, 4
-    )
-    JJ = torch.einsum("lmbij,lmb->lmbij", JJ, K)
-
-    return JJ
+    return PEXEP
 
 
-def getE(lm, array_layout, wave):
+def integrate(X1, X2):
+    """Summation over l and m and avering over time and freq
+
+    Parameters
+    ----------
+    X1 : 4d array
+        visibility for every l,m and baseline for freq1
+    X2 : 4d array
+        visibility for every l,m and baseline for freq2
+
+    Returns
+    -------
+    2d array
+        Returns visibility for every baseline
+    """
+    X_f = torch.stack((X1, X2))
+
+    int_m = torch.sum(X_f,dim=2)
+    int_l = torch.sum(int_m,dim=1)
+    int_f = 0.5*torch.sum(int_l, dim=0)
+
+    X_t = torch.stack(torch.split(int_f, int(int_f.shape[0] / 2), dim=0))
+    int_t = 0.5*torch.sum(X_t, dim=0)
+
+    return int_t 
+
+
+def getE(rd, array_layout, wave, src_crd):
     """Calculates Jones matrix E for every pixel in lm grid and every station given.
 
     Parameters
@@ -353,25 +411,42 @@ def getE(lm, array_layout, wave):
         Shape is given by lm-grid axes, station axis, and (2,2) Jones matrix axes
     """
     # calculate matrix E for every point in grid
-    E = np.zeros((lm.shape[0], lm.shape[1], array_layout.st_num.shape[0], 2, 2))
+    E = np.zeros((rd.shape[0], rd.shape[1], array_layout.st_num.shape[0], 2, 2))
 
     # get diameters of all stations and do vectorizing stuff
     diameters = array_layout.diam
-    di = np.zeros((lm.shape[0], lm.shape[1], array_layout.st_num.shape[0]))
-    di[:, :] = diameters
 
-    E[..., 0, 0] = jinc(
-        np.pi
-        * di
-        / wave
-        * np.repeat(
-            np.sin(np.sqrt(lm[..., 0] ** 2 + lm[..., 1] ** 2)),
-            array_layout.st_num.shape[0],
-            1,
-        ).reshape((lm.shape[0], lm.shape[1], array_layout.st_num.shape[0]))
-    )
+    theta = angularDistance(rd,src_crd)
+
+    x = 2*np.pi/wave * np.einsum('s,rd->rds',diameters,theta)
+
+    E[:,:,:,0,0] = jinc(x)
     E[..., 1, 1] = E[..., 0, 0]
+
     return E
+
+
+def angularDistance(rd, src_crd):
+    """Calculates angular distance from source position
+
+    Parameters
+    ----------
+    rd : 3d array
+        every pixel containing ra and dec
+    src_crd : astropy SkyCoord
+        source position
+
+    Returns
+    -------
+    2d array
+        Returns angular Distance for every pixel in rd grid with respect to source position
+    """
+    r = rd[:,:,0] - src_crd.ra.rad
+    d = rd[:,:,1] - src_crd.dec.rad
+
+    theta = np.arcsin(np.sqrt(r**2+d**2))
+
+    return theta
 
 
 def getP(beta):
@@ -422,22 +497,28 @@ def getK(baselines, lm, wave, base_num):
 
     u = baselines.u.reshape(-1, base_num) / wave
     v = baselines.v.reshape(-1, base_num) / wave
+    w = baselines.w.reshape(-1, base_num) / wave
 
     u_start = u[:-1][mask]
     u_stop = u[1:][mask]
     v_start = v[:-1][mask]
     v_stop = v[1:][mask]
+    w_start = w[:-1][mask]
+    w_stop = w[1:][mask]
 
     u_cmplt = np.append(u_start, u_stop)
     v_cmplt = np.append(v_start, v_stop)
+    w_cmplt = np.append(w_start, w_stop)
 
     l = torch.tensor(lm[:, :, 0])
     m = torch.tensor(lm[:, :, 1])
+    n = torch.sqrt(1-l**2-m**2)
 
     ul = torch.einsum("b,ij->ijb", torch.tensor(u_cmplt), l)
     vm = torch.einsum("b,ij->ijb", torch.tensor(v_cmplt), m)
+    wn = torch.einsum('b,ij->ijb', torch.tensor(w_cmplt), (n-1))
 
-    K = torch.exp(2 * np.pi * 1j * (ul + vm))
+    K = torch.exp(-2 * np.pi * 1j * (ul + vm + wn))
 
     return K
 
@@ -462,57 +543,6 @@ def jinc(x):
     jinc = np.ones(x.shape)
     jinc[x != 0] = 2 * j1(x[x != 0]) / x[x != 0]
     return jinc
-
-
-def integrate(JJ_f1, JJ_f2, I, base_num, delta_t, delta_f, delta_l, delta_m):
-    """Integration over frequency, time, l, m
-
-    Parameters
-    ----------
-    JJ_f1 : 5d array
-        Mueller matrices for frequency-bw
-    JJ_f2 : 5d array
-        Mueller matrices for frequency-bw
-    I : 3d array
-        Stokes vector
-    base_num : int
-        number of baselines per corr_int_time
-    delta_t : float
-        t1-t0
-    delta_f : float
-        bandwidth bw
-    delta_l : float
-        l width
-    delta_m : float
-        m width
-
-    Returns
-    -------
-    2d array
-        Returns visibility vector for each baseline calculated.
-    """
-    # Stokes matrix
-    S = 0.5 * torch.tensor(
-        [[1, 1, 0, 0], [0, 0, 1, 1j], [0, 0, 1, -1j], [1, -1, 0, 0]],
-        dtype=torch.cdouble,
-    )
-    JJ_f1 = torch.einsum("lmbij,lmj->lmbi", JJ_f1 @ S, I)
-    JJ_f2 = torch.einsum("lmbij,lmj->lmbi", JJ_f2 @ S, I)
-
-    JJ_f = torch.stack((JJ_f1, JJ_f2))
-    del JJ_f1, JJ_f2
-
-    int_m = torch.trapz(JJ_f, axis=2)
-    del JJ_f
-    int_l = torch.trapz(int_m, axis=1)
-    int_f = torch.trapz(int_l, axis=0)
-    int_t = torch.trapz(
-        torch.stack(torch.split(int_f, int(int_f.shape[0] / 2), dim=0)), axis=0
-    )
-
-    integral = int_t / (delta_t * delta_f * delta_l * delta_m)
-
-    return integral
 
 
 def get_valid_baselines(baselines, base_num):
