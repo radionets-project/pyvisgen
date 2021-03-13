@@ -334,15 +334,21 @@ def corrupted(lm, baselines, wave, time, src_crd, array_layout, I, rd):
 
     # coherency
     X = torch.einsum('lmij,lmb->lmbij', torch.tensor(B), K)
+    del K
 
     # telescope response
     E_st = getE(rd, array_layout, wave, src_crd)
-    E1 = torch.tensor(E_st[:, :, st1_num, :, :], dtype=torch.cdouble)
-    E2 = torch.tensor(E_st[:, :, st2_num, :, :], dtype=torch.cdouble)
+    # E1 = torch.tensor(E_st[:, :, st1_num, :, :], dtype=torch.cdouble)
+    # E2 = torch.tensor(E_st[:, :, st2_num, :, :], dtype=torch.cdouble)
+    E1 = torch.tensor(E_st[:, :, st1_num], dtype=torch.cdouble)
+    E2 = torch.tensor(E_st[:, :, st2_num], dtype=torch.cdouble)
 
-    EX = torch.einsum('lmbij,lmbjk->lmbik',E1,X)
-    EXE = torch.einsum('lmbij,lmbjk->lmbik',EX,torch.transpose(torch.conj(E2),3,4))
-
+    # EX = torch.einsum('lmbij,lmbjk->lmbik',E1,X)
+    EX = torch.einsum('lmb,lmbij->lmbij',E1,X)
+    del E1, X
+    # EXE = torch.einsum('lmbij,lmbjk->lmbik',EX,torch.transpose(torch.conj(E2),3,4))
+    EXE = torch.einsum('lmbij,lmb->lmbij',EX,torch.conj(E2))
+    del EX, E2
     # P matrix
     # parallactic angle
     beta = np.array(
@@ -360,8 +366,9 @@ def corrupted(lm, baselines, wave, time, src_crd, array_layout, I, rd):
     P2 = torch.tensor(getP(b2),dtype=torch.cdouble)
 
     PEXE = torch.einsum('bij,lmbjk->lmbik',P1,EXE)
+    del EXE
     PEXEP = torch.einsum('lmbij,bjk->lmbik',PEXE,torch.transpose(torch.conj(P2),1,2))
-
+    del PEXE
     return PEXEP
 
 
@@ -383,11 +390,16 @@ def integrate(X1, X2):
     X_f = torch.stack((X1, X2))
 
     int_m = torch.sum(X_f,dim=2)
+    del X_f
     int_l = torch.sum(int_m,dim=1)
+    del int_m
     int_f = 0.5*torch.sum(int_l, dim=0)
+    del int_l
 
     X_t = torch.stack(torch.split(int_f, int(int_f.shape[0] / 2), dim=0))
+    del int_f
     int_t = 0.5*torch.sum(X_t, dim=0)
+    del X_t
 
     return int_t 
 
@@ -411,7 +423,8 @@ def getE(rd, array_layout, wave, src_crd):
         Shape is given by lm-grid axes, station axis, and (2,2) Jones matrix axes
     """
     # calculate matrix E for every point in grid
-    E = np.zeros((rd.shape[0], rd.shape[1], array_layout.st_num.shape[0], 2, 2))
+    # E = np.zeros((rd.shape[0], rd.shape[1], array_layout.st_num.shape[0], 2, 2))
+    E = np.zeros((rd.shape[0], rd.shape[1], array_layout.st_num.shape[0]))
 
     # get diameters of all stations and do vectorizing stuff
     diameters = array_layout.diam
@@ -420,8 +433,9 @@ def getE(rd, array_layout, wave, src_crd):
 
     x = 2*np.pi/wave * np.einsum('s,rd->rds',diameters,theta)
 
-    E[:,:,:,0,0] = jinc(x)
-    E[..., 1, 1] = E[..., 0, 0]
+    E[:,:,:] = jinc(x)
+    # E[:,:,:,0,0] = jinc(x)
+    # E[..., 1, 1] = E[..., 0, 0]
 
     return E
 
