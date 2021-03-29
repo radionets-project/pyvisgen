@@ -17,7 +17,6 @@ def create_vis_hdu(data, conf, layout="EHT", source_name="sim-source-0"):
     DATE = data.date - int(
         data.date.min()
     )  # placeholder, julian date of vis, central time in the integration period
-    print(DATE)
 
     # I think this is not really needed, but dunno, documentation is again insane
     _DATE = (
@@ -54,7 +53,7 @@ def create_vis_hdu(data, conf, layout="EHT", source_name="sim-source-0"):
     u_scale = u / const.c
     v_scale = v / const.c
     w_scale = w / const.c
-    print(u_scale)
+
     groupdata_vis = fits.GroupData(
         DATA,
         bitpix=-32,
@@ -371,7 +370,7 @@ def create_antenna_hdu(layout_txt, conf, layout="EHT"):
     return hdu_ant
 
 
-def create_hdu_list(data, conf, path="../vipy/layouts/vlba.txt"):
+def create_hdu_list(data, conf, path="../vipy/layouts/eht.txt"):
     vis_hdu = create_vis_hdu(data, conf)
     time_hdu = create_time_hdu(data)
     freq_hdu = create_frequency_hdu(conf)
