@@ -387,6 +387,79 @@ def corrupted(lm, baselines, wave, time, src_crd, array_layout, I, rd):
 
     return PEXEP
 
+def direction_independet(lm, baselines, wave, time, src_crd, array_layout, I, rd):
+    """Calculates direction independet visibility
+
+    Parameters
+    ----------
+    lm : 3d array
+        every pixel containing a l and m value
+    baselines : dataclass
+        baseline information
+    wave : float
+        wavelength of observation
+    time : astropy Time
+        Time steps of observation
+    src_crd : astropy SkyCoord
+        source position
+    array_layout : dataclass
+        station information
+    I : 2d array
+        source brightness distribution / input img
+    rd : 3d array
+        RA and dec values for every pixel
+
+    Returns
+    -------
+    4d array
+        Returns visibility for every lm and baseline 
+    """
+    
+    stat_num = array_layout.st_num.shape[0]
+    base_num = int(stat_num * (stat_num - 1) / 2)
+
+
+    vectorized_num = np.vectorize(lambda st: st.st_num, otypes=[int])
+    st1, st2 = get_valid_baselines(baselines, base_num)
+    st1_num = vectorized_num(st1)
+    st2_num = vectorized_num(st2)
+    if st1_num.shape[0] == 0:
+        return torch.zeros(1)
+
+
+    K = getK(baselines, lm, wave, base_num)
+
+
+
+    B = np.zeros((lm.shape[0], lm.shape[1], 2, 2), dtype=complex)
+
+    B[:,:,0,0] = I[:,:,0]+I[:,:,1]
+    B[:,:,0,1] = I[:,:,2]+1j*I[:,:,3]
+    B[:,:,1,0] = I[:,:,2]-1j*I[:,:,3]
+    B[:,:,1,1] = I[:,:,0]-I[:,:,1]
+
+    # coherency
+    X = torch.einsum('lmij,lmb->lmbij', torch.tensor(B), K)
+
+
+    
+    del K
+
+    # telescope response
+    E_st = getE(rd, array_layout, wave, src_crd)
+
+    E1 = torch.tensor(E_st[:, :, st1_num], dtype=torch.cdouble)
+    E2 = torch.tensor(E_st[:, :, st2_num], dtype=torch.cdouble)
+
+
+    EX = torch.einsum('lmb,lmbij->lmbij',E1,X)
+
+    del E1, X
+
+    EXE = torch.einsum('lmbij,lmb->lmbij',EX,E2)
+    del EX, E2
+
+    return EXE
 
 def integrate(X1, X2):
     """Summation over l and m and avering over time and freq
