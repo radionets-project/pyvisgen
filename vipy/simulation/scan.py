@@ -10,7 +10,8 @@ from vipy.simulation.utils import single_occurance, get_pairs
 from vipy.layouts import layouts
 import torch
 import itertools
-
+import time as t
+import numexpr as ne # fast exponential
 
 @dataclass
 class Baselines:
@@ -312,6 +313,7 @@ def corrupted(lm, baselines, wave, time, src_crd, array_layout, I, rd):
     4d array
         Returns visibility for every lm and baseline 
     """
+    
     stat_num = array_layout.st_num.shape[0]
     base_num = int(stat_num * (stat_num - 1) / 2)
 
@@ -323,7 +325,11 @@ def corrupted(lm, baselines, wave, time, src_crd, array_layout, I, rd):
     if st1_num.shape[0] == 0:
         return torch.zeros(1)
 
+    start = t.time()
     K = getK(baselines, lm, wave, base_num)
+    end = t.time()
+    print("Elapsed K = %s" % (end - start))
+
 
     B = np.zeros((lm.shape[0], lm.shape[1], 2, 2), dtype=complex)
 
@@ -333,7 +339,11 @@ def corrupted(lm, baselines, wave, time, src_crd, array_layout, I, rd):
     B[:,:,1,1] = I[:,:,0]-I[:,:,1]
 
     # coherency
+    start = t.time()
     X = torch.einsum('lmij,lmb->lmbij', torch.tensor(B), K)
+    end = t.time()
+    print("Elapsed X = %s" % (end - start))
+    
     del K
 
     # telescope response
@@ -344,7 +354,10 @@ def corrupted(lm, baselines, wave, time, src_crd, array_layout, I, rd):
     E2 = torch.tensor(E_st[:, :, st2_num], dtype=torch.cdouble)
 
     # EX = torch.einsum('lmbij,lmbjk->lmbik',E1,X)
+    start = t.time()
     EX = torch.einsum('lmb,lmbij->lmbij',E1,X)
+    end = t.time()
+    print("Elapsed EX = %s" % (end - start))
     del E1, X
     # EXE = torch.einsum('lmbij,lmbjk->lmbik',EX,torch.transpose(torch.conj(E2),3,4))
     EXE = torch.einsum('lmbij,lmb->lmbij',EX,torch.conj(E2))
@@ -506,6 +519,7 @@ def getK(baselines, lm, wave, base_num):
         Shape is given by lm axes and baseline axis
     """
     # new valid baseline calculus. for details see function get_valid_baselines()
+    
     valid = baselines.valid.reshape(-1, base_num)
     mask = np.array(valid[:-1]).astype(bool) & np.array(valid[1:]).astype(bool)
 
@@ -527,14 +541,16 @@ def getK(baselines, lm, wave, base_num):
     l = torch.tensor(lm[:, :, 0])
     m = torch.tensor(lm[:, :, 1])
     n = torch.sqrt(1-l**2-m**2)
-
+    
     ul = torch.einsum("b,ij->ijb", torch.tensor(u_cmplt), l)
     vm = torch.einsum("b,ij->ijb", torch.tensor(v_cmplt), m)
     wn = torch.einsum('b,ij->ijb', torch.tensor(w_cmplt), (n-1))
-
-    K = torch.exp(-2 * np.pi * 1j * (ul + vm + wn))
-
-    return K
+    
+    
+    pi = np.pi
+    test = ul + vm + wn
+    K = ne.evaluate('exp(-2 * pi * 1j * (ul + vm + wn))') #-0.4 secs for vlba
+    return torch.tensor(K)
 
 
 def jinc(x):
