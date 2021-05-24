@@ -387,7 +387,7 @@ def corrupted(lm, baselines, wave, time, src_crd, array_layout, I, rd):
 
     return PEXEP
 
-def direction_independet(lm, baselines, wave, time, src_crd, array_layout, I, rd):
+def direction_independent(lm, baselines, wave, time, src_crd, array_layout, I, rd):
     """Calculates direction independet visibility
 
     Parameters
