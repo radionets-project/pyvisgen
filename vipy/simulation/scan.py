@@ -12,6 +12,7 @@ import torch
 import itertools
 import time as t
 import numexpr as ne # fast exponential
+from einsumt import einsumt as einsum
 
 @dataclass
 class Baselines:
@@ -325,10 +326,9 @@ def corrupted(lm, baselines, wave, time, src_crd, array_layout, I, rd):
     if st1_num.shape[0] == 0:
         return torch.zeros(1)
 
-    start = t.time()
+
     K = getK(baselines, lm, wave, base_num)
-    end = t.time()
-    print("Elapsed K = %s" % (end - start))
+
 
 
     B = np.zeros((lm.shape[0], lm.shape[1], 2, 2), dtype=complex)
@@ -339,10 +339,10 @@ def corrupted(lm, baselines, wave, time, src_crd, array_layout, I, rd):
     B[:,:,1,1] = I[:,:,0]-I[:,:,1]
 
     # coherency
-    start = t.time()
     X = torch.einsum('lmij,lmb->lmbij', torch.tensor(B), K)
-    end = t.time()
-    print("Elapsed X = %s" % (end - start))
+    # X = np.einsum('lmij,lmb->lmbij', B, K, optimize=True)
+    # X = torch.tensor(B)[:,:,None,:,:] * K[:,:,:,None,None]
+
     
     del K
 
@@ -353,17 +353,17 @@ def corrupted(lm, baselines, wave, time, src_crd, array_layout, I, rd):
     E1 = torch.tensor(E_st[:, :, st1_num], dtype=torch.cdouble)
     E2 = torch.tensor(E_st[:, :, st2_num], dtype=torch.cdouble)
 
-    # EX = torch.einsum('lmbij,lmbjk->lmbik',E1,X)
-    start = t.time()
+
     EX = torch.einsum('lmb,lmbij->lmbij',E1,X)
-    end = t.time()
-    print("Elapsed EX = %s" % (end - start))
+
     del E1, X
     # EXE = torch.einsum('lmbij,lmbjk->lmbik',EX,torch.transpose(torch.conj(E2),3,4))
-    EXE = torch.einsum('lmbij,lmb->lmbij',EX,torch.conj(E2))
+    EXE = torch.einsum('lmbij,lmb->lmbij',EX,E2)
     del EX, E2
+
     # P matrix
     # parallactic angle
+
     beta = np.array(
         [
             Observer(
@@ -378,10 +378,13 @@ def corrupted(lm, baselines, wave, time, src_crd, array_layout, I, rd):
     P1 = torch.tensor(getP(b1),dtype=torch.cdouble)
     P2 = torch.tensor(getP(b2),dtype=torch.cdouble)
 
+
+
     PEXE = torch.einsum('bij,lmbjk->lmbik',P1,EXE)
     del EXE
     PEXEP = torch.einsum('lmbij,bjk->lmbik',PEXE,torch.transpose(torch.conj(P2),1,2))
     del PEXE
+
     return PEXEP
 
 
