@@ -41,6 +41,21 @@ class Stations:
     def get_station(self, name):
         return self[np.where(self.name == name)[0][0]]
 
+    def __repr__(self):
+        return (
+            f"Name: {self.name}\n"
+            f"Station Number: {self.st_num}\n"
+            f"Diameter: {self.diam}\n"
+            f"Lower Elevation: {self.el_low}\n"
+            f"Upper Elevation: {self.el_high}\n"
+            f"System Equivalent Flux Density: {self.sefd}\n"
+            f"Antenna Altitude: {self.altitude}\n"
+            f"Coordinates\n"
+            f"x: {self.x}\n"
+            f"y: {self.y}\n"
+            f"z: {self.z}"
+        )
+
 
 @dataclass
 class Station:
