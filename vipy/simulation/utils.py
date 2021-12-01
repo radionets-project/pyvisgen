@@ -24,7 +24,7 @@ def read_config(conf):
     sim_conf["src_coord"] = SkyCoord(
         ra=config["sampling_options"]["fov_center_ra"],
         dec=config["sampling_options"]["fov_center_dec"],
-        unit=(u.hourangle, u.deg),
+        unit=(u.deg, u.deg),
     )
     sim_conf["fov_size"] = config["sampling_options"]["fov_size"]
     sim_conf["corr_int_time"] = config["sampling_options"]["corr_int_time"]

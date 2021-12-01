@@ -202,12 +202,16 @@ def rd_grid(fov, samples, src_crd):
     3d array
         Returns a 3d array with every pixel containing a RA and Dec value
     """
-    res = fov/samples
+    res = fov / samples
 
-    rd_grid = np.zeros((samples,samples,2))
+    rd_grid = np.zeros((samples, samples, 2))
     for i in range(samples):
-        rd_grid[i,:,0] = np.array([(i-samples/2)*res + src_crd.ra.rad for i in range(samples)])
-        rd_grid[:,i,1] = np.array([-(i-samples/2)*res + src_crd.dec.rad for i in range(samples)])
+        rd_grid[i, :, 0] = np.array(
+            [(i - samples / 2) * res + src_crd.ra.rad for i in range(samples)]
+        )
+        rd_grid[:, i, 1] = np.array(
+            [-(i - samples / 2) * res + src_crd.dec.rad for i in range(samples)]
+        )
 
     return rd_grid
 
@@ -228,9 +232,13 @@ def lm_grid(rd_grid, src_crd):
         Returns a 3d array with every pixel containing a l and m value
     """
     lm_grid = np.zeros(rd_grid.shape)
-    lm_grid[:,:,0] = np.cos(rd_grid[:,:,1]) * np.sin(rd_grid[:,:,0] - src_crd.ra.rad)
-    lm_grid[:,:,1] = np.sin(rd_grid[:,:,1]) * np.cos(src_crd.dec.rad) - np.cos(src_crd.dec.rad) * np.sin(src_crd.dec.rad) * np.cos(rd_grid[:,:,0] - src_crd.ra.rad)
-    
+    lm_grid[:, :, 0] = np.cos(rd_grid[:, :, 1]) * np.sin(
+        rd_grid[:, :, 0] - src_crd.ra.rad
+    )
+    lm_grid[:, :, 1] = np.sin(rd_grid[:, :, 1]) * np.cos(src_crd.dec.rad) - np.cos(
+        src_crd.dec.rad
+    ) * np.sin(src_crd.dec.rad) * np.cos(rd_grid[:, :, 0] - src_crd.ra.rad)
+
     return lm_grid
 
 
@@ -257,11 +265,10 @@ def uncorrupted(lm, baselines, wave, time, src_crd, array_layout, I):
     Returns
     -------
     4d array
-        Returns visibility for every lm and baseline 
+        Returns visibility for every lm and baseline
     """
     stat_num = array_layout.st_num.shape[0]
     base_num = int(stat_num * (stat_num - 1) / 2)
-
 
     vectorized_num = np.vectorize(lambda st: st.st_num, otypes=[int])
     st1, st2 = get_valid_baselines(baselines, base_num)
@@ -275,12 +282,12 @@ def uncorrupted(lm, baselines, wave, time, src_crd, array_layout, I):
 
     B = np.zeros((lm.shape[0], lm.shape[1], 2, 2), dtype=complex)
 
-    B[:,:,0,0] = I[:,:,0]+I[:,:,1]
-    B[:,:,0,1] = I[:,:,2]+1j*I[:,:,3]
-    B[:,:,1,0] = I[:,:,2]-1j*I[:,:,3]
-    B[:,:,1,1] = I[:,:,0]-I[:,:,1]
+    B[:, :, 0, 0] = I[:, :, 0] + I[:, :, 1]
+    B[:, :, 0, 1] = I[:, :, 2] + 1j * I[:, :, 3]
+    B[:, :, 1, 0] = I[:, :, 2] - 1j * I[:, :, 3]
+    B[:, :, 1, 1] = I[:, :, 0] - I[:, :, 1]
 
-    X = torch.einsum('lmij,lmb->lmbij', torch.tensor(B), K)
+    X = torch.einsum("lmij,lmb->lmbij", torch.tensor(B), K)
 
     return X
 
@@ -310,11 +317,10 @@ def corrupted(lm, baselines, wave, time, src_crd, array_layout, I, rd):
     Returns
     -------
     4d array
-        Returns visibility for every lm and baseline 
+        Returns visibility for every lm and baseline
     """
     stat_num = array_layout.st_num.shape[0]
     base_num = int(stat_num * (stat_num - 1) / 2)
-
 
     vectorized_num = np.vectorize(lambda st: st.st_num, otypes=[int])
     st1, st2 = get_valid_baselines(baselines, base_num)
@@ -327,13 +333,13 @@ def corrupted(lm, baselines, wave, time, src_crd, array_layout, I, rd):
 
     B = np.zeros((lm.shape[0], lm.shape[1], 2, 2), dtype=complex)
 
-    B[:,:,0,0] = I[:,:,0]+I[:,:,1]
-    B[:,:,0,1] = I[:,:,2]+1j*I[:,:,3]
-    B[:,:,1,0] = I[:,:,2]-1j*I[:,:,3]
-    B[:,:,1,1] = I[:,:,0]-I[:,:,1]
+    B[:, :, 0, 0] = I[:, :, 0] + I[:, :, 1]
+    B[:, :, 0, 1] = I[:, :, 2] + 1j * I[:, :, 3]
+    B[:, :, 1, 0] = I[:, :, 2] - 1j * I[:, :, 3]
+    B[:, :, 1, 1] = I[:, :, 0] - I[:, :, 1]
 
     # coherency
-    X = torch.einsum('lmij,lmb->lmbij', torch.tensor(B), K)
+    X = torch.einsum("lmij,lmb->lmbij", torch.tensor(B), K)
     del K
 
     # telescope response
@@ -344,10 +350,10 @@ def corrupted(lm, baselines, wave, time, src_crd, array_layout, I, rd):
     E2 = torch.tensor(E_st[:, :, st2_num], dtype=torch.cdouble)
 
     # EX = torch.einsum('lmbij,lmbjk->lmbik',E1,X)
-    EX = torch.einsum('lmb,lmbij->lmbij',E1,X)
+    EX = torch.einsum("lmb,lmbij->lmbij", E1, X)
     del E1, X
     # EXE = torch.einsum('lmbij,lmbjk->lmbik',EX,torch.transpose(torch.conj(E2),3,4))
-    EXE = torch.einsum('lmbij,lmb->lmbij',EX,torch.conj(E2))
+    EXE = torch.einsum("lmbij,lmb->lmbij", EX, torch.conj(E2))
     del EX, E2
     # P matrix
     # parallactic angle
@@ -362,12 +368,14 @@ def corrupted(lm, baselines, wave, time, src_crd, array_layout, I, rd):
     tsob = time_step_of_baseline(baselines, base_num)
     b1 = np.array([beta[st1_num[i], tsob[i]] for i in range(st1_num.shape[0])])
     b2 = np.array([beta[st2_num[i], tsob[i]] for i in range(st2_num.shape[0])])
-    P1 = torch.tensor(getP(b1),dtype=torch.cdouble)
-    P2 = torch.tensor(getP(b2),dtype=torch.cdouble)
+    P1 = torch.tensor(getP(b1), dtype=torch.cdouble)
+    P2 = torch.tensor(getP(b2), dtype=torch.cdouble)
 
-    PEXE = torch.einsum('bij,lmbjk->lmbik',P1,EXE)
+    PEXE = torch.einsum("bij,lmbjk->lmbik", P1, EXE)
     del EXE
-    PEXEP = torch.einsum('lmbij,bjk->lmbik',PEXE,torch.transpose(torch.conj(P2),1,2))
+    PEXEP = torch.einsum(
+        "lmbij,bjk->lmbik", PEXE, torch.transpose(torch.conj(P2), 1, 2)
+    )
     del PEXE
     return PEXEP
 
@@ -389,19 +397,19 @@ def integrate(X1, X2):
     """
     X_f = torch.stack((X1, X2))
 
-    int_m = torch.sum(X_f,dim=2)
+    int_m = torch.sum(X_f, dim=2)
     del X_f
-    int_l = torch.sum(int_m,dim=1)
+    int_l = torch.sum(int_m, dim=1)
     del int_m
-    int_f = 0.5*torch.sum(int_l, dim=0)
+    int_f = 0.5 * torch.sum(int_l, dim=0)
     del int_l
 
     X_t = torch.stack(torch.split(int_f, int(int_f.shape[0] / 2), dim=0))
     del int_f
-    int_t = 0.5*torch.sum(X_t, dim=0)
+    int_t = 0.5 * torch.sum(X_t, dim=0)
     del X_t
 
-    return int_t 
+    return int_t
 
 
 def getE(rd, array_layout, wave, src_crd):
@@ -429,11 +437,11 @@ def getE(rd, array_layout, wave, src_crd):
     # get diameters of all stations and do vectorizing stuff
     diameters = array_layout.diam
 
-    theta = angularDistance(rd,src_crd)
+    theta = angularDistance(rd, src_crd)
 
-    x = 2*np.pi/wave * np.einsum('s,rd->rds',diameters,theta)
+    x = 2 * np.pi / wave * np.einsum("s,rd->rds", diameters, theta)
 
-    E[:,:,:] = jinc(x)
+    E[:, :, :] = jinc(x)
     # E[:,:,:,0,0] = jinc(x)
     # E[..., 1, 1] = E[..., 0, 0]
 
@@ -455,10 +463,10 @@ def angularDistance(rd, src_crd):
     2d array
         Returns angular Distance for every pixel in rd grid with respect to source position
     """
-    r = rd[:,:,0] - src_crd.ra.rad
-    d = rd[:,:,1] - src_crd.dec.rad
+    r = rd[:, :, 0] - src_crd.ra.rad
+    d = rd[:, :, 1] - src_crd.dec.rad
 
-    theta = np.arcsin(np.sqrt(r**2+d**2))
+    theta = np.arcsin(np.sqrt(r ** 2 + d ** 2))
 
     return theta
 
@@ -526,11 +534,11 @@ def getK(baselines, lm, wave, base_num):
 
     l = torch.tensor(lm[:, :, 0])
     m = torch.tensor(lm[:, :, 1])
-    n = torch.sqrt(1-l**2-m**2)
+    n = torch.sqrt(1 - l ** 2 - m ** 2)
 
     ul = torch.einsum("b,ij->ijb", torch.tensor(u_cmplt), l)
     vm = torch.einsum("b,ij->ijb", torch.tensor(v_cmplt), m)
-    wn = torch.einsum('b,ij->ijb', torch.tensor(w_cmplt), (n-1))
+    wn = torch.einsum("b,ij->ijb", torch.tensor(w_cmplt), (n - 1))
 
     K = torch.exp(-2 * np.pi * 1j * (ul + vm + wn))
 

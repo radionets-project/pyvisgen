@@ -7,7 +7,7 @@ import pandas as pd
 import astropy.constants as const
 
 
-def create_vis_hdu(data, conf, layout="EHT", source_name="sim-source-0"):
+def create_vis_hdu(data, conf, layout="vlba", source_name="sim-source-0"):
     u = data.u
 
     v = data.v
@@ -32,8 +32,11 @@ def create_vis_hdu(data, conf, layout="EHT", source_name="sim-source-0"):
     vis = np.swapaxes(
         np.swapaxes(
             np.stack([values.real, values.imag, np.ones(values.shape)], axis=1), 1, 2
-        ),0,1,).reshape(-1, 1, 1, 1, 1, 4, 3)
-    DATA = vis  
+        ),
+        0,
+        1,
+    ).reshape(-1, 1, 1, 1, 1, 4, 3)
+    DATA = vis
     # in dim 4 = IFs , dim = 1, dim 4 = number of jones, 3 = real, imag, weight
 
     # wcs
@@ -232,7 +235,7 @@ def create_frequency_hdu(conf):
     return hdu_freq
 
 
-def create_antenna_hdu(layout_txt, conf, layout="EHT"):
+def create_antenna_hdu(layout_txt, conf, layout="vlba"):
     array = pd.read_csv(layout_txt, sep=" ")
 
     ANNAME = np.chararray(len(array), itemsize=8, unicode=True)
@@ -370,7 +373,7 @@ def create_antenna_hdu(layout_txt, conf, layout="EHT"):
     return hdu_ant
 
 
-def create_hdu_list(data, conf, path="../vipy/layouts/eht.txt"):
+def create_hdu_list(data, conf, path="../vipy/vipy/layouts/vlba.txt"):
     vis_hdu = create_vis_hdu(data, conf)
     time_hdu = create_time_hdu(data)
     freq_hdu = create_frequency_hdu(conf)
