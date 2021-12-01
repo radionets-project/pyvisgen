@@ -1,15 +1,15 @@
-import vipy.simulation.utils as ut
-import vipy.layouts.layouts as layouts
+import pyvisgen.simulation.utils as ut
+import pyvisgen.layouts.layouts as layouts
 import astropy.constants as const
 from astropy import units as un
 import time as t
 import numpy as np
-import vipy.simulation.scan as scan
+import pyvisgen.simulation.scan as scan
 import torch
 from astropy.io import fits
-from vipy.simulation.scan import get_valid_baselines
+from pyvisgen.simulation.scan import get_valid_baselines
 from astropy.time import Time
-import vipy.fits.writer as writer
+import pyvisgen.fits.writer as writer
 from dataclasses import dataclass
 
 import sys

@@ -6,8 +6,8 @@ from scipy.special import j1
 import scipy.constants as const
 import scipy.signal as sig
 from astroplan import Observer
-from vipy.simulation.utils import single_occurance, get_pairs
-from vipy.layouts import layouts
+from pyvisgen.simulation.utils import single_occurance, get_pairs
+from pyvisgen.layouts import layouts
 import torch
 import itertools
 

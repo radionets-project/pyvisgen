@@ -2,7 +2,7 @@ import numpy as np
 
 
 def test_read_config():
-    from vipy.simulation.utils import read_config
+    from pyvisgen.simulation.utils import read_config
 
     conf = read_config("config/default.toml")
 
@@ -20,7 +20,7 @@ def test_read_config():
 
 
 def test_single_occurance():
-    from vipy.simulation.utils import single_occurance
+    from pyvisgen.simulation.utils import single_occurance
 
     arr = np.array([1, 2, 2, 3, 4, 4])
 
@@ -30,8 +30,8 @@ def test_single_occurance():
 
 
 def test_get_pairs():
-    from vipy.layouts.layouts import get_array_layout
-    from vipy.simulation.utils import get_pairs
+    from pyvisgen.layouts.layouts import get_array_layout
+    from pyvisgen.simulation.utils import get_pairs
 
     layout = get_array_layout("eht")
     delta_x, delta_y, delta_z = get_pairs(layout)
@@ -41,8 +41,8 @@ def test_get_pairs():
 
 
 def test_calc_time_steps():
-    from vipy.simulation.utils import read_config
-    from vipy.simulation.utils import calc_time_steps
+    from pyvisgen.simulation.utils import read_config
+    from pyvisgen.simulation.utils import calc_time_steps
 
     conf = read_config("config/default.toml")
     time = calc_time_steps(conf)

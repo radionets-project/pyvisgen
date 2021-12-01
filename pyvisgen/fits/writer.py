@@ -373,7 +373,7 @@ def create_antenna_hdu(layout_txt, conf, layout="vlba"):
     return hdu_ant
 
 
-def create_hdu_list(data, conf, path="../vipy/vipy/layouts/vlba.txt"):
+def create_hdu_list(data, conf, path="../pyvisgen/pyvisgen/layouts/vlba.txt"):
     vis_hdu = create_vis_hdu(data, conf)
     time_hdu = create_time_hdu(data)
     freq_hdu = create_frequency_hdu(conf)
