@@ -1,5 +1,14 @@
+import re
 import h5py
 import numpy as np
+from pathlib import Path
+
+
+def get_data_paths(path):
+    data_dir = Path(path)
+    bundles = np.array([x for x in data_dir.iterdir()])
+    data_paths = np.sort([path for path in bundles if re.findall("source_", path.name)])
+    return data_paths
 
 
 class h5_sky_distributions:
