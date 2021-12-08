@@ -18,10 +18,9 @@ def create_vis_hdu(data, conf, layout="vlba", source_name="sim-source-0"):
         data.date.min()
     )  # placeholder, julian date of vis, central time in the integration period
 
-    # I think this is not really needed, but dunno, documentation is again insane
     _DATE = (
         data._date
-    )  # relative julian date for the observation day??, central time in the integration period
+    )  # central time in the integration period
 
     BASELINE = data.base_num
 
@@ -31,7 +30,7 @@ def create_vis_hdu(data, conf, layout="vlba", source_name="sim-source-0"):
     values = data.get_values()
     vis = np.swapaxes(
         np.swapaxes(
-            np.stack([values.real, values.imag, np.ones(values.shape)], axis=1), 1, 2
+            np.stack([values.real, values.imag, np.ones(values.shape)-0.8], axis=1), 1, 2
         ),
         0,
         1,
@@ -40,11 +39,11 @@ def create_vis_hdu(data, conf, layout="vlba", source_name="sim-source-0"):
     # in dim 4 = IFs , dim = 1, dim 4 = number of jones, 3 = real, imag, weight
 
     # wcs
-    ra = conf["src_coord"].ra.value
-    dec = conf["src_coord"].dec.value
-    freq, freq_d = freq, freq_d = (
-        (np.array(conf["channel"].split(":")).astype("int") * un.MHz).to(un.Hz).value
-    )
+    ra = conf["fov_center_ra"]
+    dec = conf["fov_center_dec"]
+    freq = (conf["base_freq"] * un.Hz).value
+    freq_d = (conf["bandwidths"][0] * un.Hz).value
+
     ws = wcs.WCS(naxis=7)
     ws.wcs.crpix = [1, 1, 1, 1, 1, 1, 1]
     ws.wcs.cdelt = np.array([1, 1, -1, freq_d, 1, 1, 1])
@@ -91,9 +90,8 @@ def create_vis_hdu(data, conf, layout="vlba", source_name="sim-source-0"):
     hdu_vis.header.comments["PTYPE6"] = "Relative Julian date ?"
     hdu_vis.header.comments["PTYPE7"] = "Integration time"
 
-    date_obs = Time(conf["scan_start"], format="yday").to_value(
-        format="iso", subfmt="date"
-    )
+    date_obs = conf["scan_start"].date().strftime("%Y-%m-%d")
+
     date_map = Time.now().to_value(format="iso", subfmt="date")
 
     # add additional keys
@@ -179,10 +177,9 @@ def create_time_hdu(data):
 
 
 def create_frequency_hdu(conf):
-    freq, freq_d = freq, freq_d = (
-        (np.array(conf["channel"].split(":")).astype("int") * un.MHz).to(un.Hz).value
-    )
-    num_ifs = 1  # at the moment only 1 possible
+    freq_d = (conf["bandwidths"][0] * un.Hz).value
+
+    # num_ifs = 1  # at the moment only 1 possible
 
     FRQSEL = np.array([1], dtype=">i4")
     col1 = fits.Column(name="FRQSEL", format="1J", unit=" ", array=FRQSEL)
@@ -303,10 +300,8 @@ def create_antenna_hdu(layout_txt, conf, layout="vlba"):
     )
     hdu_ant = fits.BinTableHDU.from_columns(coldefs_ant)
 
-    freq, freq_d = freq, freq_d = (
-        (np.array(conf["channel"].split(":")).astype("int") * un.MHz).to(un.Hz).value
-    )
-    ref_date = Time(conf["scan_start"], format="yday")
+    freq = (conf["base_freq"] * un.Hz).value
+    ref_date = Time(conf["scan_start"].isoformat(), format="isot")
 
     # add additional keywords
     hdu_ant.header["EXTNAME"] = ("AIPS AN", "AIPS table file")
@@ -373,7 +368,7 @@ def create_antenna_hdu(layout_txt, conf, layout="vlba"):
     return hdu_ant
 
 
-def create_hdu_list(data, conf, path="../pyvisgen/pyvisgen/layouts/vlba.txt"):
+def create_hdu_list(data, conf, path="../layouts/vlba.txt"):
     vis_hdu = create_vis_hdu(data, conf)
     time_hdu = create_time_hdu(data)
     freq_hdu = create_frequency_hdu(conf)
