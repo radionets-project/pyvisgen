@@ -1,0 +1,24 @@
+[sampling_options]
+mode = "basic"
+layout = "vlba"
+img_size = 256
+fov_center_ra = [00:00:00.0, 23:59:59.59]
+fov_center_dec = [00:00:00.0, 11:59:59.59]
+fov_size = 25.6  # 256 pixels, max res 0.1
+corr_int_time = 10.0
+scan_start = ["01-01-2020 00:00:01", "31-12-2021 23:59:59"]
+scan_duration = [50, 300]
+scans = [30, 72]
+interval_length = 1200
+base_freq = 15.21e9
+frequsel = [0e8, 0.8e8, 1.44e8, 2.08e8]
+bandwidths = [6.4e7, 6.4e7, 6.4e7, 6.4e7]
+
+[bundle_options]
+num_bundles = 5
+size_bundles = 10
+in_path = "./build"
+out_path = "./build"
+
+[cluster_options]
+num_jobs = 4
