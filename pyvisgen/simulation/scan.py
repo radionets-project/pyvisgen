@@ -538,7 +538,8 @@ def angularDistance(rd, src_crd):
     Returns
     -------
     2d array
-        Returns angular Distance for every pixel in rd grid with respect to source position
+        Returns angular Distance for every pixel in rd grid with respect
+        to source position
     """
     r = rd[:, :, 0] - src_crd.ra.rad
     d = rd[:, :, 1] - src_crd.dec.rad
