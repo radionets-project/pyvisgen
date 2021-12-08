@@ -1,6 +1,6 @@
 import toml
 from astropy.coordinates import SkyCoord
-import astropy.units as u
+import astropy.units as un
 import numpy as np
 from astropy.time import Time
 
@@ -24,7 +24,7 @@ def read_config(conf):
     sim_conf["src_coord"] = SkyCoord(
         ra=config["sampling_options"]["fov_center_ra"],
         dec=config["sampling_options"]["fov_center_dec"],
-        unit=(u.deg, u.deg),
+        unit=(un.deg, un.deg),
     )
     sim_conf["fov_size"] = config["sampling_options"]["fov_size"]
     sim_conf["corr_int_time"] = config["sampling_options"]["corr_int_time"]
@@ -67,7 +67,7 @@ def get_pairs(array_layout):
 
 
 def calc_time_steps(conf):
-    start_time = Time(conf["scan_start"], format="yday")
+    start_time = Time(conf["scan_start"].isoformat(), format='isot')
     interval = conf["interval_length"]
     integration_time = conf["corr_int_time"]
     num_scans = conf["scans"]
@@ -75,7 +75,7 @@ def calc_time_steps(conf):
     int_time = conf["corr_int_time"]
 
     time_lst = [
-        start_time + interval * i * u.second + j * integration_time * u.second
+        start_time + interval * i * un.second + j * integration_time * un.second
         for i in range(num_scans)
         for j in range(
             int(scan_duration / int_time) + 1
