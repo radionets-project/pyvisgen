@@ -11,6 +11,7 @@
 # make
 *_done
 */build
+*/*/build
 
 *.ipynb_checkpoints
 *.pyc
