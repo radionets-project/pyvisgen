@@ -18,9 +18,7 @@ def create_vis_hdu(data, conf, layout="vlba", source_name="sim-source-0"):
         data.date.min()
     )  # placeholder, julian date of vis, central time in the integration period
 
-    _DATE = (
-        data._date
-    )  # central time in the integration period
+    _DATE = data._date  # central time in the integration period
 
     BASELINE = data.base_num
 
@@ -28,9 +26,12 @@ def create_vis_hdu(data, conf, layout="vlba", source_name="sim-source-0"):
 
     # visibility data
     values = data.get_values()
+
     vis = np.swapaxes(
         np.swapaxes(
-            np.stack([values.real, values.imag, np.ones(values.shape)-0.8], axis=1), 1, 2
+            np.stack([values.real, values.imag, np.ones(values.shape) - 0.8], axis=1),
+            1,
+            2,
         ),
         0,
         1,
