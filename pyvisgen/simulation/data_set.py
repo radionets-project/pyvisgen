@@ -15,13 +15,12 @@ def simulate_data_set(config, source_idx=0):
     out_path = Path(conf["out_path"])
     out_path.mkdir(exist_ok=True)
 
-    out = out_path / Path("vis_" + str(source_idx) + ".fits")
-
     samp_ops = create_sampling_rc(conf)
 
     # open image
     data = radiosim_data(conf["in_path"])
     for i in range(len(data)):
+        out = out_path / Path("vis_" + str(i) + ".fits")
         SI = torch.tensor(data[i][0][0], dtype=torch.cdouble)
 
         hdu_list = writer.create_hdu_list(vis_loop(samp_ops, SI), samp_ops)
