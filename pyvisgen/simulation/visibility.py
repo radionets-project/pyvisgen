@@ -76,7 +76,7 @@ class Vis:
     _date: float
 
 
-def vis_loop(rc, img_idx=0, num_threads=48):
+def vis_loop(rc, SI, num_threads=48):
     # torch.set_num_threads(num_threads)
 
     # read config
@@ -102,16 +102,6 @@ def vis_loop(rc, img_idx=0, num_threads=48):
 
     # calculate time steps
     time = ut.calc_time_steps(rc)
-
-    # open image
-    path = "../../../radiosim/build/example_data"
-    data_paths = get_data_paths(path)
-    h5 = h5_sky_distributions(data_paths)
-    img = torch.tensor(h5[img_idx])
-    SI = torch.zeros((img.shape[1], img.shape[2], 4), dtype=torch.cdouble)
-    print(SI.shape)
-    SI[..., 0] = img
-    SI[..., 1] = img
 
     # number statiosn, number baselines
     stat_num = array_layout.st_num.shape[0]
@@ -141,11 +131,9 @@ def vis_loop(rc, img_idx=0, num_threads=48):
             base_num,
             axis=1,
         )[mask]
-        print(len(base_valid))
 
         _date = np.zeros(len(u_valid))
 
-        print(wave)
         X1 = scan.uncorrupted(lm, baselines, wave[0], t, src_crd, array_layout, SI)
         if X1.shape[0] == 1:
             continue
@@ -155,13 +143,13 @@ def vis_loop(rc, img_idx=0, num_threads=48):
 
         int_values = scan.integrate(X1, X2)
         del X1, X2
-        int_values = int_values.reshape(-1, 4)
+        int_values = int_values
 
         vis = Visibilities(
             int_values[:, 0],
-            int_values[:, 1],
-            int_values[:, 2],
-            int_values[:, 3],
+            torch.zeros(int_values.shape[0], dtype=torch.complex128),
+            torch.zeros(int_values.shape[0], dtype=torch.complex128),
+            torch.zeros(int_values.shape[0], dtype=torch.complex128),
             vis_num,
             np.repeat(i + 1, len(vis_num)),
             np.array([baselines[i].baselineNum() for i in base_valid]),
