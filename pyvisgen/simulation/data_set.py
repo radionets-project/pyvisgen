@@ -1,22 +1,29 @@
 import numpy as np
 import pandas as pd
+import torch
 from pathlib import Path
 from datetime import datetime
 from pyvisgen.utils.config import read_data_set_conf
 from pyvisgen.simulation.visibility import vis_loop
 import pyvisgen.fits.writer as writer
+from radiosim.data import radiosim_data
 
 
 def simulate_data_set(config, source_idx=0):
+    np.random.seed(42)
     conf = read_data_set_conf(config)
     out_path = Path(conf["out_path"])
 
     out = out_path / Path("vis_" + str(source_idx) + ".fits")
-    print(out)
 
     samp_ops = create_sampling_rc(conf)
 
-    hdu_list = writer.create_hdu_list(vis_loop(samp_ops, img_idx=0), samp_ops)
+    # open image
+    path = "../../../test_radiosim/build/test_data"
+    data = radiosim_data(path)  # conf["in_path"]
+    SI = torch.tensor(data[0][0][0], dtype=torch.cdouble)
+
+    hdu_list = writer.create_hdu_list(vis_loop(samp_ops, SI), samp_ops)
     hdu_list.writeto(out, overwrite=True)
 
 
