@@ -13,6 +13,7 @@ def simulate_data_set(config, source_idx=0):
     np.random.seed(42)
     conf = read_data_set_conf(config)
     out_path = Path(conf["out_path"])
+    out_path.mkdir(exist_ok=True)
 
     out = out_path / Path("vis_" + str(source_idx) + ".fits")
 
