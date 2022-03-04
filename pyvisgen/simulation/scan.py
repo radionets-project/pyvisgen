@@ -12,7 +12,6 @@ import torch
 import itertools
 import time as t
 import numexpr as ne  # fast exponential
-from einsumt import einsumt as einsum
 
 
 @dataclass
