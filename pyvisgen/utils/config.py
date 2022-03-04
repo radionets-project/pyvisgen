@@ -1,4 +1,6 @@
 import toml
+import astropy.units as un
+from astropy.coordinates import SkyCoord
 
 
 def read_data_set_conf(conf_toml):
@@ -17,11 +19,11 @@ def read_data_set_conf(conf_toml):
     config = toml.load(conf_toml)
     conf = {}
 
-    conf["mode"] = config["sampling_options"]["mode"],
-    conf["layout"] = config["sampling_options"]["layout"],
-    conf["img_size"] = config["sampling_options"]["img_size"],
-    conf["fov_center_ra"] = config["sampling_options"]["fov_center_ra"],
-    conf["fov_center_dec"] = config["sampling_options"]["fov_center_dec"],
+    conf["mode"] = (config["sampling_options"]["mode"],)
+    conf["layout"] = (config["sampling_options"]["layout"],)
+    conf["img_size"] = (config["sampling_options"]["img_size"],)
+    conf["fov_center_ra"] = (config["sampling_options"]["fov_center_ra"],)
+    conf["fov_center_dec"] = (config["sampling_options"]["fov_center_dec"],)
     conf["fov_size"] = config["sampling_options"]["fov_size"]
     conf["corr_int_time"] = config["sampling_options"]["corr_int_time"]
     conf["scan_start"] = config["sampling_options"]["scan_start"]
@@ -62,7 +64,7 @@ def read_config(conf):
     sim_conf["src_coord"] = SkyCoord(
         ra=config["sampling_options"]["fov_center_ra"],
         dec=config["sampling_options"]["fov_center_dec"],
-        unit=(u.deg, u.deg),
+        unit=(un.deg, un.deg),
     )
     sim_conf["fov_size"] = config["sampling_options"]["fov_size"]
     sim_conf["corr_int_time"] = config["sampling_options"]["corr_int_time"]
