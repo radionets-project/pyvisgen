@@ -3,8 +3,8 @@ import numpy as np
 from astropy import wcs
 import astropy.units as un
 from astropy.time import Time
-import pandas as pd
 import astropy.constants as const
+import pyvisgen.layouts.layouts as layouts
 
 
 def create_vis_hdu(data, conf, layout="vlba", source_name="sim-source-0"):
@@ -233,8 +233,8 @@ def create_frequency_hdu(conf):
     return hdu_freq
 
 
-def create_antenna_hdu(layout_txt, conf, layout="vlba"):
-    array = pd.read_csv(layout_txt, sep=" ")
+def create_antenna_hdu(conf):
+    array = layouts.get_array_layout(conf["layout"], writer=True)
 
     ANNAME = np.chararray(len(array), itemsize=8, unicode=True)
     ANNAME[:] = array["station_name"].values
@@ -334,7 +334,7 @@ def create_antenna_hdu(layout_txt, conf, layout="vlba"):
     hdu_ant.header["UT1UTC"] = (0, "UT1 - UTC (sec)")  # missing
     hdu_ant.header["DATUTC"] = (0, "time system - UTC (sec)")  # missing
     hdu_ant.header["TIMSYS"] = ("UTC", "Time system")
-    hdu_ant.header["ARRNAM"] = (layout, "Array name")
+    hdu_ant.header["ARRNAM"] = (conf["layout"], "Array name")
     hdu_ant.header["XYZHAND"] = ("RIGHT", "Handedness of station coordinates")
     hdu_ant.header["FRAME"] = ("????", "Coordinate frame")
     hdu_ant.header["NUMORB"] = (0, "Number orbital parameters in table (n orb)")
@@ -369,10 +369,10 @@ def create_antenna_hdu(layout_txt, conf, layout="vlba"):
     return hdu_ant
 
 
-def create_hdu_list(data, conf, path="../layouts/vlba.txt"):
+def create_hdu_list(data, conf):
     vis_hdu = create_vis_hdu(data, conf)
     time_hdu = create_time_hdu(data)
     freq_hdu = create_frequency_hdu(conf)
-    ant_hdu = create_antenna_hdu(path, conf)
+    ant_hdu = create_antenna_hdu(conf)
     hdu_list = fits.HDUList([vis_hdu, time_hdu, freq_hdu, ant_hdu])
     return hdu_list
