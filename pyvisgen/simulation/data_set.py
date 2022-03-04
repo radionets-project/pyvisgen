@@ -20,10 +20,11 @@ def simulate_data_set(config, source_idx=0):
 
     # open image
     data = radiosim_data(conf["in_path"])
-    SI = torch.tensor(data[0][0][0], dtype=torch.cdouble)
+    for i in range(len(data)):
+        SI = torch.tensor(data[i][0][0], dtype=torch.cdouble)
 
-    hdu_list = writer.create_hdu_list(vis_loop(samp_ops, SI), samp_ops)
-    hdu_list.writeto(out, overwrite=True)
+        hdu_list = writer.create_hdu_list(vis_loop(samp_ops, SI), samp_ops)
+        hdu_list.writeto(out, overwrite=True)
 
 
 def create_sampling_rc(conf):
