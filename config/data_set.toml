@@ -17,7 +17,7 @@ bandwidths = [6.4e7, 6.4e7, 6.4e7, 6.4e7]
 [bundle_options]
 num_bundles = 5
 size_bundles = 10
-in_path = "./build"
+in_path = "../../../test_radiosim/build/test_data"
 out_path = "./build"
 
 [cluster_options]

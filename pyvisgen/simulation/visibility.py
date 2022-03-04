@@ -7,7 +7,6 @@ from astropy import units as un
 import pyvisgen.simulation.scan as scan
 import torch
 from astropy.coordinates import SkyCoord
-from pyvisgen.utils.data import get_data_paths, h5_sky_distributions
 
 
 @dataclass

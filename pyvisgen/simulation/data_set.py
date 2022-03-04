@@ -19,8 +19,7 @@ def simulate_data_set(config, source_idx=0):
     samp_ops = create_sampling_rc(conf)
 
     # open image
-    path = "../../../test_radiosim/build/test_data"
-    data = radiosim_data(path)  # conf["in_path"]
+    data = radiosim_data(conf["in_path"])
     SI = torch.tensor(data[0][0][0], dtype=torch.cdouble)
 
     hdu_list = writer.create_hdu_list(vis_loop(samp_ops, SI), samp_ops)
