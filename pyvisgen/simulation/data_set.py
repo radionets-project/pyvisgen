@@ -1,6 +1,7 @@
 import numpy as np
 import pandas as pd
 import torch
+from tqdm import tqdm
 from pathlib import Path
 from datetime import datetime
 from pyvisgen.utils.config import read_data_set_conf
@@ -19,7 +20,7 @@ def simulate_data_set(config, source_idx=0):
 
     # open image
     data = radiosim_data(conf["in_path"])
-    for i in range(len(data)):
+    for i in tqdm(range(len(data))):
         out = out_path / Path("vis_" + str(i) + ".fits")
         SI = torch.tensor(data[i][0][0], dtype=torch.cdouble)
 
