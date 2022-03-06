@@ -34,9 +34,10 @@ def read_data_set_conf(conf_toml):
     conf["frequsel"] = config["sampling_options"]["frequsel"]
     conf["bandwidths"] = config["sampling_options"]["bandwidths"]
 
-    conf["num_bundles"] = config["bundle_options"]["num_bundles"]
-    conf["size_bundles"] = config["bundle_options"]["size_bundles"]
-    conf["num_images"] = conf["num_bundles"] * conf["size_bundles"]
+    conf["num_test_images"] = config["bundle_options"]["num_test_images"]
+    conf["bundle_size"] = config["bundle_options"]["bundle_size"]
+    conf["train_valid_split"] = config["bundle_options"]["train_valid_split"]
+    conf["grid_size"] = config["bundle_options"]["grid_size"]
     conf["in_path"] = config["bundle_options"]["in_path"]
     conf["out_path"] = config["bundle_options"]["out_path"]
 
