@@ -10,13 +10,11 @@ import pyvisgen.fits.writer as writer
 from radiosim.data import radiosim_data
 
 
-def simulate_data_set(config, source_idx=0):
+def simulate_data_set(config):
     np.random.seed(42)
     conf = read_data_set_conf(config)
     out_path = Path(conf["out_path"])
-    out_path.mkdir(exist_ok=True)
-
-    samp_ops = create_sampling_rc(conf)
+    out_path.mkdir(parents=True, exist_ok=True)
 
     # open image
     data = radiosim_data(conf["in_path"])
@@ -24,6 +22,7 @@ def simulate_data_set(config, source_idx=0):
         out = out_path / Path("vis_" + str(i) + ".fits")
         SI = torch.tensor(data[i][0][0], dtype=torch.cdouble)
 
+        samp_ops = create_sampling_rc(conf)
         hdu_list = writer.create_hdu_list(vis_loop(samp_ops, SI), samp_ops)
         hdu_list.writeto(out, overwrite=True)
 
