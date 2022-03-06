@@ -1,49 +1,85 @@
 import numpy as np
 from tqdm import tqdm
 import matplotlib.pyplot as plt
+from pathlib import Path
 from pyvisgen.fits.data import fits_data
+from pyvisgen.utils.config import read_data_set_conf
 
 
-def create_gridded_dataset(fits_data_path):
-    fits_files = fits_data(fits_data_path)
+def create_gridded_data_set(config):
+    conf = read_data_set_conf(config)
+    out_path_fits = Path(conf["out_path"])
+    out_path = out_path_fits.parent / "gridded_data/"
+    ######
+    out_path = Path(
+        "/net/big-tank/POOL/projects/radio/test_rime/build_test/gridded_data"
+    )
+    out_path_fits = Path(
+        "/net/big-tank/POOL/projects/radio/test_rime/build_test/uvfits"
+    )
+    ######
+    print(out_path)
+    out_path.mkdir(parents=True, exist_ok=True)
+
+    fits_files = fits_data(out_path_fits)
     size = len(fits_files)
+    num_bundles = int(size // conf["bundle_size"])
+    if conf["num_test_images"] > 0:
+        budles_test = int(conf["num_test_images"] // conf["bundle_size"])
+        size -= conf["num_test_images"]
+    else:
+        bundle_test = 0
 
-    for i in tqdm(range(1)):
-        freq_data, base_freq = fits_files.get_freq_data(i)
-        uv_data = fits_files.get_uv_data(i)
+    size_valid = conf["train_valid_split"] * size
+    size_train = size - size_valid
+    bundle_train = int(size_train // conf["bundle_size"])
+    bundle_valid = int(size_valid // conf["bundle_size"])
 
-        gridded_data = grid_data(uv_data, base_freq)
+    for i in tqdm(range(bundle_train)):
+        uv_data_train = np.array(
+            [
+                fits_files.get_uv_data(n)
+                for n in np.arange(
+                    i * conf["bundle_size"],
+                    (i * conf["bundle_size"]) + conf["bundle_size"],
+                )
+            ],
+            dtype="object",
+        )
+        gridded_data_train = np.array(
+            [grid_data(data, conf) for data in tqdm(uv_data_train)]
+        )
+        print(gridded_data_train.shape)
+        print(gridded_data_train[0].shape)
 
 
-def grid_data(uv_data, base_freq):
-    freq = base_freq
+def grid_data(uv_data, conf):
+    freq = conf["base_freq"]
 
     cmplx = uv_data["DATA"]
     real = np.squeeze(cmplx[..., 0, 0])
     imag = np.squeeze(cmplx[..., 0, 1])
     # weight = np.squeeze(cmplx[..., 0, 2])
-    ap = np.sqrt(real ** 2 + imag ** 2)
-    ph = np.angle(real + 1j * imag)
+    # ap = np.sqrt(real ** 2 + imag ** 2)
+    # ph = np.angle(real + 1j * imag)
     samps = np.array(
         [
             np.append(uv_data["UU--"] * freq, -uv_data["UU--"] * freq),
             np.append(uv_data["VV--"] * freq, -uv_data["VV--"] * freq),
-            np.append(ap, ap),
-            np.append(ph, -ph),
+            np.append(real, real),
+            np.append(imag, -imag),
         ]
     )
 
     # Generate Mask
     u_0 = samps[0]
     v_0 = samps[1]
-    N = 256  # image size, needs to be from config file
+    N = conf["grid_size"]  # image size, needs to be from config file
     mask = np.zeros((N, N, u_0.shape[0]))
     fov = (
-        0.0256 * np.pi / (3600 * 180)
-    )  # hard code #default 0.00018382, FoV from VLBA 163.7
-    print(fov)
+        conf["fov_size"] * np.pi / (3600 * 180)
+    )  # hard code #default 0.00018382, FoV from VLBA 163.7 <- wrong! depends on setting of simulations
     delta_u = 1 / (fov)
-    print(delta_u)
     for i in range(N):
         for j in range(N):
             u_cell = (j - N / 2) * delta_u
@@ -57,20 +93,22 @@ def grid_data(uv_data, base_freq):
     points[points == 0] = 1
     gridded_vis = np.zeros((2, N, N))
     gridded_vis[0] = np.matmul(mask, samps[2].T) / points
-    gridded_vis[0] = (np.log10(gridded_vis[0] + 1e-10) / 10) + 1
+    # gridded_vis[0] = (np.log10(gridded_vis[0] + 1e-10) / 10) + 1
     gridded_vis[1] = np.matmul(mask, samps[3].T) / points
 
-    print(gridded_vis.shape)
+    # print(gridded_vis.shape)
 
-    plt.imshow(gridded_vis[1])
-    plt.colorbar()
-    plt.show()
+    # plt.imshow(gridded_vis[1])
+    # plt.colorbar()
+    # plt.show()
 
-    return 1
+    return gridded_vis
 
 
 if __name__ == "__main__":
-    create_gridded_dataset("/net/big-tank/POOL/projects/radio/test_rime/build/uvfits")
+    create_gridded_data_set(
+        "/net/big-tank/POOL/projects/radio/test_rime/create_dataset.toml"
+    )
 
     # img = np.zeros((size, 256, 256))
     # samps = np.zeros((size, 4, 21000))  # hard code
