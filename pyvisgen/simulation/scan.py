@@ -296,7 +296,7 @@ def uncorrupted(lm, baselines, wave, time, src_crd, array_layout, SI):
     return X
 
 
-def corrupted(lm, baselines, wave, time, src_crd, array_layout, I, rd):
+def corrupted(lm, baselines, wave, time, src_crd, array_layout, SI, rd):
     """Calculates corrupted visibility
 
     Parameters
@@ -336,15 +336,16 @@ def corrupted(lm, baselines, wave, time, src_crd, array_layout, I, rd):
 
     K = getK(baselines, lm, wave, base_num)
 
-    B = np.zeros((lm.shape[0], lm.shape[1], 2, 2), dtype=complex)
+    B = np.zeros((lm.shape[0], lm.shape[1], 1), dtype=complex)
 
-    B[:, :, 0, 0] = I[:, :, 0] + I[:, :, 1]
-    B[:, :, 0, 1] = I[:, :, 2] + 1j * I[:, :, 3]
-    B[:, :, 1, 0] = I[:, :, 2] - 1j * I[:, :, 3]
-    B[:, :, 1, 1] = I[:, :, 0] - I[:, :, 1]
+    B[:, :, 0] = SI + SI
+    # B[:, :, 0, 0] = I[:, :, 0] + I[:, :, 1]
+    # B[:, :, 0, 1] = I[:, :, 2] + 1j * I[:, :, 3]
+    # B[:, :, 1, 0] = I[:, :, 2] - 1j * I[:, :, 3]
+    # B[:, :, 1, 1] = I[:, :, 0] - I[:, :, 1]
 
     # coherency
-    X = torch.einsum("lmij,lmb->lmbij", torch.tensor(B), K)
+    X = torch.einsum("lmi,lmb->lmbi", torch.tensor(B), K)
     # X = np.einsum('lmij,lmb->lmbij', B, K, optimize=True)
     # X = torch.tensor(B)[:,:,None,:,:] * K[:,:,:,None,None]
 
@@ -357,12 +358,14 @@ def corrupted(lm, baselines, wave, time, src_crd, array_layout, I, rd):
     E1 = torch.tensor(E_st[:, :, st1_num], dtype=torch.cdouble)
     E2 = torch.tensor(E_st[:, :, st2_num], dtype=torch.cdouble)
 
-    EX = torch.einsum("lmb,lmbij->lmbij", E1, X)
+    EX = torch.einsum("lmb,lmbi->lmbi", E1, X)
 
     del E1, X
     # EXE = torch.einsum('lmbij,lmbjk->lmbik',EX,torch.transpose(torch.conj(E2),3,4))
-    EXE = torch.einsum("lmbij,lmb->lmbij", EX, E2)
+    EXE = torch.einsum("lmbi,lmb->lmbi", EX, E2)
     del EX, E2
+
+    # return EXE
 
     # P matrix
     # parallactic angle
@@ -381,17 +384,17 @@ def corrupted(lm, baselines, wave, time, src_crd, array_layout, I, rd):
     P1 = torch.tensor(getP(b1), dtype=torch.cdouble)
     P2 = torch.tensor(getP(b2), dtype=torch.cdouble)
 
-    PEXE = torch.einsum("bij,lmbjk->lmbik", P1, EXE)
+    print("P", P1.shape)
+
+    PEXE = torch.einsum("bi,lmbj->lmbi", P1, EXE)
     del EXE
-    PEXEP = torch.einsum(
-        "lmbij,bjk->lmbik", PEXE, torch.transpose(torch.conj(P2), 1, 2)
-    )
+    PEXEP = torch.einsum("lmbi,bk->lmbik", PEXE, torch.transpose(torch.conj(P2), 1, 2))
     del PEXE
 
     return PEXEP
 
 
-def direction_independent(lm, baselines, wave, time, src_crd, array_layout, I, rd):
+def direction_independent(lm, baselines, wave, time, src_crd, array_layout, SI, rd):
     """Calculates direction independet visibility
 
     Parameters
@@ -430,15 +433,16 @@ def direction_independent(lm, baselines, wave, time, src_crd, array_layout, I, r
 
     K = getK(baselines, lm, wave, base_num)
 
-    B = np.zeros((lm.shape[0], lm.shape[1], 2, 2), dtype=complex)
+    B = np.zeros((lm.shape[0], lm.shape[1], 1), dtype=complex)
 
-    B[:, :, 0, 0] = I[:, :, 0] + I[:, :, 1]
-    B[:, :, 0, 1] = I[:, :, 2] + 1j * I[:, :, 3]
-    B[:, :, 1, 0] = I[:, :, 2] - 1j * I[:, :, 3]
-    B[:, :, 1, 1] = I[:, :, 0] - I[:, :, 1]
+    B[:, :, 0] = SI + SI
+    # B[:, :, 0, 0] = I[:, :, 0] + I[:, :, 1]
+    # B[:, :, 0, 1] = I[:, :, 2] + 1j * I[:, :, 3]
+    # B[:, :, 1, 0] = I[:, :, 2] - 1j * I[:, :, 3]
+    # B[:, :, 1, 1] = I[:, :, 0] - I[:, :, 1]
 
     # coherency
-    X = torch.einsum("lmij,lmb->lmbij", torch.tensor(B), K)
+    X = torch.einsum("lmi,lmb->lmbi", torch.tensor(B), K)
 
     del K
 
@@ -448,11 +452,11 @@ def direction_independent(lm, baselines, wave, time, src_crd, array_layout, I, r
     E1 = torch.tensor(E_st[:, :, st1_num], dtype=torch.cdouble)
     E2 = torch.tensor(E_st[:, :, st2_num], dtype=torch.cdouble)
 
-    EX = torch.einsum("lmb,lmbij->lmbij", E1, X)
+    EX = torch.einsum("lmb,lmbi->lmbi", E1, X)
 
     del E1, X
 
-    EXE = torch.einsum("lmbij,lmb->lmbij", EX, E2)
+    EXE = torch.einsum("lmbi,lmb->lmbi", EX, E2)
     del EX, E2
 
     return EXE
@@ -511,6 +515,7 @@ def getE(rd, array_layout, wave, src_crd):
     # calculate matrix E for every point in grid
     # E = np.zeros((rd.shape[0], rd.shape[1], array_layout.st_num.shape[0], 2, 2))
     E = np.zeros((rd.shape[0], rd.shape[1], array_layout.st_num.shape[0]))
+    # print("E", E.shape)
 
     # get diameters of all stations and do vectorizing stuff
     diameters = array_layout.diam
@@ -565,12 +570,12 @@ def getP(beta):
         Shape is given by beta axis and (2,2) Jones matrix axes
     """
     # calculate matrix P with parallactic angle beta
-    P = np.zeros((beta.shape[0], 2, 2))
+    P = np.zeros((beta.shape[0], 1))
 
-    P[:, 0, 0] = np.cos(beta)
-    P[:, 0, 1] = -np.sin(beta)
-    P[:, 1, 0] = np.sin(beta)
-    P[:, 1, 1] = np.cos(beta)
+    P[:, 0] = np.cos(beta)
+    # P[:, 0, 1] = -np.sin(beta)
+    # P[:, 1, 0] = np.sin(beta)
+    # P[:, 1, 1] = np.cos(beta)
     return P
 
 
