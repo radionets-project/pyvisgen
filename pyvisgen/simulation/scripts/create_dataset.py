@@ -18,7 +18,6 @@ from pyvisgen.gridding.gridder import create_gridded_data_set
 )
 def main(configuration_path, mode):
     if mode == "simulate":
-        print("hi")
         simulate_data_set(configuration_path)
     if mode == "gridding":
         create_gridded_data_set(configuration_path)
