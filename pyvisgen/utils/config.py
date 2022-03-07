@@ -38,6 +38,8 @@ def read_data_set_conf(conf_toml):
     conf["bundle_size"] = config["bundle_options"]["bundle_size"]
     conf["train_valid_split"] = config["bundle_options"]["train_valid_split"]
     conf["grid_size"] = config["bundle_options"]["grid_size"]
+    conf["amp_phase"] = config["bundle_options"]["amp_phase"]
+    conf["target"] = config["bundle_options"]["target"]
     conf["in_path"] = config["bundle_options"]["in_path"]
     conf["out_path"] = config["bundle_options"]["out_path"]
 
