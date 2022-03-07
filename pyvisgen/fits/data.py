@@ -30,7 +30,7 @@ class fits_data:
         return self.open_file(i)
 
     def get_files(self, path):
-        return np.array([x for x in path.iterdir()])
+        return np.sort(np.array([x for x in path.iterdir()]))
 
     def get_uv_data(self, i):
         with fits.open(self.files[i]) as hdul:
