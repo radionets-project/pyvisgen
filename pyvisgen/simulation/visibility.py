@@ -81,12 +81,12 @@ def vis_loop(rc, SI, num_threads=48):
     # read config
     array_layout = layouts.get_array_layout(rc["layout"])
     src_crd = SkyCoord(
-        ra=170,  # rc["fov_center_ra"].strftime("%H:%M:%S"),
-        dec=22,  # rc["fov_center_dec"].strftime("%H:%M:%S"),
-        unit=(un.deg, un.deg),
+        ra=rc["fov_center_ra"].strftime("%H:%M:%S"),
+        dec=rc["fov_center_dec"],
+        unit=(un.hourangle, un.deg),
     )
-    rc["fov_center_ra"] = 170
-    rc["fov_center_dec"] = 22
+    rc["fov_center_ra"] = src_crd.ra.value
+    rc["fov_center_dec"] = src_crd.dec.value
 
     wave = np.array(
         [
@@ -133,10 +133,10 @@ def vis_loop(rc, SI, num_threads=48):
 
         _date = np.zeros(len(u_valid))
 
-        X1 = scan.uncorrupted(lm, baselines, wave[0], t, src_crd, array_layout, SI)
+        X1 = scan.direction_independent(lm, baselines, wave[0], t, src_crd, array_layout, SI, rd)
         if X1.shape[0] == 1:
             continue
-        X2 = scan.uncorrupted(lm, baselines, wave[0], t, src_crd, array_layout, SI)
+        X2 = scan.direction_independent(lm, baselines, wave[0], t, src_crd, array_layout, SI, rd)
 
         vis_num = np.arange(X1.shape[2] // 2) + 1 + vis_num.max()
 
