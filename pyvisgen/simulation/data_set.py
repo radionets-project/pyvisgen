@@ -58,15 +58,12 @@ def draw_sampling_opts(conf):
         datetime.time(datetime.strptime(date, "%H:%M:%S")) for date in date_str_ra
     ]
     fov_center_ra = np.random.choice(times_ra)
-    date_str_dec = pd.date_range(
-        conf["fov_center_dec"][0][0].strftime("%H:%M:%S"),
-        conf["fov_center_dec"][0][1].strftime("%H:%M:%S"),
-        freq="1min",
-    ).strftime("%H:%M:%S")
-    times_dec = [
-        datetime.time(datetime.strptime(date, "%H:%M:%S")) for date in date_str_dec
-    ]
-    fov_center_dec = np.random.choice(times_dec)
+    angles_dec = np.arange(
+        conf["fov_center_dec"][0][0],
+        conf["fov_center_dec"][0][1],
+        step=0.1,
+    )
+    fov_center_dec = np.random.choice(angles_dec)
     start_time_l = datetime.strptime(conf["scan_start"][0], "%d-%m-%Y %H:%M:%S")
     start_time_h = datetime.strptime(conf["scan_start"][1], "%d-%m-%Y %H:%M:%S")
     start_times = pd.date_range(
@@ -105,4 +102,4 @@ def draw_sampling_opts(conf):
 
 
 if __name__ == "__main__":
-    simulate_data_set("../../config/data_set.toml")
+    simulate_data_set("/net/big-tank/POOL/projects/radio/test_rime/create_dataset.toml")
