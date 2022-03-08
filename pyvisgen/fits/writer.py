@@ -5,6 +5,7 @@ import astropy.units as un
 from astropy.time import Time
 import astropy.constants as const
 import pyvisgen.layouts.layouts as layouts
+import warnings
 
 
 def create_vis_hdu(data, conf, layout="vlba", source_name="sim-source-0"):
@@ -370,6 +371,7 @@ def create_antenna_hdu(conf):
 
 
 def create_hdu_list(data, conf):
+    warnings.filterwarnings("ignore", module="astropy.io.fits")
     vis_hdu = create_vis_hdu(data, conf)
     time_hdu = create_time_hdu(data)
     freq_hdu = create_frequency_hdu(conf)
