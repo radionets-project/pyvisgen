@@ -86,7 +86,7 @@ def create_gridded_data_set(config):
             gridded_data_train = convert_amp_phase(gridded_data_train)
             truth_amp_phase_train = convert_amp_phase(truth_fft_train, sky_sim=True)
 
-        out = out_path / Path("bundle_train" + str(i) + ".h5")
+        out = out_path / Path("samp_train" + str(i) + ".h5")
         save_fft_pair(out, gridded_data_train, truth_amp_phase_train)
         train_index_last = i
 
@@ -137,7 +137,7 @@ def create_gridded_data_set(config):
             gridded_data_valid = convert_amp_phase(gridded_data_valid)
             truth_amp_phase_valid = convert_amp_phase(truth_fft_valid, sky_sim=True)
 
-        out = out_path / Path("bundle_valid" + str(i) + ".h5")
+        out = out_path / Path("samp_valid" + str(i - train_index_last) + ".h5")
         save_fft_pair(out, gridded_data_valid, truth_amp_phase_valid)
 
 
