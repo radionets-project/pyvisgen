@@ -23,7 +23,12 @@ def simulate_data_set(config):
         SI = torch.tensor(data[i][0][0], dtype=torch.cdouble)
 
         samp_ops = create_sampling_rc(conf)
-        hdu_list = writer.create_hdu_list(vis_loop(samp_ops, SI), samp_ops)
+        vis_data = vis_loop(samp_ops, SI)
+        while vis_data == 0:
+            print("Draw new config!")
+            samp_ops = create_sampling_rc(conf)
+            vis_data = vis_loop(samp_ops, SI)
+        hdu_list = writer.create_hdu_list(vis_data, samp_ops)
         hdu_list.writeto(out, overwrite=True)
 
 

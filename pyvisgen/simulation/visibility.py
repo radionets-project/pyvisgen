@@ -133,10 +133,14 @@ def vis_loop(rc, SI, num_threads=48):
 
         _date = np.zeros(len(u_valid))
 
-        X1 = scan.direction_independent(lm, baselines, wave[0], t, src_crd, array_layout, SI, rd)
+        X1 = scan.direction_independent(
+            lm, baselines, wave[0], t, src_crd, array_layout, SI, rd
+        )
         if X1.shape[0] == 1:
             continue
-        X2 = scan.direction_independent(lm, baselines, wave[0], t, src_crd, array_layout, SI, rd)
+        X2 = scan.direction_independent(
+            lm, baselines, wave[0], t, src_crd, array_layout, SI, rd
+        )
 
         vis_num = np.arange(X1.shape[2] // 2) + 1 + vis_num.max()
 
@@ -160,4 +164,6 @@ def vis_loop(rc, SI, num_threads=48):
         )
 
         visibilities.add(vis)
+    if visibilities.get_values().shape[1] < 10000:
+        return 0
     return visibilities
