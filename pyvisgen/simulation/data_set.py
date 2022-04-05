@@ -11,7 +11,7 @@ from radiosim.data import radiosim_data
 
 
 def simulate_data_set(config):
-    np.random.seed(42)
+    np.random.seed(1)
     conf = read_data_set_conf(config)
     out_path = Path(conf["out_path"])
     out_path.mkdir(parents=True, exist_ok=True)
