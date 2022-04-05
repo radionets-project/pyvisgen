@@ -650,7 +650,8 @@ def jinc(x):
 
 
 def get_valid_baselines(baselines, base_num):
-    """Calculates all valid baselines. This depens on the baselines that are visible at start and stop times
+    """Calculates all valid baselines. This depens on the baselines that are visible at
+    start and stop times.
 
     Parameters
     ----------
@@ -668,7 +669,8 @@ def get_valid_baselines(baselines, base_num):
     valid = baselines.valid.reshape(-1, base_num)
 
     # generate a mask to only take baselines that are visible at start and stop time
-    # example:  telescope is visible at time t_0 but not visible at time t_1, therefore throw away baseline
+    # example:  telescope is visible at time t_0 but not visible at time t_1, therefore
+    # throw away baseline
     # this is checked for every pair of time: t_0-t_1, t_1-t_2,...
     # t_0<-mask[0]->t_1, t_1<-mask[1]->t_2,...
     mask = np.array(valid[:-1]).astype(bool) & np.array(valid[1:]).astype(bool)
@@ -704,13 +706,15 @@ def time_step_of_baseline(baselines, base_num):
     Returns
     -------
     1d array
-        Return array with every time step repeated N times, where N is the number of valid baselines per time step
+        Return array with every time step repeated N times, where N is the number of
+        valid baselines per time step
     """
     # reshape valid mask to (time, total baselines per time)
     valid = baselines.valid.reshape(-1, base_num)
 
     # generate a mask to only take baselines that are visible at start and stop time
-    # example:  telescope is visible at time t_0 but not visible at time t_1, therefore throw away baseline
+    # example:  telescope is visible at time t_0 but not visible at time t_1, therefore
+    # throw away baseline
     # this is checked for every pair of time: t_0-t_1, t_1-t_2,...
     # t_0<-mask[0]->t_1, t_1<-mask[1]->t_2,...
     mask = np.array(valid[:-1]).astype(bool) & np.array(valid[1:]).astype(bool)
