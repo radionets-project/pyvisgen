@@ -1,17 +1,13 @@
 from dataclasses import dataclass
 from astropy import units as un
-from astropy.coordinates import SkyCoord, EarthLocation, AltAz, Angle
+from astropy.coordinates import EarthLocation, AltAz, Angle
 import numpy as np
 from scipy.special import j1
-import scipy.constants as const
-import scipy.signal as sig
 from astroplan import Observer
 from pyvisgen.simulation.utils import single_occurance, get_pairs
-from pyvisgen.layouts import layouts
 import torch
 import itertools
-import time as t
-import numexpr as ne  # fast exponential
+import numexpr as ne
 
 
 @dataclass
