@@ -88,7 +88,7 @@ def vis_loop(rc, SI, num_threads=48):
     rc["fov_center_ra"] = src_crd.ra.value
     rc["fov_center_dec"] = src_crd.dec.value
 
-    wave = np.array(
+    waves = np.array(
         [
             const.c / ((rc["base_freq"] + float(freq)) / un.second) / un.meter
             for freq in rc["frequsel"]
@@ -107,7 +107,20 @@ def vis_loop(rc, SI, num_threads=48):
     base_num = int(stat_num * (stat_num - 1) / 2)
 
     # calculate vis
-    visibilities = Visibilities([], [], [], [], [], [], [], [], [], [], [], [])
+    visibilities = Visibilities(
+        np.empty(shape=[0] + [len(waves)]),
+        np.empty(shape=[0] + [len(waves)]),
+        np.empty(shape=[0] + [len(waves)]),
+        np.empty(shape=[0] + [len(waves)]),
+        [],
+        [],
+        [],
+        [],
+        [],
+        [],
+        [],
+        [],
+    )
     vis_num = np.zeros(1)
     # i in total number of scans
     for i in range(rc["scans"]):
@@ -133,26 +146,34 @@ def vis_loop(rc, SI, num_threads=48):
 
         _date = np.zeros(len(u_valid))
 
-        X1 = scan.direction_independent(
-            lm, baselines, wave[0], t, src_crd, array_layout, SI, rd
+        int_values = np.array(
+            [
+                calc_vis(
+                    lm,
+                    baselines,
+                    wave,
+                    t,
+                    src_crd,
+                    array_layout,
+                    SI,
+                    rd,
+                    vis_num,
+                )
+                for wave in waves
+            ]
         )
-        if X1.shape[0] == 1:
+        if int_values.shape[1] == 1:
             continue
-        X2 = scan.direction_independent(
-            lm, baselines, wave[0], t, src_crd, array_layout, SI, rd
-        )
-
-        vis_num = np.arange(X1.shape[2] // 2) + 1 + vis_num.max()
-
-        int_values = scan.integrate(X1, X2)
-        del X1, X2
-        int_values = int_values
+        int_values = np.swapaxes(int_values, 0, 1)
+        vis_num = np.arange(int_values.shape[0]) + 1 + vis_num.max()
+        print(int_values.shape)
+        print(int_values[:, :, 0].shape)
 
         vis = Visibilities(
-            int_values[:, 0],
-            torch.zeros(int_values.shape[0], dtype=torch.complex128),
-            torch.zeros(int_values.shape[0], dtype=torch.complex128),
-            torch.zeros(int_values.shape[0], dtype=torch.complex128),
+            torch.tensor(int_values[:, :, 0]),
+            torch.zeros(int_values[:, :, 0].shape, dtype=torch.complex128),
+            torch.zeros(int_values[:, :, 0].shape, dtype=torch.complex128),
+            torch.zeros(int_values[:, :, 0].shape, dtype=torch.complex128),
             vis_num,
             np.repeat(i + 1, len(vis_num)),
             np.array([baselines[i].baselineNum() for i in base_valid]),
@@ -164,6 +185,22 @@ def vis_loop(rc, SI, num_threads=48):
         )
 
         visibilities.add(vis)
-    if visibilities.get_values().shape[1] < 10000:
-        return 0
+        # if visibilities.get_values().shape[1] < 10000:
+        #     return 0
     return visibilities
+
+
+def calc_vis(lm, baselines, wave, t, src_crd, array_layout, SI, rd, vis_num):
+    X1 = scan.direction_independent(
+        lm, baselines, wave, t, src_crd, array_layout, SI, rd
+    )
+    if X1.shape[0] == 1:
+        return -1
+    X2 = scan.direction_independent(
+        lm, baselines, wave, t, src_crd, array_layout, SI, rd
+    )
+
+    int_values = scan.integrate(X1, X2).numpy()
+    del X1, X2
+    int_values = int_values
+    return int_values
