@@ -28,17 +28,27 @@ def create_vis_hdu(data, conf, layout="vlba", source_name="sim-source-0"):
     # visibility data
     values = data.get_values()
 
+    print(values.shape)
+    # print(values.real.shape)
+    # stack = np.stack([values.real, values.imag, np.ones(values.shape)], axis=2)
+    # print("stack", stack.shape)
+    # print(stack[:, :, :, 0:2])
+
+    num_ifs = values.shape[0]
+
     vis = np.swapaxes(
         np.swapaxes(
-            np.stack([values.real, values.imag, np.ones(values.shape) - 0.8], axis=1),
-            1,
-            2,
+            np.stack([values.real, values.imag, np.ones(values.shape)], axis=2),
+            0,
+            3,
         ),
-        0,
-        1,
-    ).reshape(-1, 1, 1, 1, 1, 4, 3)
+        2,
+        3,
+    ).reshape(-1, 1, 1, num_ifs, 1, 4, 3)
     DATA = vis
     # in dim 4 = IFs , dim = 1, dim 4 = number of jones, 3 = real, imag, weight
+    print(DATA)
+    print(DATA.shape)
 
     # wcs
     ra = conf["fov_center_ra"]
@@ -179,24 +189,26 @@ def create_time_hdu(data):
 
 
 def create_frequency_hdu(conf):
-    freq_d = (conf["bandwidths"][0] * un.Hz).value
+    # freq_d = (conf["bandwidths"][0] * un.Hz).value
 
     # num_ifs = 1  # at the moment only 1 possible
 
     FRQSEL = np.array([1], dtype=">i4")
     col1 = fits.Column(name="FRQSEL", format="1J", unit=" ", array=FRQSEL)
 
-    IF_FREQ = np.array([[0.00e00]], dtype=">f8")  # start with 0, add ch_with per IF
+    IF_FREQ = np.array(
+        [conf["frequsel"]], dtype=">f8"
+    )  # start with 0, add ch_with per IF
     col2 = fits.Column(
         name="IF FREQ", format=str(IF_FREQ.shape[-1]) + "D", unit="Hz", array=IF_FREQ
     )
 
-    CH_WIDTH = np.repeat(np.array([[freq_d]], dtype=">f4"), 1, axis=1)
+    CH_WIDTH = np.repeat(np.array([conf["bandwidths"]], dtype=">f4"), 1, axis=1)
     col3 = fits.Column(
         name="CH WIDTH", format=str(CH_WIDTH.shape[-1]) + "E", unit="Hz", array=CH_WIDTH
     )
 
-    TOTAL_BANDWIDTH = np.repeat(np.array([[freq_d]], dtype=">f4"), 1, axis=1)
+    TOTAL_BANDWIDTH = np.repeat(np.array([conf["bandwidths"]], dtype=">f4"), 1, axis=1)
     col4 = fits.Column(
         name="TOTAL BANDWIDTH",
         format=str(TOTAL_BANDWIDTH.shape[-1]) + "E",
