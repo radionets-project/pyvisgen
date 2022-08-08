@@ -200,6 +200,10 @@ def rd_grid(fov, samples, src_crd):
     3d array
         Returns a 3d array with every pixel containing a RA and Dec value
     """
+    # transform to rad
+    fov *= np.pi / (3600 * 180)
+
+    # define resolution
     res = fov / samples
 
     rd_grid = np.zeros((samples, samples, 2))
@@ -210,7 +214,6 @@ def rd_grid(fov, samples, src_crd):
         rd_grid[:, i, 1] = np.array(
             [-(i - samples / 2) * res + src_crd.dec.rad for i in range(samples)]
         )
-
     return rd_grid
 
 
@@ -546,7 +549,7 @@ def angularDistance(rd, src_crd):
     r = rd[:, :, 0] - src_crd.ra.rad
     d = rd[:, :, 1] - src_crd.dec.rad
 
-    theta = np.arcsin(np.sqrt(r ** 2 + d ** 2))
+    theta = np.arcsin(np.sqrt(r**2 + d**2))
 
     return theta
 
@@ -615,7 +618,7 @@ def getK(baselines, lm, wave, base_num):
 
     l = torch.tensor(lm[:, :, 0])
     m = torch.tensor(lm[:, :, 1])
-    n = torch.sqrt(1 - l ** 2 - m ** 2)
+    n = torch.sqrt(1 - l**2 - m**2)
 
     ul = torch.einsum("b,ij->ijb", torch.tensor(u_cmplt), l)
     vm = torch.einsum("b,ij->ijb", torch.tensor(v_cmplt), m)
