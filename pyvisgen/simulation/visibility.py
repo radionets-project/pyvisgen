@@ -1,8 +1,8 @@
 import numpy as np
 from dataclasses import dataclass
 import pyvisgen.simulation.utils as ut
+from pyvisgen.simulation.utils import get_IFs
 import pyvisgen.layouts.layouts as layouts
-import astropy.constants as const
 from astropy import units as un
 import pyvisgen.simulation.scan as scan
 import torch
@@ -75,43 +75,37 @@ class Vis:
     _date: float
 
 
-def vis_loop(rc, SI, num_threads=48):
-    # torch.set_num_threads(num_threads)
-
-    # read config
+def vis_loop(rc, SI):
+    # define array, source coords, and IFs
     array_layout = layouts.get_array_layout(rc["layout"])
     src_crd = SkyCoord(
         ra=rc["fov_center_ra"].strftime("%H:%M:%S"),
         dec=rc["fov_center_dec"],
         unit=(un.hourangle, un.deg),
     )
+    # WHY?!
     rc["fov_center_ra"] = src_crd.ra.value
     rc["fov_center_dec"] = src_crd.dec.value
 
-    waves = np.array(
-        [
-            const.c / ((rc["base_freq"] + float(freq)) / un.second) / un.meter
-            for freq in rc["frequsel"]
-        ]
-    )
+    IFs = get_IFs(rc)
 
     # calculate rd, lm
-    rd = scan.rd_grid(rc["fov_size"] * np.pi / (3600 * 180), rc["img_size"], src_crd)
+    rd = scan.rd_grid(rc["fov_size"], rc["img_size"], src_crd)
     lm = scan.lm_grid(rd, src_crd)
 
     # calculate time steps
     time = ut.calc_time_steps(rc)
 
-    # number statiosn, number baselines
+    # def number stations and number baselines
     stat_num = array_layout.st_num.shape[0]
     base_num = int(stat_num * (stat_num - 1) / 2)
 
     # calculate vis
     visibilities = Visibilities(
-        np.empty(shape=[0] + [len(waves)]),
-        np.empty(shape=[0] + [len(waves)]),
-        np.empty(shape=[0] + [len(waves)]),
-        np.empty(shape=[0] + [len(waves)]),
+        np.empty(shape=[0] + [len(IFs)]),
+        np.empty(shape=[0] + [len(IFs)]),
+        np.empty(shape=[0] + [len(IFs)]),
+        np.empty(shape=[0] + [len(IFs)]),
         [],
         [],
         [],
@@ -150,7 +144,7 @@ def vis_loop(rc, SI, num_threads=48):
                 calc_vis(
                     lm,
                     baselines,
-                    wave,
+                    IF,
                     t,
                     src_crd,
                     array_layout,
@@ -158,7 +152,7 @@ def vis_loop(rc, SI, num_threads=48):
                     rd,
                     vis_num,
                 )
-                for wave in waves
+                for IF in IFs
             ]
         )
         if int_values.dtype != np.complex128:
@@ -190,14 +184,10 @@ def vis_loop(rc, SI, num_threads=48):
 
 
 def calc_vis(lm, baselines, wave, t, src_crd, array_layout, SI, rd, vis_num):
-    X1 = scan.uncorrupted(
-        lm, baselines, wave, t, src_crd, array_layout, SI#, rd
-    )
+    X1 = scan.uncorrupted(lm, baselines, wave, t, src_crd, array_layout, SI)  # , rd
     if X1.shape[0] == 1:
         return -1
-    X2 = scan.uncorrupted(
-        lm, baselines, wave, t, src_crd, array_layout, SI#, rd
-    )
+    X2 = scan.uncorrupted(lm, baselines, wave, t, src_crd, array_layout, SI)  # , rd
 
     int_values = scan.integrate(X1, X2).numpy()
     del X1, X2

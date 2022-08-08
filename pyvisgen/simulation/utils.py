@@ -4,6 +4,7 @@ import astropy.units as un
 import numpy as np
 from astropy.time import Time
 from datetime import datetime
+import astropy.constants as const
 
 
 def read_config(conf):
@@ -87,3 +88,13 @@ def calc_time_steps(conf):
     time = Time(time_lst)
 
     return time
+
+
+def get_IFs(rc):
+    IFs = np.array(
+        [
+            const.c / ((rc["base_freq"] + float(freq)) / un.second) / un.meter
+            for freq in rc["frequsel"]
+        ]
+    )
+    return IFs
