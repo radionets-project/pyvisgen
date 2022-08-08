@@ -35,12 +35,14 @@ class fits_data:
     def get_uv_data(self, i):
         with fits.open(self.files[i]) as hdul:
             uv_data = hdul[0].data
+            hdul.close()
             return uv_data
 
     def get_freq_data(self, i):
         with fits.open(self.files[i]) as hdul:
             base_freq = hdul[0].header["CRVAL4"]
             freq_data = hdul[2].data
+            hdul.close()
             return freq_data, base_freq
 
     def open_file(self, i):
@@ -50,4 +52,5 @@ class fits_data:
 
         with fits.open(self.files[i]) as hdul:
             fits_file = hdul
+            hdul.close()
             return fits_file.info()
