@@ -87,7 +87,11 @@ def vis_loop(rc, SI):
     rc["fov_center_ra"] = src_crd.ra.value
     rc["fov_center_dec"] = src_crd.dec.value
 
+    # define IFs
     IFs = get_IFs(rc)
+
+    # calculate time steps
+    time = ut.calc_time_steps(rc)
 
     # calculate rd, lm
     rd = scan.rd_grid(rc["fov_size"], rc["img_size"], src_crd)
