@@ -56,7 +56,7 @@ class Station:
     altitude: float
 
 
-def get_array_layout(array_name):
+def get_array_layout(array_name, writer=False):
     """Reads telescope layout txt file and converts it into a dataclass.
     Available arrays:
     - EHT
@@ -85,4 +85,7 @@ def get_array_layout(array_name):
         array["SEFD"].values,
         array["altitude"].values,
     )
-    return stations
+    if writer:
+        return array
+    else:
+        return stations

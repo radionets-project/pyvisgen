@@ -3,11 +3,12 @@ import numpy as np
 from astropy import wcs
 import astropy.units as un
 from astropy.time import Time
-import pandas as pd
 import astropy.constants as const
+import pyvisgen.layouts.layouts as layouts
+import warnings
 
 
-def create_vis_hdu(data, conf, layout="EHT", source_name="sim-source-0"):
+def create_vis_hdu(data, conf, layout="vlba", source_name="sim-source-0"):
     u = data.u
 
     v = data.v
@@ -16,32 +17,37 @@ def create_vis_hdu(data, conf, layout="EHT", source_name="sim-source-0"):
 
     DATE = data.date - int(
         data.date.min()
-    )  # placeholder, julian date of vis, central time in the integration period
+    ) 
 
-    # I think this is not really needed, but dunno, documentation is again insane
-    _DATE = (
-        data._date
-    )  # relative julian date for the observation day??, central time in the integration period
+    _DATE = data._date  # central time in the integration period
 
     BASELINE = data.base_num
 
     INTTIM = np.repeat(np.array(conf["corr_int_time"], dtype=">f4"), len(u))
 
     # visibility data
-    values = data.get_values()
+    values = np.swapaxes(data.get_values(), 0, 1)
+
+    num_ifs = values.shape[1]
+
     vis = np.swapaxes(
         np.swapaxes(
-            np.stack([values.real, values.imag, np.ones(values.shape)], axis=1), 1, 2
-        ),0,1,).reshape(-1, 1, 1, 1, 1, 4, 3)
-    DATA = vis  
+            np.stack([values.real, values.imag, np.ones(values.shape)], axis=2),
+            1,
+            3,
+        ),
+        2,
+        3,
+    ).reshape(-1, 1, 1, num_ifs, 1, 4, 3)
+    DATA = vis
     # in dim 4 = IFs , dim = 1, dim 4 = number of jones, 3 = real, imag, weight
 
     # wcs
-    ra = conf["src_coord"].ra.value
-    dec = conf["src_coord"].dec.value
-    freq, freq_d = freq, freq_d = (
-        (np.array(conf["channel"].split(":")).astype("int") * un.MHz).to(un.Hz).value
-    )
+    ra = conf["fov_center_ra"]
+    dec = conf["fov_center_dec"]
+    freq = (conf["base_freq"] * un.Hz).value
+    freq_d = (conf["bandwidths"][0] * un.Hz).value
+
     ws = wcs.WCS(naxis=7)
     ws.wcs.crpix = [1, 1, 1, 1, 1, 1, 1]
     ws.wcs.cdelt = np.array([1, 1, -1, freq_d, 1, 1, 1])
@@ -49,7 +55,7 @@ def create_vis_hdu(data, conf, layout="EHT", source_name="sim-source-0"):
     ws.wcs.ctype = ["", "COMPLEX", "STOKES", "FREQ", "IF", "RA", "DEC"]
     h = ws.to_header()
 
-    scale = 1  # / freq
+    scale = 1
     u_scale = u / const.c
     v_scale = v / const.c
     w_scale = w / const.c
@@ -88,9 +94,8 @@ def create_vis_hdu(data, conf, layout="EHT", source_name="sim-source-0"):
     hdu_vis.header.comments["PTYPE6"] = "Relative Julian date ?"
     hdu_vis.header.comments["PTYPE7"] = "Integration time"
 
-    date_obs = Time(conf["scan_start"], format="yday").to_value(
-        format="iso", subfmt="date"
-    )
+    date_obs = conf["scan_start"].date().strftime("%Y-%m-%d")
+
     date_map = Time.now().to_value(format="iso", subfmt="date")
 
     # add additional keys
@@ -176,25 +181,22 @@ def create_time_hdu(data):
 
 
 def create_frequency_hdu(conf):
-    freq, freq_d = freq, freq_d = (
-        (np.array(conf["channel"].split(":")).astype("int") * un.MHz).to(un.Hz).value
-    )
-    num_ifs = 1  # at the moment only 1 possible
-
     FRQSEL = np.array([1], dtype=">i4")
     col1 = fits.Column(name="FRQSEL", format="1J", unit=" ", array=FRQSEL)
 
-    IF_FREQ = np.array([[0.00e00]], dtype=">f8")  # start with 0, add ch_with per IF
+    IF_FREQ = np.array(
+        [conf["frequsel"]], dtype=">f8"
+    )  # start with 0, add ch_with per IF
     col2 = fits.Column(
         name="IF FREQ", format=str(IF_FREQ.shape[-1]) + "D", unit="Hz", array=IF_FREQ
     )
 
-    CH_WIDTH = np.repeat(np.array([[freq_d]], dtype=">f4"), 1, axis=1)
+    CH_WIDTH = np.repeat(np.array([conf["bandwidths"]], dtype=">f4"), 1, axis=1)
     col3 = fits.Column(
         name="CH WIDTH", format=str(CH_WIDTH.shape[-1]) + "E", unit="Hz", array=CH_WIDTH
     )
 
-    TOTAL_BANDWIDTH = np.repeat(np.array([[freq_d]], dtype=">f4"), 1, axis=1)
+    TOTAL_BANDWIDTH = np.repeat(np.array([conf["bandwidths"]], dtype=">f4"), 1, axis=1)
     col4 = fits.Column(
         name="TOTAL BANDWIDTH",
         format=str(TOTAL_BANDWIDTH.shape[-1]) + "E",
@@ -232,8 +234,8 @@ def create_frequency_hdu(conf):
     return hdu_freq
 
 
-def create_antenna_hdu(layout_txt, conf, layout="EHT"):
-    array = pd.read_csv(layout_txt, sep=" ")
+def create_antenna_hdu(conf):
+    array = layouts.get_array_layout(conf["layout"], writer=True)
 
     ANNAME = np.chararray(len(array), itemsize=8, unicode=True)
     ANNAME[:] = array["station_name"].values
@@ -300,10 +302,8 @@ def create_antenna_hdu(layout_txt, conf, layout="EHT"):
     )
     hdu_ant = fits.BinTableHDU.from_columns(coldefs_ant)
 
-    freq, freq_d = freq, freq_d = (
-        (np.array(conf["channel"].split(":")).astype("int") * un.MHz).to(un.Hz).value
-    )
-    ref_date = Time(conf["scan_start"], format="yday")
+    freq = (conf["base_freq"] * un.Hz).value
+    ref_date = Time(conf["scan_start"].isoformat(), format="isot")
 
     # add additional keywords
     hdu_ant.header["EXTNAME"] = ("AIPS AN", "AIPS table file")
@@ -335,7 +335,7 @@ def create_antenna_hdu(layout_txt, conf, layout="EHT"):
     hdu_ant.header["UT1UTC"] = (0, "UT1 - UTC (sec)")  # missing
     hdu_ant.header["DATUTC"] = (0, "time system - UTC (sec)")  # missing
     hdu_ant.header["TIMSYS"] = ("UTC", "Time system")
-    hdu_ant.header["ARRNAM"] = (layout, "Array name")
+    hdu_ant.header["ARRNAM"] = (conf["layout"], "Array name")
     hdu_ant.header["XYZHAND"] = ("RIGHT", "Handedness of station coordinates")
     hdu_ant.header["FRAME"] = ("????", "Coordinate frame")
     hdu_ant.header["NUMORB"] = (0, "Number orbital parameters in table (n orb)")
@@ -370,10 +370,11 @@ def create_antenna_hdu(layout_txt, conf, layout="EHT"):
     return hdu_ant
 
 
-def create_hdu_list(data, conf, path="../vipy/layouts/eht.txt"):
+def create_hdu_list(data, conf):
+    warnings.filterwarnings("ignore", module="astropy.io.fits")
     vis_hdu = create_vis_hdu(data, conf)
     time_hdu = create_time_hdu(data)
     freq_hdu = create_frequency_hdu(conf)
-    ant_hdu = create_antenna_hdu(path, conf)
+    ant_hdu = create_antenna_hdu(conf)
     hdu_list = fits.HDUList([vis_hdu, time_hdu, freq_hdu, ant_hdu])
     return hdu_list

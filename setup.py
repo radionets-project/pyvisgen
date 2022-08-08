@@ -1,10 +1,10 @@
 from setuptools import setup, find_packages
 
 setup(
-    name="vipy",
-    version="0.0.3",
+    name="pyvisgen",
+    version="0.0.4",
     description="Simulate radio interferometer observations and visibility generation.",
-    url="https://github.com/radionets-project/vipy",
+    url="https://github.com/radionets-project/pyvisgen",
     author="Kevin Schmidt, Felix Geyer, Stefan Fröse",
     author_email="kevin3.schmidt@tu-dortmund.de",
     license="MIT",
@@ -27,6 +27,11 @@ setup(
     setup_requires=["pytest-runner"],
     tests_require=["pytest"],
     zip_safe=False,
+    entry_points={
+        "console_scripts": [
+            "pyvisgen_create_dataset = pyvisgen.simulation.scripts.create_dataset:main",
+        ],
+    },
     classifiers=[
         "Development Status :: 3 - Alpha",
         "Intended Audience :: Science/Research",
