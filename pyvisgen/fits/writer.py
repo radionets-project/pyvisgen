@@ -17,7 +17,7 @@ def create_vis_hdu(data, conf, layout="vlba", source_name="sim-source-0"):
 
     DATE = data.date - int(
         data.date.min()
-    )  # placeholder, julian date of vis, central time in the integration period
+    ) 
 
     _DATE = data._date  # central time in the integration period
 
@@ -26,20 +26,14 @@ def create_vis_hdu(data, conf, layout="vlba", source_name="sim-source-0"):
     INTTIM = np.repeat(np.array(conf["corr_int_time"], dtype=">f4"), len(u))
 
     # visibility data
-    values = data.get_values()
+    values = np.swapaxes(data.get_values(), 0, 1)
 
-    print(values.shape)
-    # print(values.real.shape)
-    # stack = np.stack([values.real, values.imag, np.ones(values.shape)], axis=2)
-    # print("stack", stack.shape)
-    # print(stack[:, :, :, 0:2])
-
-    num_ifs = values.shape[0]
+    num_ifs = values.shape[1]
 
     vis = np.swapaxes(
         np.swapaxes(
             np.stack([values.real, values.imag, np.ones(values.shape)], axis=2),
-            0,
+            1,
             3,
         ),
         2,
@@ -47,8 +41,6 @@ def create_vis_hdu(data, conf, layout="vlba", source_name="sim-source-0"):
     ).reshape(-1, 1, 1, num_ifs, 1, 4, 3)
     DATA = vis
     # in dim 4 = IFs , dim = 1, dim 4 = number of jones, 3 = real, imag, weight
-    print(DATA)
-    print(DATA.shape)
 
     # wcs
     ra = conf["fov_center_ra"]
@@ -63,7 +55,7 @@ def create_vis_hdu(data, conf, layout="vlba", source_name="sim-source-0"):
     ws.wcs.ctype = ["", "COMPLEX", "STOKES", "FREQ", "IF", "RA", "DEC"]
     h = ws.to_header()
 
-    scale = 1  # / freq
+    scale = 1
     u_scale = u / const.c
     v_scale = v / const.c
     w_scale = w / const.c
@@ -189,10 +181,6 @@ def create_time_hdu(data):
 
 
 def create_frequency_hdu(conf):
-    # freq_d = (conf["bandwidths"][0] * un.Hz).value
-
-    # num_ifs = 1  # at the moment only 1 possible
-
     FRQSEL = np.array([1], dtype=">i4")
     col1 = fits.Column(name="FRQSEL", format="1J", unit=" ", array=FRQSEL)
 
