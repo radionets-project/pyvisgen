@@ -93,7 +93,7 @@ def draw_sampling_opts(conf):
         [datetime.strptime(time, "%d-%m-%Y %H:%M:%S") for time in start_times]
     )
     scan_duration = (
-        np.random.randint(conf["scan_duration"][0] / 10, conf["scan_duration"][1] / 10)
+        np.random.randint(conf["scan_duration"][0], conf["scan_duration"][1])
         * conf["corr_int_time"]
     )
     scans = np.random.randint(conf["scans"][0], conf["scans"][1])
