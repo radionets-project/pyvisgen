@@ -97,9 +97,6 @@ def vis_loop(rc, SI):
     rd = scan.rd_grid(rc["fov_size"], rc["img_size"], src_crd)
     lm = scan.lm_grid(rd, src_crd)
 
-    # calculate time steps
-    time = ut.calc_time_steps(rc)
-
     # def number stations and number baselines
     stat_num = array_layout.st_num.shape[0]
     base_num = int(stat_num * (stat_num - 1) / 2)
