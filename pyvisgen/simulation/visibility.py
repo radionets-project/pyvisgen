@@ -122,7 +122,6 @@ def vis_loop(rc, SI, num_threads=48):
         [],
     )
     vis_num = np.zeros(1)
-    # i in total number of scans
     for i in range(rc["scans"]):
         end_idx = int((rc["scan_duration"] / rc["corr_int_time"]) + 1)
         t = time[i * end_idx : (i + 1) * end_idx]
@@ -162,12 +161,10 @@ def vis_loop(rc, SI, num_threads=48):
                 for wave in waves
             ]
         )
-        if int_values.shape[1] == 1:
+        if int_values.dtype != np.complex128:
             continue
         int_values = np.swapaxes(int_values, 0, 1)
         vis_num = np.arange(int_values.shape[0]) + 1 + vis_num.max()
-        print(int_values.shape)
-        print(int_values[:, :, 0].shape)
 
         vis = Visibilities(
             torch.tensor(int_values[:, :, 0]),
@@ -185,19 +182,21 @@ def vis_loop(rc, SI, num_threads=48):
         )
 
         visibilities.add(vis)
-        # if visibilities.get_values().shape[1] < 10000:
-        #     return 0
+    # workaround to guarantee min number of visibilities
+    # when num vis is below N sampling is redone
+    # if visibilities.get_values().shape[1] < 3500:
+    #     return 0
     return visibilities
 
 
 def calc_vis(lm, baselines, wave, t, src_crd, array_layout, SI, rd, vis_num):
-    X1 = scan.direction_independent(
-        lm, baselines, wave, t, src_crd, array_layout, SI, rd
+    X1 = scan.uncorrupted(
+        lm, baselines, wave, t, src_crd, array_layout, SI#, rd
     )
     if X1.shape[0] == 1:
         return -1
-    X2 = scan.direction_independent(
-        lm, baselines, wave, t, src_crd, array_layout, SI, rd
+    X2 = scan.uncorrupted(
+        lm, baselines, wave, t, src_crd, array_layout, SI#, rd
     )
 
     int_values = scan.integrate(X1, X2).numpy()
