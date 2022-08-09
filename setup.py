@@ -25,6 +25,7 @@ setup(
         "tqdm",
         "numexpr",
         "opencv-python",
+        "click",
     ],
     setup_requires=["pytest-runner"],
     tests_require=["pytest"],
