@@ -5,6 +5,7 @@ import numpy as np
 from astropy.time import Time
 from datetime import datetime
 import astropy.constants as const
+from astropy.coordinates import EarthLocation, AltAz, Angle
 
 
 def read_config(conf):
@@ -73,13 +74,12 @@ def get_pairs(array_layout):
 def calc_time_steps(conf):
     start_time = Time(conf["scan_start"].isoformat(), format="isot")
     interval = conf["interval_length"]
-    integration_time = conf["corr_int_time"]
     num_scans = conf["scans"]
     scan_duration = conf["scan_duration"]
     int_time = conf["corr_int_time"]
 
     time_lst = [
-        start_time + interval * i * un.second + j * integration_time * un.second
+        start_time + interval * i * un.second + j * int_time * un.second
         for i in range(num_scans)
         for j in range(int(scan_duration / int_time) + 1)
     ]
@@ -98,3 +98,28 @@ def get_IFs(rc):
         ]
     )
     return IFs
+
+
+def calc_ref_elev(src_crd, time, array_layout):
+    if time.shape == ():
+        time = time[None]
+    # Calculate for all times
+    # calculate GHA, Greenwich as reference for EHT
+    ha_all = Angle(
+        [t.sidereal_time("apparent", "greenwich") - src_crd.ra for t in time]
+    )
+
+    # calculate elevations
+    el_st_all = src_crd.transform_to(
+        AltAz(
+            obstime=time.reshape(len(time), -1),
+            location=EarthLocation.from_geocentric(
+                np.repeat([array_layout.x], len(time), axis=0),
+                np.repeat([array_layout.y], len(time), axis=0),
+                np.repeat([array_layout.z], len(time), axis=0),
+                unit=un.m,
+            ),
+        )
+    ).alt.degree
+    assert len(ha_all.value) == len(el_st_all)
+    return ha_all, el_st_all
