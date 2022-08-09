@@ -1,0 +1,3 @@
+[submodule "radiosim"]
+	path = radiosim
+	url = https://github.com/radionets-project/radiosim.git
