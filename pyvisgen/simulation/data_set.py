@@ -8,6 +8,10 @@ from pyvisgen.utils.config import read_data_set_conf
 from pyvisgen.simulation.visibility import vis_loop
 import pyvisgen.fits.writer as writer
 from radiosim.data import radiosim_data
+import pyvisgen.layouts.layouts as layouts
+from astropy import units as un
+from astropy.coordinates import SkyCoord
+from pyvisgen.simulation.utils import calc_ref_elev, calc_time_steps
 
 
 def simulate_data_set(config, slurm=False, job_id=None, n=None):
@@ -63,6 +67,7 @@ def create_sampling_rc(conf):
         "frequsel": sampling_opts[12],
         "bandwidths": sampling_opts[13],
     }
+    test_opts(samp_ops)
     return samp_ops
 
 
@@ -117,5 +122,20 @@ def draw_sampling_opts(conf):
     return opts
 
 
+def test_opts(rc):
+    array_layout = layouts.get_array_layout(rc["layout"])
+    src_crd = SkyCoord(
+        ra=rc["fov_center_ra"],
+        dec=rc["fov_center_dec"],
+        unit=(un.deg, un.deg),
+    )
+    time = calc_time_steps(rc)
+    _, el_st_all = calc_ref_elev(src_crd, time[0], array_layout)
+    el_min = 15
+    el_max = 70
+    active_telescopes = np.sum((el_st_all >= el_min) & (el_st_all <= el_max))
+    print(active_telescopes)
+
+
 if __name__ == "__main__":
-    simulate_data_set("/net/big-tank/POOL/projects/radio/test_rime/create_dataset.toml")
+    simulate_data_set()
