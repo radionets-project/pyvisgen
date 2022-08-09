@@ -83,9 +83,6 @@ def vis_loop(rc, SI):
         dec=rc["fov_center_dec"],
         unit=(un.deg, un.deg),
     )
-    # WHY?!
-    rc["fov_center_ra"] = src_crd.ra.value
-    rc["fov_center_dec"] = src_crd.dec.value
 
     # define IFs
     IFs = get_IFs(rc)
