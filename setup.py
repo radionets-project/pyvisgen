@@ -23,6 +23,8 @@ setup(
         "astroplan",
         "torch",
         "tqdm",
+        "numexpr",
+        "opencv-python",
     ],
     setup_requires=["pytest-runner"],
     tests_require=["pytest"],
