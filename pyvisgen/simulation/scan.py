@@ -1,6 +1,6 @@
 from dataclasses import dataclass
 from astropy import units as un
-from astropy.coordinates import EarthLocation, AltAz, Angle
+from astropy.coordinates import EarthLocation
 import numpy as np
 from scipy.special import j1
 from astroplan import Observer
@@ -76,25 +76,7 @@ def get_baselines(src_crd, time, array_layout):
     """
     # Calculate for all times
     # calculate GHA, Greenwich as reference for EHT
-    ha_all = Angle(
-        [t.sidereal_time("apparent", "greenwich") - src_crd.ra for t in time]
-    )
-
-    # calculate elevations
-    el_st_all = src_crd.transform_to(
-        AltAz(
-            obstime=time.reshape(len(time), -1),
-            location=EarthLocation.from_geocentric(
-                np.repeat([array_layout.x], len(time), axis=0),
-                np.repeat([array_layout.y], len(time), axis=0),
-                np.repeat([array_layout.z], len(time), axis=0),
-                unit=un.m,
-            ),
-        )
-    ).alt.degree
-
-    # fails for 1 timestep
-    assert len(ha_all.value) == len(el_st_all)
+    ha_all, el_st_all = calc_ref_elev(src_crd, time, array_layout)
 
     # always the same
     delta_x, delta_y, delta_z = get_pairs(array_layout)
