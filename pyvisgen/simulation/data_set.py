@@ -67,15 +67,13 @@ def create_sampling_rc(conf):
 
 
 def draw_sampling_opts(conf):
-    date_str_ra = pd.date_range(
-        conf["fov_center_ra"][0][0].strftime("%H:%M:%S"),
-        conf["fov_center_ra"][0][1].strftime("%H:%M:%S"),
-        freq="1min",
-    ).strftime("%H:%M:%S")
-    times_ra = [
-        datetime.time(datetime.strptime(date, "%H:%M:%S")) for date in date_str_ra
-    ]
-    fov_center_ra = np.random.choice(times_ra)
+    angles_ra = np.arange(
+        conf["fov_center_ra"][0][0],
+        conf["fov_center_ra"][0][1],
+        step=0.1,
+    )
+    fov_center_ra = np.random.choice(angles_ra)
+
     angles_dec = np.arange(
         conf["fov_center_dec"][0][0],
         conf["fov_center_dec"][0][1],

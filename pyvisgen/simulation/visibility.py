@@ -79,9 +79,9 @@ def vis_loop(rc, SI):
     # define array, source coords, and IFs
     array_layout = layouts.get_array_layout(rc["layout"])
     src_crd = SkyCoord(
-        ra=rc["fov_center_ra"].strftime("%H:%M:%S"),
+        ra=rc["fov_center_ra"],
         dec=rc["fov_center_dec"],
-        unit=(un.hourangle, un.deg),
+        unit=(un.deg, un.deg),
     )
     # WHY?!
     rc["fov_center_ra"] = src_crd.ra.value
