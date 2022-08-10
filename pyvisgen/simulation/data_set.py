@@ -5,9 +5,9 @@ from tqdm import tqdm
 from pathlib import Path
 from datetime import datetime
 from pyvisgen.utils.config import read_data_set_conf
+from pyvisgen.utils.data import data_handler
 from pyvisgen.simulation.visibility import vis_loop
 import pyvisgen.fits.writer as writer
-from radiosim.data import radiosim_data
 import pyvisgen.layouts.layouts as layouts
 from astropy import units as un
 from astropy.coordinates import SkyCoord
@@ -22,7 +22,7 @@ def simulate_data_set(config, slurm=False, job_id=None, n=None):
 
     if slurm:
         job_id = int(job_id + n * 1000)
-        data = radiosim_data(conf["in_path"])
+        data = data_handler(conf["in_path"])
         out = out_path / Path("vis_" + str(job_id) + ".fits")
         SI = torch.tensor(data[job_id][0][0], dtype=torch.cdouble)
 
@@ -35,7 +35,7 @@ def simulate_data_set(config, slurm=False, job_id=None, n=None):
         hdu_list.writeto(out, overwrite=True)
 
     else:
-        data = radiosim_data(conf["in_path"])
+        data = data_handler(conf["in_path"])
         for i in tqdm(range(len(data))):
             out = out_path / Path("vis_" + str(i) + ".fits")
             SI = torch.tensor(data[i][0][0], dtype=torch.cdouble)
