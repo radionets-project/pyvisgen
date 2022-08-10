@@ -22,9 +22,9 @@ jobs:
 
       - name: Install dependencies
         run: |
-          pip install .
-          cd radiosim/
-          pip install .
+          - pip install .
+          - cd radiosim/
+          - pip install .
 
       - name: tests
         run: python -m pytest --cov pyvisgen --cov-report=xml
