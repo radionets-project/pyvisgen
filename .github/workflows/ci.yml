@@ -23,7 +23,7 @@ jobs:
       - name: Install dependencies
         run: |
           pip install .
-          cd radiosim
+          cd radiosim/
           pip install .
 
       - name: tests
