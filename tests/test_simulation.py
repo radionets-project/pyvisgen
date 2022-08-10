@@ -14,7 +14,6 @@ def test_get_data():
 
     data = data_handler(conf["in_path"])
     assert len(data) > 0
-    return data
 
 
 def test_create_sampling_rc():
@@ -24,16 +23,17 @@ def test_create_sampling_rc():
     assert len(samp_ops) == 14
 
     test_opts(samp_ops)
-    return samp_ops
 
 
 def test_vis_loop():
     import torch
+    from pyvisgen.utils.data import data_handler
+    from pyvisgen.simulation.data_set import create_sampling_rc
     from pyvisgen.simulation.visibility import vis_loop
     from astropy import units as un
 
-    data = test_get_data()
-    samp_ops = test_create_sampling_rc()
+    data = data_handler(conf["in_path"])
+    samp_ops = create_sampling_rc(conf)
     SI = torch.tensor(data[0][0][0], dtype=torch.cdouble)
     vis_data = vis_loop(samp_ops, SI)
 
