@@ -134,7 +134,7 @@ def test_opts(rc):
     el_min = 15
     el_max = 70
     active_telescopes = np.sum((el_st_all >= el_min) & (el_st_all <= el_max))
-    print(active_telescopes)
+    assert active_telescopes > 0
 
 
 if __name__ == "__main__":
