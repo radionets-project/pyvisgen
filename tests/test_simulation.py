@@ -10,9 +10,9 @@ out_path.mkdir(parents=True, exist_ok=True)
 
 
 def test_get_data():
-    from radiosim.data import radiosim_data
+    from pyvisgen.utils.data import data_handler
 
-    data = radiosim_data(conf["in_path"])
+    data = data_handler(conf["in_path"])
     assert len(data) > 0
 
 
