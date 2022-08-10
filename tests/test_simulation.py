@@ -14,6 +14,7 @@ def test_get_data():
 
     data = data_handler(conf["in_path"])
     assert len(data) > 0
+    return data
 
 
 def test_create_sampling_rc():
@@ -23,4 +24,28 @@ def test_create_sampling_rc():
     assert len(samp_ops) == 14
 
     test_opts(samp_ops)
-    # assert active_telescopes > 0
+    return samp_ops
+
+
+def test_vis_loop():
+    import torch
+    from pyvisgen.simulation.visibility import vis_loop
+    from astropy import units as un
+
+    data = test_get_data()
+    samp_ops = test_create_sampling_rc()
+    SI = torch.tensor(data[0][0][0], dtype=torch.cdouble)
+    vis_data = vis_loop(samp_ops, SI)
+
+    assert type(vis_data[0].SI[0]) == np.complex128
+    assert type(vis_data[0].SQ[0]) == np.complex128
+    assert type(vis_data[0].SU[0]) == np.complex128
+    assert type(vis_data[0].SV[0]) == np.complex128
+    assert type(vis_data[0].num) == np.float64
+    assert type(vis_data[0].scan) == np.float64
+    assert type(vis_data[0].base_num) == np.float64
+    assert type(vis_data[0].u) == un.Quantity
+    assert type(vis_data[0].v) == un.Quantity
+    assert type(vis_data[0].w) == un.Quantity
+    assert type(vis_data[0].date) == np.float64
+    assert type(vis_data[0]._date) == np.float64
