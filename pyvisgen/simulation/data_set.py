@@ -50,48 +50,29 @@ def simulate_data_set(config, slurm=False, job_id=None, n=None):
 
 
 def create_sampling_rc(conf):
-    sampling_opts = draw_sampling_opts(conf)
-    samp_ops = {
-        "mode": sampling_opts[0],
-        "layout": sampling_opts[1],
-        "img_size": sampling_opts[2],
-        "fov_center_ra": sampling_opts[3],
-        "fov_center_dec": sampling_opts[4],
-        "fov_size": sampling_opts[5],
-        "corr_int_time": sampling_opts[6],
-        "scan_start": sampling_opts[7],
-        "scan_duration": sampling_opts[8],
-        "scans": sampling_opts[9],
-        "interval_length": sampling_opts[10],
-        "base_freq": sampling_opts[11],
-        "frequsel": sampling_opts[12],
-        "bandwidths": sampling_opts[13],
-    }
-    test_opts(samp_ops)
+    samp_ops = draw_sampling_opts(conf)
+
+    while test_opts(samp_ops) <= 5:
+        samp_ops = draw_sampling_opts(conf)
+
     return samp_ops
 
 
 def draw_sampling_opts(conf):
     angles_ra = np.arange(
-        conf["fov_center_ra"][0][0],
-        conf["fov_center_ra"][0][1],
-        step=0.1,
+        conf["fov_center_ra"][0][0], conf["fov_center_ra"][0][1], step=0.1,
     )
     fov_center_ra = np.random.choice(angles_ra)
 
     angles_dec = np.arange(
-        conf["fov_center_dec"][0][0],
-        conf["fov_center_dec"][0][1],
-        step=0.1,
+        conf["fov_center_dec"][0][0], conf["fov_center_dec"][0][1], step=0.1,
     )
     fov_center_dec = np.random.choice(angles_dec)
     start_time_l = datetime.strptime(conf["scan_start"][0], "%d-%m-%Y %H:%M:%S")
     start_time_h = datetime.strptime(conf["scan_start"][1], "%d-%m-%Y %H:%M:%S")
-    start_times = pd.date_range(
-        start_time_l,
-        start_time_h,
-        freq="1h",
-    ).strftime("%d-%m-%Y %H:%M:%S")
+    start_times = pd.date_range(start_time_l, start_time_h, freq="1h",).strftime(
+        "%d-%m-%Y %H:%M:%S"
+    )
     scan_start = np.random.choice(
         [datetime.strptime(time, "%d-%m-%Y %H:%M:%S") for time in start_times]
     )
@@ -119,22 +100,36 @@ def draw_sampling_opts(conf):
         ],
         dtype="object",
     )
-    return opts
+    samp_ops = {
+        "mode": opts[0],
+        "layout": opts[1],
+        "img_size": opts[2],
+        "fov_center_ra": opts[3],
+        "fov_center_dec": opts[4],
+        "fov_size": opts[5],
+        "corr_int_time": opts[6],
+        "scan_start": opts[7],
+        "scan_duration": opts[8],
+        "scans": opts[9],
+        "interval_length": opts[10],
+        "base_freq": opts[11],
+        "frequsel": opts[12],
+        "bandwidths": opts[13],
+    }
+    return samp_ops
 
 
 def test_opts(rc):
     array_layout = layouts.get_array_layout(rc["layout"])
     src_crd = SkyCoord(
-        ra=rc["fov_center_ra"],
-        dec=rc["fov_center_dec"],
-        unit=(un.deg, un.deg),
+        ra=rc["fov_center_ra"], dec=rc["fov_center_dec"], unit=(un.deg, un.deg),
     )
     time = calc_time_steps(rc)
     _, el_st_all = calc_ref_elev(src_crd, time[0], array_layout)
     el_min = 15
-    el_max = 70
+    el_max = 85
     active_telescopes = np.sum((el_st_all >= el_min) & (el_st_all <= el_max))
-    assert active_telescopes > 0
+    return active_telescopes
 
 
 if __name__ == "__main__":
