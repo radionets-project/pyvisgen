@@ -87,6 +87,7 @@ def get_baselines(src_crd, time, array_layout):
     mask = ar.get_baseline_mask
 
     antenna_pairs, st_num_pairs, els_low_pairs, els_high_pairs = ar.calc_ant_pair_vals
+    print(antenna_pairs.shape)
 
     # Loop over ha and el_st
     baselines = Baselines([], [], [], [], [], [], [])
@@ -113,8 +114,8 @@ def get_baselines(src_crd, time, array_layout):
 
         valid = np.ones(u.shape).astype(bool)
 
-        m1 = (els_st < els_low).any(axis=1)
-        m2 = (els_st > els_high).any(axis=1)
+        m1 = (els_st < els_low_pairs).any(axis=1)
+        m2 = (els_st > els_high_pairs).any(axis=1)
         valid_mask = np.ma.mask_or(m1, m2)
         valid[valid_mask] = False
 
@@ -128,8 +129,8 @@ def get_baselines(src_crd, time, array_layout):
         # collect baselines
         base = Baselines(
             names,
-            array_layout[st_nums[:, 0]],
-            array_layout[st_nums[:, 1]],
+            array_layout[st_num_pairs[:, 0]],
+            array_layout[st_num_pairs[:, 1]],
             u,
             v,
             w,
