@@ -28,12 +28,13 @@ def test_create_sampling_rc():
 def test_vis_loop():
     import torch
     from pyvisgen.utils.data import data_handler
-    from pyvisgen.simulation.data_set import create_sampling_rc
+    from pyvisgen.simulation.data_set import create_sampling_rc, test_opts
     from pyvisgen.simulation.visibility import vis_loop
     from astropy import units as un
 
     data = data_handler(conf["in_path"])
     samp_ops = create_sampling_rc(conf)
+    num_active_telescopes = test_opts(samp_ops)
     SI = torch.tensor(data[0][0][0], dtype=torch.cdouble)
     vis_data = vis_loop(samp_ops, SI)
 
@@ -49,3 +50,11 @@ def test_vis_loop():
     assert type(vis_data[0].w) == un.Quantity
     assert type(vis_data[0].date) == np.float64
     assert type(vis_data[0]._date) == np.float64
+
+    # test num vis for time step 0
+    num_vis_theory = num_active_telescopes * (num_active_telescopes - 1) / 2
+    num_vis_calsc = vis_data.base_num[
+        vis_data.date == np.unique(vis_data.date)[0]
+    ].shape[0]
+
+    assert num_vis_theory == num_vis_calsc
