@@ -7,6 +7,7 @@ from astroplan import Observer
 from pyvisgen.simulation.utils import (
     calc_ref_elev,
     Array,
+    calc_direction_cosines
 )
 import torch
 import itertools
@@ -83,27 +84,14 @@ def get_baselines(src_crd, time, array_layout):
 
     ar = Array(array_layout)
     delta_x, delta_y, delta_z, indices = ar.calc_relative_pos
-
     mask = ar.get_baseline_mask
-
     antenna_pairs, st_num_pairs, els_low_pairs, els_high_pairs = ar.calc_ant_pair_vals
-    print(antenna_pairs.shape)
+    names = antenna_pairs[:, 0] + "-" + antenna_pairs[:, 1]
 
     # Loop over ha and el_st
     baselines = Baselines([], [], [], [], [], [], [])
     for ha, el_st in zip(ha_all, el_st_all):
-        u = np.sin(ha) * delta_x + np.cos(ha) * delta_y
-        v = (
-            -np.sin(src_crd.ra) * np.cos(ha) * delta_x
-            + np.sin(src_crd.ra) * np.sin(ha) * delta_y
-            + np.cos(src_crd.ra) * delta_z
-        )
-        w = (
-            np.cos(src_crd.ra) * np.cos(ha) * delta_x
-            - np.cos(src_crd.ra) * np.sin(ha) * delta_y
-            + np.sin(src_crd.ra) * delta_z
-        )
-        assert u.shape == v.shape == w.shape
+        u, v, w = calc_direction_cosines(ha, el_st, delta_x, delta_y, delta_z, src_crd)
 
         # calc current elevations
         els_st = np.delete(
@@ -112,19 +100,12 @@ def get_baselines(src_crd, time, array_layout):
             axis=0,
         )[indices]
 
+        # calc valid baselines
         valid = np.ones(u.shape).astype(bool)
-
         m1 = (els_st < els_low_pairs).any(axis=1)
         m2 = (els_st > els_high_pairs).any(axis=1)
         valid_mask = np.ma.mask_or(m1, m2)
         valid[valid_mask] = False
-
-        names = antenna_pairs[:, 0] + "-" + antenna_pairs[:, 1]
-
-        u = u.reshape(-1)
-        v = v.reshape(-1)
-        w = w.reshape(-1)
-        valid = valid.reshape(-1)
 
         # collect baselines
         base = Baselines(

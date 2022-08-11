@@ -183,3 +183,19 @@ class Array:
             axis=0,
         )[self.indices]
         return antenna_pairs, st_num_pairs, els_low_pairs, els_high_pairs
+
+
+def calc_direction_cosines(ha, el_st, delta_x, delta_y, delta_z, src_crd):
+    u = (np.sin(ha) * delta_x + np.cos(ha) * delta_y).reshape(-1)
+    v = (
+        -np.sin(src_crd.ra) * np.cos(ha) * delta_x
+        + np.sin(src_crd.ra) * np.sin(ha) * delta_y
+        + np.cos(src_crd.ra) * delta_z
+    ).reshape(-1)
+    w = (
+        np.cos(src_crd.ra) * np.cos(ha) * delta_x
+        - np.cos(src_crd.ra) * np.sin(ha) * delta_y
+        + np.sin(src_crd.ra) * delta_z
+    ).reshape(-1)
+    assert u.shape == v.shape == w.shape
+    return u, v, w
