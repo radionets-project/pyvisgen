@@ -72,7 +72,7 @@ def get_baselines(src_crd, time, array_layout):
     Returns
     -------
     dataclass object
-        baselines between telescopes with visinility flags
+        baselines between telescopes with visibility flags
     """
     # Calculate for all times
     # calculate GHA, Greenwich as reference for EHT
