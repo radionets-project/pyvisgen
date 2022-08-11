@@ -6,6 +6,7 @@ from astropy.time import Time
 from datetime import datetime
 import astropy.constants as const
 from astropy.coordinates import EarthLocation, AltAz, Angle
+from astropy.utils.decorators import lazyproperty
 
 
 def read_config(conf):
@@ -42,6 +43,7 @@ def read_config(conf):
 
 
 def single_occurance(array):
+    # only calc one half of visibility because of Fourier symmetry
     vals, index = np.unique(np.abs(array), return_index=True)
     return index
 
@@ -123,3 +125,61 @@ def calc_ref_elev(src_crd, time, array_layout):
     ).alt.degree
     assert len(ha_all.value) == len(el_st_all)
     return ha_all, el_st_all
+
+
+class Array:
+    def __init__(self, array_layout):
+        self.array_layout = array_layout
+
+    @lazyproperty
+    def calc_relative_pos(self):
+        # from geocentric coordinates to relative coordinates inside array
+        delta_x, delta_y, delta_z = get_pairs(self.array_layout)
+        self.indices = single_occurance(delta_x)
+        delta_x = delta_x[self.indices]
+        delta_y = delta_y[self.indices]
+        delta_z = delta_z[self.indices]
+        return delta_x, delta_y, delta_z, self.indices
+
+    @lazyproperty
+    def get_baseline_mask(self):
+        # mask baselines between the same telescope
+        self.mask = [
+            i * len(self.array_layout.x) + i for i in range(len(self.array_layout.x))
+        ]
+        return self.mask
+
+    @lazyproperty
+    def calc_ant_pair_vals(self):
+        antenna_pairs = np.delete(
+            np.array(
+                np.meshgrid(self.array_layout.name, self.array_layout.name)
+            ).T.reshape(-1, 2),
+            self.mask,
+            axis=0,
+        )[self.indices]
+
+        st_num_pairs = np.delete(
+            np.array(
+                np.meshgrid(self.array_layout.st_num, self.array_layout.st_num)
+            ).T.reshape(-1, 2),
+            self.mask,
+            axis=0,
+        )[self.indices]
+
+        els_low_pairs = np.delete(
+            np.array(
+                np.meshgrid(self.array_layout.el_low, self.array_layout.el_low)
+            ).T.reshape(-1, 2),
+            self.mask,
+            axis=0,
+        )[self.indices]
+
+        els_high_pairs = np.delete(
+            np.array(
+                np.meshgrid(self.array_layout.el_high, self.array_layout.el_high)
+            ).T.reshape(-1, 2),
+            self.mask,
+            axis=0,
+        )[self.indices]
+        return antenna_pairs, st_num_pairs, els_low_pairs, els_high_pairs
