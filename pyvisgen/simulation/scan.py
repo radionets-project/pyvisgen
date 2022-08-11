@@ -4,7 +4,10 @@ from astropy.coordinates import EarthLocation
 import numpy as np
 from scipy.special import j1
 from astroplan import Observer
-from pyvisgen.simulation.utils import single_occurance, get_pairs, calc_ref_elev
+from pyvisgen.simulation.utils import (
+    calc_ref_elev,
+    Array,
+)
 import torch
 import itertools
 import numexpr as ne
@@ -78,42 +81,12 @@ def get_baselines(src_crd, time, array_layout):
     # calculate GHA, Greenwich as reference for EHT
     ha_all, el_st_all = calc_ref_elev(src_crd, time, array_layout)
 
-    # always the same
-    delta_x, delta_y, delta_z = get_pairs(array_layout)
-    indices = single_occurance(delta_x)
-    delta_x = delta_x[indices]
-    delta_y = delta_y[indices]
-    delta_z = delta_z[indices]
-    mask = [i * len(array_layout.x) + i for i in range(len(array_layout.x))]
-    pairs = np.delete(
-        np.array(np.meshgrid(array_layout.name, array_layout.name)).T.reshape(-1, 2),
-        mask,
-        axis=0,
-    )[indices]
+    ar = Array(array_layout)
+    delta_x, delta_y, delta_z, indices = ar.calc_relative_pos
 
-    st_nums = np.delete(
-        np.array(np.meshgrid(array_layout.st_num, array_layout.st_num)).T.reshape(
-            -1, 2
-        ),
-        mask,
-        axis=0,
-    )[indices]
+    mask = ar.get_baseline_mask
 
-    els_low = np.delete(
-        np.array(np.meshgrid(array_layout.el_low, array_layout.el_low)).T.reshape(
-            -1, 2
-        ),
-        mask,
-        axis=0,
-    )[indices]
-
-    els_high = np.delete(
-        np.array(np.meshgrid(array_layout.el_high, array_layout.el_high)).T.reshape(
-            -1, 2
-        ),
-        mask,
-        axis=0,
-    )[indices]
+    antenna_pairs, st_num_pairs, els_low_pairs, els_high_pairs = ar.calc_ant_pair_vals
 
     # Loop over ha and el_st
     baselines = Baselines([], [], [], [], [], [], [])
@@ -131,6 +104,7 @@ def get_baselines(src_crd, time, array_layout):
         )
         assert u.shape == v.shape == w.shape
 
+        # calc current elevations
         els_st = np.delete(
             np.array(np.meshgrid(el_st, el_st)).T.reshape(-1, 2),
             mask,
@@ -144,7 +118,7 @@ def get_baselines(src_crd, time, array_layout):
         valid_mask = np.ma.mask_or(m1, m2)
         valid[valid_mask] = False
 
-        names = pairs[:, 0] + "-" + pairs[:, 1]
+        names = antenna_pairs[:, 0] + "-" + antenna_pairs[:, 1]
 
         u = u.reshape(-1)
         v = v.reshape(-1)
