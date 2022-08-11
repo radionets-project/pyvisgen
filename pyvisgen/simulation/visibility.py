@@ -119,7 +119,9 @@ def vis_loop(rc, SI):
         t = time[i * end_idx : (i + 1) * end_idx]
 
         baselines = scan.get_baselines(src_crd, t, array_layout)
+        print(baselines.u.shape)
 
+        #### refactor!
         valid = baselines.valid.reshape(-1, base_num)
         mask = np.array(valid[:-1]).astype(bool) & np.array(valid[1:]).astype(bool)
         u = baselines.u.reshape(-1, base_num)
@@ -136,6 +138,7 @@ def vis_loop(rc, SI):
         )[mask]
 
         _date = np.zeros(len(u_valid))
+        ######
 
         int_values = np.array(
             [
