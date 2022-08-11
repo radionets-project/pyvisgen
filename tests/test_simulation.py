@@ -10,9 +10,9 @@ out_path.mkdir(parents=True, exist_ok=True)
 
 
 def test_get_data():
-    from radiosim.data import radiosim_data
+    from pyvisgen.utils.data import data_handler
 
-    data = radiosim_data(conf["in_path"])
+    data = data_handler(conf["in_path"])
     assert len(data) > 0
 
 
@@ -23,4 +23,29 @@ def test_create_sampling_rc():
     assert len(samp_ops) == 14
 
     test_opts(samp_ops)
-    # assert active_telescopes > 0
+
+
+def test_vis_loop():
+    import torch
+    from pyvisgen.utils.data import data_handler
+    from pyvisgen.simulation.data_set import create_sampling_rc
+    from pyvisgen.simulation.visibility import vis_loop
+    from astropy import units as un
+
+    data = data_handler(conf["in_path"])
+    samp_ops = create_sampling_rc(conf)
+    SI = torch.tensor(data[0][0][0], dtype=torch.cdouble)
+    vis_data = vis_loop(samp_ops, SI)
+
+    assert type(vis_data[0].SI[0]) == np.complex128
+    assert type(vis_data[0].SQ[0]) == np.complex128
+    assert type(vis_data[0].SU[0]) == np.complex128
+    assert type(vis_data[0].SV[0]) == np.complex128
+    assert type(vis_data[0].num) == np.float64
+    assert type(vis_data[0].scan) == np.float64
+    assert type(vis_data[0].base_num) == np.float64
+    assert type(vis_data[0].u) == un.Quantity
+    assert type(vis_data[0].v) == un.Quantity
+    assert type(vis_data[0].w) == un.Quantity
+    assert type(vis_data[0].date) == np.float64
+    assert type(vis_data[0]._date) == np.float64

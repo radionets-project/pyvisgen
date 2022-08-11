@@ -2,9 +2,9 @@ import cv2
 import numpy as np
 from tqdm import tqdm
 from pathlib import Path
-from radiosim.data import radiosim_data
 from pyvisgen.fits.data import fits_data
 from pyvisgen.utils.config import read_data_set_conf
+from pyvisgen.utils.data import data_handler
 from radionets.dl_framework.data import save_fft_pair
 import astropy.constants as const
 from pyvisgen.gridding.alt_gridder import ms2dirty_python_fast, get_npixdirty
@@ -16,7 +16,7 @@ def create_gridded_data_set(config):
     out_path = out_path_fits.parent / "gridded/"
     out_path.mkdir(parents=True, exist_ok=True)
 
-    sky_dist = radiosim_data(conf["in_path"])
+    sky_dist = data_handler(conf["in_path"])
     fits_files = fits_data(out_path_fits)
     size = len(fits_files)
 

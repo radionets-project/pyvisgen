@@ -26,6 +26,7 @@ setup(
         "numexpr",
         "opencv-python",
         "click",
+        "h5py"
     ],
     setup_requires=["pytest-runner"],
     tests_require=["pytest"],

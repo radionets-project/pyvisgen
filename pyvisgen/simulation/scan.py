@@ -4,7 +4,7 @@ from astropy.coordinates import EarthLocation
 import numpy as np
 from scipy.special import j1
 from astroplan import Observer
-from pyvisgen.simulation.utils import single_occurance, get_pairs
+from pyvisgen.simulation.utils import single_occurance, get_pairs, calc_ref_elev
 import torch
 import itertools
 import numexpr as ne

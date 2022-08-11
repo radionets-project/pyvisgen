@@ -15,12 +15,12 @@ class Visibilities:
     SQ: [complex]
     SU: [complex]
     SV: [complex]
-    num: [int]
-    scan: [int]
-    base_num: [int]
-    u: [float]
-    v: [float]
-    w: [float]
+    num: [float]
+    scan: [float]
+    base_num: [float]
+    u: [un]
+    v: [un]
+    w: [un]
     date: [float]
     _date: [float]
 
@@ -65,12 +65,12 @@ class Vis:
     SQ: complex
     SU: complex
     SV: complex
-    num: int
-    scan: int
-    base_num: int
-    u: float
-    v: float
-    w: float
+    num: float
+    scan: float
+    base_num: float
+    u: un
+    v: un
+    w: un
     date: float
     _date: float
 
