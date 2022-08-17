@@ -5,7 +5,7 @@ from tqdm import tqdm
 from pathlib import Path
 from datetime import datetime
 from pyvisgen.utils.config import read_data_set_conf
-from pyvisgen.utils.data import data_handler
+from pyvisgen.utils.data import load_data, open_data
 from pyvisgen.simulation.visibility import vis_loop
 import pyvisgen.fits.writer as writer
 import pyvisgen.layouts.layouts as layouts
@@ -22,9 +22,9 @@ def simulate_data_set(config, slurm=False, job_id=None, n=None):
 
     if slurm:
         job_id = int(job_id + n * 1000)
-        data = data_handler(conf["in_path"])
+        data = load_data(conf["in_path"])
         out = out_path / Path("vis_" + str(job_id) + ".fits")
-        SI = torch.tensor(data[job_id][0][0], dtype=torch.cdouble)
+        SI = torch.tensor(data[job_id], dtype=torch.cdouble)
 
         samp_ops = create_sampling_rc(conf)
         vis_data = vis_loop(samp_ops, SI)
@@ -35,18 +35,20 @@ def simulate_data_set(config, slurm=False, job_id=None, n=None):
         hdu_list.writeto(out, overwrite=True)
 
     else:
-        data = data_handler(conf["in_path"])
-        for i in tqdm(range(len(data))):
+        data = load_data(conf["in_path"])
+        for i in range(len(data)):
             out = out_path / Path("vis_" + str(i) + ".fits")
-            SI = torch.tensor(data[i][0][0], dtype=torch.cdouble)
-
-            samp_ops = create_sampling_rc(conf)
-            vis_data = vis_loop(samp_ops, SI)
-            while vis_data == 0:
+            # SI = torch.tensor(data[i], dtype=torch.cdouble)
+            SIs = open_data(data[i])
+            for SI in tqdm(SIs):
+                print(SI.shape)
                 samp_ops = create_sampling_rc(conf)
                 vis_data = vis_loop(samp_ops, SI)
-            hdu_list = writer.create_hdu_list(vis_data, samp_ops)
-            hdu_list.writeto(out, overwrite=True)
+                while vis_data == 0:
+                    samp_ops = create_sampling_rc(conf)
+                    vis_data = vis_loop(samp_ops, SI)
+                hdu_list = writer.create_hdu_list(vis_data, samp_ops)
+                hdu_list.writeto(out, overwrite=True)
 
 
 def create_sampling_rc(conf):
