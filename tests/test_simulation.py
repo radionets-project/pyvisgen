@@ -10,9 +10,9 @@ out_path.mkdir(parents=True, exist_ok=True)
 
 
 def test_get_data():
-    from pyvisgen.utils.data import data_handler
+    from pyvisgen.utils.data import load_data
 
-    data = data_handler(conf["in_path"])
+    data = load_data(conf["in_path"])
     assert len(data) > 0
 
 
@@ -27,15 +27,16 @@ def test_create_sampling_rc():
 
 def test_vis_loop():
     import torch
-    from pyvisgen.utils.data import data_handler
+    from pyvisgen.utils.data import load_data, open_data
     from pyvisgen.simulation.data_set import create_sampling_rc, test_opts
     from pyvisgen.simulation.visibility import vis_loop
     from astropy import units as un
 
-    data = data_handler(conf["in_path"])
+    bundles = load_data(conf["in_path"])
     samp_ops = create_sampling_rc(conf)
     num_active_telescopes = test_opts(samp_ops)
-    SI = torch.tensor(data[0][0][0], dtype=torch.cdouble)
+    data = open_data(bundles[0])
+    SI = torch.tensor(data[0], dtype=torch.cdouble)
     vis_data = vis_loop(samp_ops, SI)
 
     assert type(vis_data[0].SI[0]) == np.complex128
