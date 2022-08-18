@@ -65,44 +65,21 @@ class data_handler:
         return data.float()
 
 
-def load_data(data_path):
-    """
-    Load data set from a directory and return it as h5_dataset.
-
-    Parameters
-    ----------
-    data_path: str
-        path to data directory
-    mode: str
-        specify data set type, e.g. test
-    fourier: bool
-        use Fourier images as target if True, default is False
-
-    Returns
-    -------
-    test_ds: h5_dataset
-        dataset containing x and y images
-    """
+def load_bundles(data_path):
     bundle_paths = get_bundles(data_path)
-    data = np.sort(
+    bundles = np.sort(
         [path for path in bundle_paths if re.findall("fft_", path.name)]
     )
-    print(data)
-    # data = sorted(data, key=lambda f: int("".join(filter(str.isdigit, str(f)))))
-    # ds = open_data(data)
-    return data
+    return bundles
 
 
 def get_bundles(path):
-    """
-    returns list of bundle paths located in a directory
-    """
     data_path = Path(path)
     bundles = np.array([x for x in data_path.iterdir()])
     return bundles
 
 
-def open_data(path):
+def open_bundles(path):
     f = h5py.File(path, "r")
     bundle_y = np.array(f["y"])
     return bundle_y

@@ -5,7 +5,7 @@ from tqdm import tqdm
 from pathlib import Path
 from datetime import datetime
 from pyvisgen.utils.config import read_data_set_conf
-from pyvisgen.utils.data import load_data, open_data
+from pyvisgen.utils.data import load_bundles, open_bundles
 from pyvisgen.simulation.visibility import vis_loop
 import pyvisgen.fits.writer as writer
 import pyvisgen.layouts.layouts as layouts
@@ -22,7 +22,7 @@ def simulate_data_set(config, slurm=False, job_id=None, n=None):
 
     if slurm:
         job_id = int(job_id + n * 1000)
-        data = load_data(conf["in_path"])
+        data = load_bundles(conf["in_path"])
         out = out_path / Path("vis_" + str(job_id) + ".fits")
         SI = torch.tensor(data[job_id], dtype=torch.cdouble)
 
@@ -35,13 +35,11 @@ def simulate_data_set(config, slurm=False, job_id=None, n=None):
         hdu_list.writeto(out, overwrite=True)
 
     else:
-        data = load_data(conf["in_path"])
+        data = load_bundles(conf["in_path"])
         for i in range(len(data)):
             out = out_path / Path("vis_" + str(i) + ".fits")
-            # SI = torch.tensor(data[i], dtype=torch.cdouble)
-            SIs = open_data(data[i])
+            SIs = open_bundles(data[i])
             for SI in tqdm(SIs):
-                print(SI.shape)
                 samp_ops = create_sampling_rc(conf)
                 vis_data = vis_loop(samp_ops, SI)
                 while vis_data == 0:
