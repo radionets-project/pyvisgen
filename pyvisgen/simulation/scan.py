@@ -274,16 +274,16 @@ def corrupted(lm, baselines, wave, time, src_crd, array_layout, SI, rd):
 
     K = getK(baselines, lm, wave, base_num)
 
-    B = np.zeros((lm.shape[0], lm.shape[1], 2, 2), dtype=complex)
+    B = np.zeros((lm.shape[0], lm.shape[1], 1), dtype=complex)
 
-    # B[:, :, 0] = SI + SI
+    B[:, :, 0] = SI + SI
     # # only calculate without polarization for the moment
-    B[:, :, 0, 0] = SI[:, :, 0] + SI[:, :, 1]
-    B[:, :, 0, 1] = SI[:, :, 2] + 1j * SI[:, :, 3]
-    B[:, :, 1, 0] = SI[:, :, 2] - 1j * SI[:, :, 3]
-    B[:, :, 1, 1] = SI[:, :, 0] - SI[:, :, 1]
+    # B[:, :, 0, 0] = SI[:, :, 0] + SI[:, :, 1]
+    # B[:, :, 0, 1] = SI[:, :, 2] + 1j * SI[:, :, 3]
+    # B[:, :, 1, 0] = SI[:, :, 2] - 1j * SI[:, :, 3]
+    # B[:, :, 1, 1] = SI[:, :, 0] - SI[:, :, 1]
 
-    X = torch.einsum('lmij,lmb->lmbij', torch.tensor(B), K)
+    X = torch.einsum('lmi,lmb->lmbi', torch.tensor(B), K)
     # X = np.einsum('lmij,lmb->lmbij', B, K, optimize=True)
     # X = torch.tensor(B)[:,:,None,:,:] * K[:,:,:,None,None]
 
@@ -296,17 +296,22 @@ def corrupted(lm, baselines, wave, time, src_crd, array_layout, SI, rd):
     E1 = torch.tensor(E_st[:, :, st1_num], dtype=torch.cdouble)
     E2 = torch.tensor(E_st[:, :, st2_num], dtype=torch.cdouble)
 
-    EX = torch.einsum("lmb,lmbij->lmbij", E1, X)
+    print("X", X.shape)
+    print("E", E1.shape)
+
+    EX = torch.einsum("lmb,lmbi->lmbi", E1, X)
 
     del E1, X
     # EXE = torch.einsum('lmbij,lmbjk->lmbik',EX,torch.transpose(torch.conj(E2),3,4))
-    EXE = torch.einsum("lmbij,lmb->lmbij", EX, E2)
+    EXE = torch.einsum("lmbi,lmb->lmbi", EX, E2)
     del EX, E2
 
     # return EXE
 
     # P matrix
     # parallactic angle
+
+    print("EXE", EXE.shape)
 
     beta = np.array(
         [
@@ -327,9 +332,9 @@ def corrupted(lm, baselines, wave, time, src_crd, array_layout, SI, rd):
     print("P", P1.shape)
     print("EXE", EXE.shape)
 
-    PEXE = torch.einsum("bij,lmbjk->lmbik", P1, EXE)
+    PEXE = torch.einsum("bi,lmbi->lmbi", P1, EXE)
     del EXE
-    PEXEP = torch.einsum("lmbij,bjk->lmbik", PEXE, torch.transpose(torch.conj(P2), 1, 2))
+    PEXEP = torch.einsum("lmbi,bi->lmbi", PEXE, torch.conj(P2))
     del PEXE
 
     return PEXEP
@@ -511,12 +516,12 @@ def getP(beta):
         Shape is given by beta axis and (2,2) Jones matrix axes
     """
     # calculate matrix P with parallactic angle beta
-    P = np.zeros((beta.shape[0], 2, 2))
+    P = np.zeros((beta.shape[0], 1))
 
-    P[:, 0, 0] = np.cos(beta)
-    P[:, 0, 1] = -np.sin(beta)
-    P[:, 1, 0] = np.sin(beta)
-    P[:, 1, 1] = np.cos(beta)
+    P[:, 0] = np.cos(beta)
+    # P[:, 0, 1] = -np.sin(beta)
+    # P[:, 1, 0] = np.sin(beta)
+    # P[:, 1, 1] = np.cos(beta)
     return P
 
 
