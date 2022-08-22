@@ -218,10 +218,8 @@ def uncorrupted(lm, baselines, wave, time, src_crd, array_layout, SI):
         return torch.zeros(1)
 
     K = getK(baselines, lm, wave, base_num)
-    print("K", K.shape)
 
     B = np.zeros((lm.shape[0], lm.shape[1], 1), dtype=complex)
-    print("B", B.shape)
 
     B[:, :, 0] = SI + SI
     # # only calculate without polarization for the moment
@@ -233,7 +231,7 @@ def uncorrupted(lm, baselines, wave, time, src_crd, array_layout, SI):
     X = torch.einsum('lmi,lmb->lmbi', torch.tensor(B), K)
     # X = torch.einsum("lmi,lmb->lmbi", torch.tensor(B), K)
 
-    return X, K
+    return X
 
 
 def corrupted(lm, baselines, wave, time, src_crd, array_layout, SI, rd):
