@@ -121,7 +121,7 @@ def get_baselines(src_crd, time, array_layout):
     return baselines
 
 
-def rd_grid(fov, samples, src_crd):
+def create_rd_grid(fov, samples, src_crd):
     """Calculates RA and Dec values for a given fov around a source position
 
     Parameters
@@ -155,7 +155,7 @@ def rd_grid(fov, samples, src_crd):
     return rd_grid
 
 
-def lm_grid(rd_grid, src_crd):
+def create_lm_grid(rd_grid, src_crd):
     """Calculates sine projection for fov
 
     Parameters
@@ -218,8 +218,10 @@ def uncorrupted(lm, baselines, wave, time, src_crd, array_layout, SI):
         return torch.zeros(1)
 
     K = getK(baselines, lm, wave, base_num)
+    print("K", K.shape)
 
     B = np.zeros((lm.shape[0], lm.shape[1], 1), dtype=complex)
+    print("B", B.shape)
 
     B[:, :, 0] = SI + SI
     # # only calculate without polarization for the moment
@@ -228,9 +230,10 @@ def uncorrupted(lm, baselines, wave, time, src_crd, array_layout, SI):
     # B[:, :, 1, 0] = SI[:, :, 2] - 1j * SI[:, :, 3]
     # B[:, :, 1, 1] = SI[:, :, 0] - SI[:, :, 1]
 
-    X = torch.einsum("lmi,lmb->lmbi", torch.tensor(B), K)
+    X = torch.einsum('lmi,lmb->lmbi', torch.tensor(B), K)
+    # X = torch.einsum("lmi,lmb->lmbi", torch.tensor(B), K)
 
-    return X
+    return X, K
 
 
 def corrupted(lm, baselines, wave, time, src_crd, array_layout, SI, rd):
@@ -273,16 +276,16 @@ def corrupted(lm, baselines, wave, time, src_crd, array_layout, SI, rd):
 
     K = getK(baselines, lm, wave, base_num)
 
-    B = np.zeros((lm.shape[0], lm.shape[1], 1), dtype=complex)
+    B = np.zeros((lm.shape[0], lm.shape[1], 2, 2), dtype=complex)
 
-    B[:, :, 0] = SI + SI
-    # B[:, :, 0, 0] = I[:, :, 0] + I[:, :, 1]
-    # B[:, :, 0, 1] = I[:, :, 2] + 1j * I[:, :, 3]
-    # B[:, :, 1, 0] = I[:, :, 2] - 1j * I[:, :, 3]
-    # B[:, :, 1, 1] = I[:, :, 0] - I[:, :, 1]
+    # B[:, :, 0] = SI + SI
+    # # only calculate without polarization for the moment
+    B[:, :, 0, 0] = SI[:, :, 0] + SI[:, :, 1]
+    B[:, :, 0, 1] = SI[:, :, 2] + 1j * SI[:, :, 3]
+    B[:, :, 1, 0] = SI[:, :, 2] - 1j * SI[:, :, 3]
+    B[:, :, 1, 1] = SI[:, :, 0] - SI[:, :, 1]
 
-    # coherency
-    X = torch.einsum("lmi,lmb->lmbi", torch.tensor(B), K)
+    X = torch.einsum('lmij,lmb->lmbij', torch.tensor(B), K)
     # X = np.einsum('lmij,lmb->lmbij', B, K, optimize=True)
     # X = torch.tensor(B)[:,:,None,:,:] * K[:,:,:,None,None]
 
@@ -295,11 +298,11 @@ def corrupted(lm, baselines, wave, time, src_crd, array_layout, SI, rd):
     E1 = torch.tensor(E_st[:, :, st1_num], dtype=torch.cdouble)
     E2 = torch.tensor(E_st[:, :, st2_num], dtype=torch.cdouble)
 
-    EX = torch.einsum("lmb,lmbi->lmbi", E1, X)
+    EX = torch.einsum("lmb,lmbij->lmbij", E1, X)
 
     del E1, X
     # EXE = torch.einsum('lmbij,lmbjk->lmbik',EX,torch.transpose(torch.conj(E2),3,4))
-    EXE = torch.einsum("lmbi,lmb->lmbi", EX, E2)
+    EXE = torch.einsum("lmbij,lmb->lmbij", EX, E2)
     del EX, E2
 
     # return EXE
@@ -316,16 +319,19 @@ def corrupted(lm, baselines, wave, time, src_crd, array_layout, SI, rd):
         ]
     )
     tsob = time_step_of_baseline(baselines, base_num)
+    print(st1_num.shape[0])
+    print(tsob.shape)
     b1 = np.array([beta[st1_num[i], tsob[i]] for i in range(st1_num.shape[0])])
     b2 = np.array([beta[st2_num[i], tsob[i]] for i in range(st2_num.shape[0])])
     P1 = torch.tensor(getP(b1), dtype=torch.cdouble)
     P2 = torch.tensor(getP(b2), dtype=torch.cdouble)
 
     print("P", P1.shape)
+    print("EXE", EXE.shape)
 
-    PEXE = torch.einsum("bi,lmbj->lmbi", P1, EXE)
+    PEXE = torch.einsum("bij,lmbjk->lmbik", P1, EXE)
     del EXE
-    PEXEP = torch.einsum("lmbi,bk->lmbik", PEXE, torch.transpose(torch.conj(P2), 1, 2))
+    PEXEP = torch.einsum("lmbij,bjk->lmbik", PEXE, torch.transpose(torch.conj(P2), 1, 2))
     del PEXE
 
     return PEXEP
@@ -507,12 +513,12 @@ def getP(beta):
         Shape is given by beta axis and (2,2) Jones matrix axes
     """
     # calculate matrix P with parallactic angle beta
-    P = np.zeros((beta.shape[0], 1))
+    P = np.zeros((beta.shape[0], 2, 2))
 
-    P[:, 0] = np.cos(beta)
-    # P[:, 0, 1] = -np.sin(beta)
-    # P[:, 1, 0] = np.sin(beta)
-    # P[:, 1, 1] = np.cos(beta)
+    P[:, 0, 0] = np.cos(beta)
+    P[:, 0, 1] = -np.sin(beta)
+    P[:, 1, 0] = np.sin(beta)
+    P[:, 1, 1] = np.cos(beta)
     return P
 
 
