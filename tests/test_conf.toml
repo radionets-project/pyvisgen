@@ -1,7 +1,7 @@
 [sampling_options]
 mode = "basic"
 layout = "vlba"
-img_size = 64
+img_size = 128
 fov_center_ra = [90, 140]
 fov_center_dec = [-20, 50]
 fov_size = 0.0064 # max res 0.1

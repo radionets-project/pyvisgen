@@ -199,3 +199,24 @@ def calc_direction_cosines(ha, el_st, delta_x, delta_y, delta_z, src_crd):
     ).reshape(-1)
     assert u.shape == v.shape == w.shape
     return u, v, w
+
+
+def calc_valid_baselines(baselines, base_num, t, rc):
+    valid = baselines.valid.reshape(-1, base_num)
+    mask = np.array(valid[:-1]).astype(bool) & np.array(valid[1:]).astype(bool)
+    u = baselines.u.reshape(-1, base_num)
+    v = baselines.v.reshape(-1, base_num)
+    w = baselines.w.reshape(-1, base_num)
+    base_valid = np.arange(len(baselines.u)).reshape(-1, base_num)[:-1][mask]
+    u_valid = u[:-1][mask]
+    v_valid = v[:-1][mask]
+    w_valid = w[:-1][mask]
+    date = np.repeat(
+        (t[:-1] + rc["corr_int_time"] * un.second / 2).jd.reshape(-1, 1),
+        base_num,
+        axis=1,
+    )[mask]
+
+    _date = np.zeros(len(u_valid))
+    assert u_valid.shape == v_valid.shape == w_valid.shape
+    return base_valid, u_valid, v_valid, w_valid, date, _date

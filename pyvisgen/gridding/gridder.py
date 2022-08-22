@@ -4,10 +4,10 @@ from tqdm import tqdm
 from pathlib import Path
 from pyvisgen.fits.data import fits_data
 from pyvisgen.utils.config import read_data_set_conf
-from pyvisgen.utils.data import data_handler
+from pyvisgen.utils.data import load_bundles
 from radionets.dl_framework.data import save_fft_pair
 import astropy.constants as const
-from pyvisgen.gridding.alt_gridder import ms2dirty_python_fast, get_npixdirty
+from pyvisgen.gridding.alt_gridder import ms2dirty_python_fast
 
 
 def create_gridded_data_set(config):
@@ -16,7 +16,7 @@ def create_gridded_data_set(config):
     out_path = out_path_fits.parent / "gridded/"
     out_path.mkdir(parents=True, exist_ok=True)
 
-    sky_dist = data_handler(conf["in_path"])
+    sky_dist = load_bundles(conf["in_path"])
     fits_files = fits_data(out_path_fits)
     size = len(fits_files)
 
@@ -40,7 +40,6 @@ def create_gridded_data_set(config):
                 gridded_data_test = convert_amp_phase(gridded_data_test, sky_sim=False)
                 truth_amp_phase_test = convert_amp_phase(truth_fft_test, sky_sim=True)
             assert gridded_data_test.shape[1] == 2
-
 
             out = out_path / Path("samp_test" + str(i) + ".h5")
             save_fft_pair(out, gridded_data_test, truth_amp_phase_test)
@@ -131,6 +130,7 @@ def open_data(fits_files, sky_dist, conf, i):
             for data, freq in tqdm(zip(uv_data, freq_data))
         ]
     )
+    # needs to be changed to fit the new data structure, will fail now
     gridded_truth = np.array(
         [
             sky_dist[int(n)][0][0]
@@ -182,22 +182,22 @@ def ducc0_gridding(uv_data, freq_data):
     mask[wgt == 0] = False
 
     DEG2RAD = np.pi / 180
-    nthreads = 4
+    # nthreads = 4
     epsilon = 1e-4
-    do_wgridding = False
-    verbosity = 1
+    # do_wgridding = False
+    # verbosity = 1
 
-    do_sycl = False  # True
-    do_cng = False  # True
+    # do_sycl = False  # True
+    # do_cng = False  # True
 
-    ntries = 1
+    # ntries = 1
 
-    fov_deg = 0.02 # 1e-5  # 3.3477833333331884e-5
+    fov_deg = 0.02  # 1e-5  # 3.3477833333331884e-5
 
     npixdirty = 64  # get_npixdirty(uvw, freq, fov_deg, mask)
     pixsize = fov_deg / npixdirty * DEG2RAD
 
-    mintime = 1e300
+    # mintime = 1e300
 
     grid = ms2dirty_python_fast(
         uvw, freq, vis, npixdirty, npixdirty, pixsize, pixsize, epsilon, False

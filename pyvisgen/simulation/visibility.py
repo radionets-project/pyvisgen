@@ -1,7 +1,6 @@
 import numpy as np
 from dataclasses import dataclass
-import pyvisgen.simulation.utils as ut
-from pyvisgen.simulation.utils import get_IFs
+from pyvisgen.simulation.utils import get_IFs, calc_valid_baselines, calc_time_steps
 import pyvisgen.layouts.layouts as layouts
 from astropy import units as un
 import pyvisgen.simulation.scan as scan
@@ -79,16 +78,14 @@ def vis_loop(rc, SI):
     # define array, source coords, and IFs
     array_layout = layouts.get_array_layout(rc["layout"])
     src_crd = SkyCoord(
-        ra=rc["fov_center_ra"],
-        dec=rc["fov_center_dec"],
-        unit=(un.deg, un.deg),
+        ra=rc["fov_center_ra"], dec=rc["fov_center_dec"], unit=(un.deg, un.deg),
     )
 
     # define IFs
     IFs = get_IFs(rc)
 
     # calculate time steps
-    time = ut.calc_time_steps(rc)
+    time = calc_time_steps(rc)
 
     # calculate rd, lm
     rd = scan.rd_grid(rc["fov_size"], rc["img_size"], src_crd)
@@ -119,40 +116,14 @@ def vis_loop(rc, SI):
         t = time[i * end_idx : (i + 1) * end_idx]
 
         baselines = scan.get_baselines(src_crd, t, array_layout)
-        print(baselines.u.shape)
 
-        #### refactor!
-        valid = baselines.valid.reshape(-1, base_num)
-        mask = np.array(valid[:-1]).astype(bool) & np.array(valid[1:]).astype(bool)
-        u = baselines.u.reshape(-1, base_num)
-        v = baselines.v.reshape(-1, base_num)
-        w = baselines.w.reshape(-1, base_num)
-        base_valid = np.arange(len(baselines.u)).reshape(-1, base_num)[:-1][mask]
-        u_valid = u[:-1][mask]
-        v_valid = v[:-1][mask]
-        w_valid = w[:-1][mask]
-        date = np.repeat(
-            (t[:-1] + rc["corr_int_time"] * un.second / 2).jd.reshape(-1, 1),
-            base_num,
-            axis=1,
-        )[mask]
-
-        _date = np.zeros(len(u_valid))
-        ######
+        base_valid, u_valid, v_valid, w_valid, date, _date = calc_valid_baselines(
+            baselines, base_num, t, rc
+        )
 
         int_values = np.array(
             [
-                calc_vis(
-                    lm,
-                    baselines,
-                    IF,
-                    t,
-                    src_crd,
-                    array_layout,
-                    SI,
-                    rd,
-                    vis_num,
-                )
+                calc_vis(lm, baselines, IF, t, src_crd, array_layout, SI, rd, vis_num,)
                 for IF in IFs
             ]
         )
