@@ -590,10 +590,6 @@ def jinc(x):
     array
         value of jinc function at x
     """
-    # if x == 0:
-    #     return 1
-    # jinc = 2 * j1(x) / x
-    # jinc[x == 0] = 1
     jinc = np.ones(x.shape)
     jinc[x != 0] = 2 * j1(x[x != 0]) / x[x != 0]
     return jinc
