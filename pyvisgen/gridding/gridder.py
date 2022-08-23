@@ -26,7 +26,7 @@ def create_gridded_data_set(config):
         bundle_test = int(conf["num_test_images"] // conf["bundle_size"])
         size -= conf["num_test_images"]
 
-        for i in (range(bundle_test)):
+        for i in range(bundle_test):
             (
                 uv_data_test,
                 freq_data_test,
@@ -219,8 +219,12 @@ def grid_data(uv_data, freq_data, conf):
     freq = freq_data[1]
     IF_bands = (freq_data[0]["IF FREQ"] + freq).reshape(-1, 1)
 
-    u = uv_data["UU--"] * IF_bands[0]  # np.repeat([uv_data["UU--"]], np.squeeze(cmplx[..., 0, 0]).shape[1], axis=0)
-    v = uv_data["VV--"] * IF_bands[0]  # np.repeat([uv_data["VV--"]], np.squeeze(cmplx[..., 0, 0]).shape[1], axis=0)
+    u = (
+        uv_data["UU--"] * IF_bands[0]
+    )  # np.repeat([uv_data["UU--"]], np.squeeze(cmplx[..., 0, 0]).shape[1], axis=0)
+    v = (
+        uv_data["VV--"] * IF_bands[0]
+    )  # np.repeat([uv_data["VV--"]], np.squeeze(cmplx[..., 0, 0]).shape[1], axis=0)
     # u = (u * IF_bands).T.ravel()
     # v = (v * IF_bands).T.ravel()
 
@@ -234,8 +238,9 @@ def grid_data(uv_data, freq_data, conf):
     )
     import matplotlib.pyplot as plt
     import matplotlib
-    matplotlib.use('TkAgg')
-    plt.plot(samps[0], samps[1], marker='.', linestyle='none')
+
+    matplotlib.use("TkAgg")
+    plt.plot(samps[0], samps[1], marker=".", linestyle="none")
     plt.show()
 
     # Generate Mask
@@ -251,8 +256,17 @@ def grid_data(uv_data, freq_data, conf):
     mask, *_ = np.histogram2d(samps[0], samps[1], bins=[bins, bins], normed=False)
     mask[mask == 0] = 1
     # flip or rot90? Stefan used flip -> write test!!!
-    mask = np.flip(mask, [1])
-    # mask = np.rot90(mask, 1)
+    # print(mask.shape)
+    # print(mask)
+    # mask = np.rot90(mask, -1)
+    # mask = np.flip(mask, [0])
+    import matplotlib.pyplot as plt
+    import matplotlib
+
+    matplotlib.use("TkAgg")
+    plt.imshow(mask)
+    plt.colorbar()
+    plt.show()
 
     mask_real, x_edges, y_edges = np.histogram2d(
         samps[0], samps[1], bins=[bins, bins], weights=samps[2], normed=False
@@ -261,16 +275,53 @@ def grid_data(uv_data, freq_data, conf):
         samps[0], samps[1], bins=[bins, bins], weights=samps[3], normed=False
     )
 
-    mask_real = np.flip(mask_real, [1])
-    mask_imag = np.flip(mask_imag, [1])
+    # mask_real = np.flip(mask_real, [0])
+    # mask_imag = np.flip(mask_imag, [0])
+    # mask_real = np.rot90(mask_real, -1)
+    # mask_imag = np.rot90(mask_imag, -1)
 
     mask_real /= mask
     mask_imag /= mask
+
+    mask_real = np.rot90(mask_real, 1)
+    mask_imag = np.rot90(mask_imag, 1)
+    plt.imshow(mask_imag)
+    plt.colorbar()
+    plt.show()
 
     gridded_vis = np.zeros((2, N, N))
     gridded_vis[0] = mask_real
     gridded_vis[1] = mask_imag
     # print(gridded_vis.shape)
+
+    # # Generate Mask
+    # print(samps.shape)
+    # u_0 = samps[0]
+    # v_0 = samps[1]
+    # N = 63  # hard code
+    # mask = np.zeros((N, N, u_0.shape[0]))
+    # fov = conf["fov_size"] * np.pi / (3600 * 180)
+    # delta_u = 1 / (fov)
+    # for i in range(N):
+    #     for j in range(N):
+    #         u_cell = (j - N / 2) * delta_u
+    #         v_cell = (i - N / 2) * delta_u
+    #         mask[i, j] = ((u_cell <= u_0) & (u_0 <= u_cell + delta_u)) & (
+    #             (v_cell <= v_0) & (v_0 <= v_cell + delta_u)
+    #         )
+
+    # mask = np.flip(mask, [0])
+    # points = np.sum(mask, 2)
+    # points[points == 0] = 1
+    # samp_img = np.zeros((2, N, N))
+    # # img_resized = np.zeros((N, N))
+    # samp_img[0] = np.matmul(mask, samps[2].T) / points
+    # samp_img[1] = np.matmul(mask, samps[3].T) / points
+    
+    # plt.imshow(samp_img[1])
+    # plt.colorbar()
+    # plt.show()
+
     return gridded_vis
 
 
@@ -285,7 +336,8 @@ def convert_amp_phase(data, sky_sim=False, rescale=False):
         #     phase = np.array([cv2.resize(p, (128, 128)) for p in phase])
         data = np.stack((amp, phase), axis=1)
     else:
-        test = data[0] + 1j * data[1]
+        print("data", data.shape)
+        test = data[:, 0] + 1j * data[:, 1]
         amp = np.abs(test)
         phase = np.angle(test)
         # amp = (np.log10(amp + 1e-10) / 10) + 1
