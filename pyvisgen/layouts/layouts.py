@@ -73,6 +73,10 @@ def get_array_layout(array_name, writer=False):
     """
     f = array_name + ".txt"
     array = pd.read_csv(file_dir / f, sep=" ")
+    if array_name == "vla":
+        array["X"] += -0.16011853650000000e7
+        array["Y"] += -0.50419775470000003e7
+        array["Z"] += 0.35548758700000001e7
     stations = Stations(
         np.arange(len(array)),
         array["station_name"].values,
