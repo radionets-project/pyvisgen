@@ -4,7 +4,7 @@ from tqdm import tqdm
 from pathlib import Path
 from pyvisgen.fits.data import fits_data
 from pyvisgen.utils.config import read_data_set_conf
-from pyvisgen.utils.data import load_bundles
+from pyvisgen.utils.data import load_bundles, open_bundles
 from radionets.dl_framework.data import save_fft_pair
 import astropy.constants as const
 from pyvisgen.gridding.alt_gridder import ms2dirty_python_fast
@@ -26,7 +26,7 @@ def create_gridded_data_set(config):
         bundle_test = int(conf["num_test_images"] // conf["bundle_size"])
         size -= conf["num_test_images"]
 
-        for i in tqdm(range(bundle_test)):
+        for i in (range(bundle_test)):
             (
                 uv_data_test,
                 freq_data_test,
@@ -40,6 +40,7 @@ def create_gridded_data_set(config):
                 gridded_data_test = convert_amp_phase(gridded_data_test, sky_sim=False)
                 truth_amp_phase_test = convert_amp_phase(truth_fft_test, sky_sim=True)
             assert gridded_data_test.shape[1] == 2
+            print(gridded_data_test.shape)
 
             out = out_path / Path("samp_test" + str(i) + ".h5")
             save_fft_pair(out, gridded_data_test, truth_amp_phase_test)
@@ -126,14 +127,16 @@ def open_data(fits_files, sky_dist, conf, i):
     )
     gridded_data = np.array(
         [
-            ducc0_gridding(data, freq).copy()
+            grid_data(data, freq, conf).copy()
             for data, freq in tqdm(zip(uv_data, freq_data))
         ]
     )
+    print(gridded_data.shape)
     # needs to be changed to fit the new data structure, will fail now
     gridded_truth = np.array(
         [
-            sky_dist[int(n)][0][0]
+            open_bundles(dist)[n]
+            for dist in sky_dist
             for n in np.arange(
                 i * conf["bundle_size"],
                 (i * conf["bundle_size"]) + conf["bundle_size"],
@@ -209,17 +212,17 @@ def ducc0_gridding(uv_data, freq_data):
 
 def grid_data(uv_data, freq_data, conf):
     cmplx = uv_data["DATA"]
-    real = np.squeeze(cmplx[..., 0, 0]).ravel()
-    imag = np.squeeze(cmplx[..., 0, 1]).ravel()
+    real = np.squeeze(cmplx[..., 0, 0, 0, 0]).ravel()
+    imag = np.squeeze(cmplx[..., 0, 0, 0, 1]).ravel()
     # weight = np.squeeze(cmplx[..., 0, 2])
 
     freq = freq_data[1]
     IF_bands = (freq_data[0]["IF FREQ"] + freq).reshape(-1, 1)
 
-    u = np.repeat([uv_data["UU--"]], np.squeeze(cmplx[..., 0, 0]).shape[1], axis=0)
-    v = np.repeat([uv_data["VV--"]], np.squeeze(cmplx[..., 0, 0]).shape[1], axis=0)
-    u = (u * IF_bands).T.ravel()
-    v = (v * IF_bands).T.ravel()
+    u = uv_data["UU--"] * IF_bands[0]  # np.repeat([uv_data["UU--"]], np.squeeze(cmplx[..., 0, 0]).shape[1], axis=0)
+    v = uv_data["VV--"] * IF_bands[0]  # np.repeat([uv_data["VV--"]], np.squeeze(cmplx[..., 0, 0]).shape[1], axis=0)
+    # u = (u * IF_bands).T.ravel()
+    # v = (v * IF_bands).T.ravel()
 
     samps = np.array(
         [
@@ -229,6 +232,11 @@ def grid_data(uv_data, freq_data, conf):
             np.append(imag, -imag),
         ]
     )
+    import matplotlib.pyplot as plt
+    import matplotlib
+    matplotlib.use('TkAgg')
+    plt.plot(samps[0], samps[1], marker='.', linestyle='none')
+    plt.show()
 
     # Generate Mask
     N = conf["grid_size"]  # image size
@@ -243,8 +251,8 @@ def grid_data(uv_data, freq_data, conf):
     mask, *_ = np.histogram2d(samps[0], samps[1], bins=[bins, bins], normed=False)
     mask[mask == 0] = 1
     # flip or rot90? Stefan used flip -> write test!!!
-    # mask = np.flip(mask, [1])
-    mask = np.rot90(mask, 1)
+    mask = np.flip(mask, [1])
+    # mask = np.rot90(mask, 1)
 
     mask_real, x_edges, y_edges = np.histogram2d(
         samps[0], samps[1], bins=[bins, bins], weights=samps[2], normed=False
@@ -253,8 +261,8 @@ def grid_data(uv_data, freq_data, conf):
         samps[0], samps[1], bins=[bins, bins], weights=samps[3], normed=False
     )
 
-    mask_real = np.rot90(mask_real, 1)
-    mask_imag = np.rot90(mask_imag, 1)
+    mask_real = np.flip(mask_real, [1])
+    mask_imag = np.flip(mask_imag, [1])
 
     mask_real /= mask
     mask_imag /= mask
@@ -262,6 +270,7 @@ def grid_data(uv_data, freq_data, conf):
     gridded_vis = np.zeros((2, N, N))
     gridded_vis[0] = mask_real
     gridded_vis[1] = mask_imag
+    # print(gridded_vis.shape)
     return gridded_vis
 
 
@@ -271,17 +280,18 @@ def convert_amp_phase(data, sky_sim=False, rescale=False):
         phase = np.angle(data)
         # get rescale clear
         # amp = (np.log10(amp + 1e-10) / 10) + 1
-        if rescale:
-            amp = np.array([cv2.resize(a, (128, 128)) for a in amp])
-            phase = np.array([cv2.resize(p, (128, 128)) for p in phase])
+        # if rescale:
+        #     amp = np.array([cv2.resize(a, (128, 128)) for a in amp])
+        #     phase = np.array([cv2.resize(p, (128, 128)) for p in phase])
         data = np.stack((amp, phase), axis=1)
     else:
-        amp = np.abs(data)
-        phase = np.angle(data)
+        test = data[0] + 1j * data[1]
+        amp = np.abs(test)
+        phase = np.angle(test)
         # amp = (np.log10(amp + 1e-10) / 10) + 1
-        if rescale:
-            amp = np.array([cv2.resize(a, (128, 128)) for a in amp])
-            phase = np.array([cv2.resize(p, (128, 128)) for p in phase])
+        # if rescale:
+        #     amp = np.array([cv2.resize(a, (128, 128)) for a in amp])
+        #     phase = np.array([cv2.resize(p, (128, 128)) for p in phase])
         data = np.stack((amp, phase), axis=1)
     return data
 

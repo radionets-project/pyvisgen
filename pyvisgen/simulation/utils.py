@@ -208,14 +208,19 @@ def calc_valid_baselines(baselines, base_num, t, rc):
     v = baselines.v.reshape(-1, base_num)
     w = baselines.w.reshape(-1, base_num)
     base_valid = np.arange(len(baselines.u)).reshape(-1, base_num)[:-1][mask]
-    u_valid = u[:-1][mask]
-    v_valid = v[:-1][mask]
-    w_valid = w[:-1][mask]
+    u_valid = (u[:-1][mask] + u[1:][mask]) / 2
+    v_valid = (v[:-1][mask] + v[1:][mask]) / 2
+    w_valid = (w[:-1][mask] + w[1:][mask]) / 2
     date = np.repeat(
         (t[:-1] + rc["corr_int_time"] * un.second / 2).jd.reshape(-1, 1),
         base_num,
         axis=1,
     )[mask]
+    import matplotlib.pyplot as plt
+    import matplotlib
+    matplotlib.use('TkAgg')
+    plt.plot(u_valid, v_valid, marker='.', linestyle='none')
+    plt.show()
 
     _date = np.zeros(len(u_valid))
     assert u_valid.shape == v_valid.shape == w_valid.shape
