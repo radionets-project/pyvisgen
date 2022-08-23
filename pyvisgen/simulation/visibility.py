@@ -88,8 +88,8 @@ def vis_loop(rc, SI):
     time = calc_time_steps(rc)
 
     # calculate rd, lm
-    rd = scan.rd_grid(rc["fov_size"], rc["img_size"], src_crd)
-    lm = scan.lm_grid(rd, src_crd)
+    rd = scan.create_rd_grid(rc["fov_size"], rc["img_size"], src_crd)
+    lm = scan.create_lm_grid(rd, src_crd)
 
     # def number stations and number baselines
     stat_num = array_layout.st_num.shape[0]
