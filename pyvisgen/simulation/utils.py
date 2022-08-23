@@ -216,11 +216,6 @@ def calc_valid_baselines(baselines, base_num, t, rc):
         base_num,
         axis=1,
     )[mask]
-    import matplotlib.pyplot as plt
-    import matplotlib
-    matplotlib.use('TkAgg')
-    plt.plot(u_valid, v_valid, marker='.', linestyle='none')
-    plt.show()
 
     _date = np.zeros(len(u_valid))
     assert u_valid.shape == v_valid.shape == w_valid.shape
