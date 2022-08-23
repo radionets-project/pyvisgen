@@ -40,7 +40,6 @@ def create_gridded_data_set(config):
                 gridded_data_test = convert_amp_phase(gridded_data_test, sky_sim=False)
                 truth_amp_phase_test = convert_amp_phase(truth_fft_test, sky_sim=True)
             assert gridded_data_test.shape[1] == 2
-            print(gridded_data_test.shape)
 
             out = out_path / Path("samp_test" + str(i) + ".h5")
             save_fft_pair(out, gridded_data_test, truth_amp_phase_test)
@@ -131,7 +130,6 @@ def open_data(fits_files, sky_dist, conf, i):
             for data, freq in tqdm(zip(uv_data, freq_data))
         ]
     )
-    print(gridded_data.shape)
     # needs to be changed to fit the new data structure, will fail now
     gridded_truth = np.array(
         [
@@ -212,21 +210,20 @@ def ducc0_gridding(uv_data, freq_data):
 
 def grid_data(uv_data, freq_data, conf):
     cmplx = uv_data["DATA"]
-    real = np.squeeze(cmplx[..., 0, 0, 0, 0]).ravel()
-    imag = np.squeeze(cmplx[..., 0, 0, 0, 1]).ravel()
+    real = np.squeeze(cmplx[..., 0, 0, 0])#.ravel()
+    imag = np.squeeze(cmplx[..., 0, 0, 1])#.ravel()
     # weight = np.squeeze(cmplx[..., 0, 2])
 
     freq = freq_data[1]
     IF_bands = (freq_data[0]["IF FREQ"] + freq).reshape(-1, 1)
 
-    u = (
-        uv_data["UU--"] * IF_bands[0]
-    )  # np.repeat([uv_data["UU--"]], np.squeeze(cmplx[..., 0, 0]).shape[1], axis=0)
-    v = (
-        uv_data["VV--"] * IF_bands[0]
-    )  # np.repeat([uv_data["VV--"]], np.squeeze(cmplx[..., 0, 0]).shape[1], axis=0)
-    # u = (u * IF_bands).T.ravel()
-    # v = (v * IF_bands).T.ravel()
+    u = np.repeat([uv_data["UU--"]], real.shape[1], axis=0)
+    v = np.repeat([uv_data["VV--"]], real.shape[1], axis=0)
+    u = (u * IF_bands).T.ravel()
+    v = (v * IF_bands).T.ravel()
+
+    real = real.ravel()
+    imag = imag.ravel()
 
     samps = np.array(
         [
@@ -236,13 +233,6 @@ def grid_data(uv_data, freq_data, conf):
             np.append(imag, -imag),
         ]
     )
-    import matplotlib.pyplot as plt
-    import matplotlib
-
-    matplotlib.use("TkAgg")
-    plt.plot(samps[0], samps[1], marker=".", linestyle="none")
-    plt.show()
-
     # Generate Mask
     N = conf["grid_size"]  # image size
     fov = (
@@ -286,7 +276,6 @@ def convert_amp_phase(data, sky_sim=False, rescale=False):
         #     phase = np.array([cv2.resize(p, (128, 128)) for p in phase])
         data = np.stack((amp, phase), axis=1)
     else:
-        print("data", data.shape)
         test = data[:, 0] + 1j * data[:, 1]
         amp = np.abs(test)
         phase = np.angle(test)
