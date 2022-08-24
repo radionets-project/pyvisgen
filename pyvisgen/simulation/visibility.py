@@ -74,7 +74,9 @@ class Vis:
     _date: float
 
 
-def vis_loop(rc, SI):
+def vis_loop(rc, SI, num_threads=10):
+    torch.set_num_threads(num_threads)
+
     # define array, source coords, and IFs
     array_layout = layouts.get_array_layout(rc["layout"])
     src_crd = SkyCoord(
