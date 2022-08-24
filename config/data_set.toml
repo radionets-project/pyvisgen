@@ -1,15 +1,15 @@
 [sampling_options]
 mode = "basic"
-layout = "vlba"
-img_size = 128
-fov_center_ra = [90, 140]
-fov_center_dec = [-20, 50]
-fov_size = 0.0064 # max res 0.1
-corr_int_time = 10.0
-scan_start = ["01-01-2020 00:00:01", "31-12-2021 23:59:59"]
-scan_duration = [1, 50]
-scans = [1, 10]
-interval_length = 1200
+layout = "vla"
+img_size = 63
+fov_center_ra = [100, 110]
+fov_center_dec = [30, 40]
+fov_size = 25 # max res 0.1
+corr_int_time = 30.0
+scan_start = ["16-01-2020 00:04:01", "16-01-2020 08:59:59"]
+scan_duration = [60, 90]
+scans = [1, 2]
+interval_length = 360
 base_freq = 15.21e9
 frequsel = [0e8, 0.8e8, 1.44e8, 2.08e8]
 bandwidths = [6.4e7, 6.4e7, 6.4e7, 6.4e7]
@@ -17,14 +17,11 @@ bandwidths = [6.4e7, 6.4e7, 6.4e7, 6.4e7]
 [bundle_options]
 num_bundles = 5
 size_bundles = 10
-in_path = "../GAN/build/test2"
-out_path = "./build"
-num_test_images = 1000
-bundle_size = 10
+in_path = "../noise/benchmark_data/clean/"
+out_path = "./build/fits"
+num_test_images = 2
+bundle_size = 2
 train_valid_split = 0.2
-grid_size = 5
+grid_size = 128
 amp_phase = true
-target = 5
-
-[cluster_options]
-num_jobs = 4
+target = "fourier"
