@@ -2,6 +2,7 @@ from pathlib import Path
 import pandas as pd
 from dataclasses import dataclass
 import numpy as np
+from astropy.coordinates import EarthLocation
 
 
 file_dir = Path(__file__).parent.resolve()
@@ -74,9 +75,11 @@ def get_array_layout(array_name, writer=False):
     f = array_name + ".txt"
     array = pd.read_csv(file_dir / f, sep=" ")
     if array_name == "vla":
-        array["X"] += -0.16011853650000000e7
-        array["Y"] += -0.50419775470000003e7
-        array["Z"] += 0.35548758700000001e7
+        loc = EarthLocation.of_site("VLA")
+        array["X"] += loc.value[0]
+        array["Y"] += loc.value[1]
+        array["Z"] += loc.value[2]
+
     stations = Stations(
         np.arange(len(array)),
         array["station_name"].values,
