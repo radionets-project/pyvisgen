@@ -156,10 +156,10 @@ def vis_loop(rc, SI):
 
 
 def calc_vis(lm, baselines, wave, t, src_crd, array_layout, SI, rd, vis_num):
-    X1 = scan.uncorrupted(lm, baselines, wave, t, src_crd, array_layout, SI)  # , rd
+    X1 = scan.corrupted(lm, baselines, wave, t, src_crd, array_layout, SI, rd)
     if X1.shape[0] == 1:
         return -1
-    X2 = scan.uncorrupted(lm, baselines, wave, t, src_crd, array_layout, SI)  # , rd
+    X2 = scan.corrupted(lm, baselines, wave, t, src_crd, array_layout, SI, rd)
 
     int_values = scan.integrate(X1, X2).numpy()
     del X1, X2
