@@ -8,6 +8,8 @@ from pyvisgen.utils.data import load_bundles, open_bundles
 from radionets.dl_framework.data import save_fft_pair
 import astropy.constants as const
 from pyvisgen.gridding.alt_gridder import ms2dirty_python_fast
+import os
+os.environ["HDF5_USE_FILE_LOCKING"] = "FALSE"
 
 
 def create_gridded_data_set(config):
@@ -104,16 +106,13 @@ def create_gridded_data_set(config):
 
 
 def open_data(fits_files, sky_dist, conf, i):
-    uv_data = np.array(
-        [
+    uv_data = [
             fits_files.get_uv_data(n).copy()
             for n in np.arange(
                 i * conf["bundle_size"],
                 (i * conf["bundle_size"]) + conf["bundle_size"],
             )
-        ],
-        dtype="object",
-    )
+        ]
     freq_data = np.array(
         [
             fits_files.get_freq_data(n)
@@ -210,8 +209,8 @@ def ducc0_gridding(uv_data, freq_data):
 
 def grid_data(uv_data, freq_data, conf):
     cmplx = uv_data["DATA"]
-    real = np.squeeze(cmplx[..., 0, 0, 0])#.ravel()
-    imag = np.squeeze(cmplx[..., 0, 0, 1])#.ravel()
+    real = np.squeeze(cmplx[..., 0, 0, 0])  # .ravel()
+    imag = np.squeeze(cmplx[..., 0, 0, 1])  # .ravel()
     # weight = np.squeeze(cmplx[..., 0, 2])
 
     freq = freq_data[1]
