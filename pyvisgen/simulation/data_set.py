@@ -27,7 +27,7 @@ def simulate_data_set(config, slurm=False, job_id=None, n=None):
         imgs_bundle = len(open_bundles(data[0]))
         bundle = torch.div(job_id, imgs_bundle, rounding_mode="floor")
         image = job_id - bundle * imgs_bundle
-        SI = torch.tensor(data[image], dtype=torch.cdouble)
+        SI = torch.tensor(open_bundles(bundle)[image], dtype=torch.cdouble)
 
         samp_ops = create_sampling_rc(conf)
         vis_data = vis_loop(samp_ops, SI)
