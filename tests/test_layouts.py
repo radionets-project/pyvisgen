@@ -24,4 +24,4 @@ def test_get_array_layout():
 
     layout = get_array_layout("vla")
 
-    assert len(layout.st_num) == 28
+    assert len(layout.st_num) == 27
