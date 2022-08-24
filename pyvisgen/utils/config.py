@@ -42,9 +42,6 @@ def read_data_set_conf(conf_toml):
     conf["target"] = config["bundle_options"]["target"]
     conf["in_path"] = config["bundle_options"]["in_path"]
     conf["out_path"] = config["bundle_options"]["out_path"]
-
-    conf["num_jobs"] = config["cluster_options"]["num_jobs"]
-
     return conf
 
 
