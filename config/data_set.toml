@@ -16,7 +16,8 @@ bandwidths = [6.4e7, 6.4e7, 6.4e7, 6.4e7]
 
 [bundle_options]
 in_path = "build/skies/"
-out_path = "build/uvfits"
+out_path_fits = "build/uvfits"
+out_path_gridded = "build/gridded"
 num_test_images = 500
 bundle_size = 100
 train_valid_split = 0.2
