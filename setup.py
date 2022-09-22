@@ -26,7 +26,8 @@ setup(
         "numexpr",
         "opencv-python",
         "click",
-        "h5py"
+        "h5py",
+        "natsort",
     ],
     setup_requires=["pytest-runner"],
     tests_require=["pytest"],
