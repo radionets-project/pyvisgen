@@ -40,7 +40,8 @@ def read_data_set_conf(conf_toml):
     conf["grid_size"] = config["bundle_options"]["grid_size"]
     conf["amp_phase"] = config["bundle_options"]["amp_phase"]
     conf["in_path"] = config["bundle_options"]["in_path"]
-    conf["out_path"] = config["bundle_options"]["out_path"]
+    conf["out_path_fits"] = config["bundle_options"]["out_path_fits"]
+    conf["out_path_gridded"] = config["bundle_options"]["out_path_gridded"]
     return conf
 
 
