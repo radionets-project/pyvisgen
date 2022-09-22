@@ -1,4 +1,3 @@
-import cv2
 import numpy as np
 from tqdm import tqdm
 from pathlib import Path
@@ -8,6 +7,9 @@ from pyvisgen.utils.data import load_bundles, open_bundles
 from radionets.dl_framework.data import save_fft_pair
 import astropy.constants as const
 from pyvisgen.gridding.alt_gridder import ms2dirty_python_fast
+import os
+
+os.environ["HDF5_USE_FILE_LOCKING"] = "FALSE"
 
 
 def create_gridded_data_set(config):
@@ -26,7 +28,7 @@ def create_gridded_data_set(config):
         bundle_test = int(conf["num_test_images"] // conf["bundle_size"])
         size -= conf["num_test_images"]
 
-        for i in range(bundle_test):
+        for i in tqdm(range(bundle_test)):
             (
                 uv_data_test,
                 freq_data_test,
@@ -104,40 +106,33 @@ def create_gridded_data_set(config):
 
 
 def open_data(fits_files, sky_dist, conf, i):
-    uv_data = np.array(
-        [
-            fits_files.get_uv_data(n).copy()
-            for n in np.arange(
-                i * conf["bundle_size"],
-                (i * conf["bundle_size"]) + conf["bundle_size"],
-            )
-        ],
-        dtype="object",
-    )
+    uv_data = [
+        fits_files.get_uv_data(n).copy()
+        for n in np.arange(
+            i * conf["bundle_size"], (i * conf["bundle_size"]) + conf["bundle_size"]
+        )
+    ]
     freq_data = np.array(
         [
             fits_files.get_freq_data(n)
             for n in np.arange(
-                i * conf["bundle_size"],
-                (i * conf["bundle_size"]) + conf["bundle_size"],
+                i * conf["bundle_size"], (i * conf["bundle_size"]) + conf["bundle_size"]
             )
         ],
         dtype="object",
     )
     gridded_data = np.array(
-        [
-            grid_data(data, freq, conf).copy()
-            for data, freq in tqdm(zip(uv_data, freq_data))
-        ]
+        [grid_data(data, freq, conf).copy() for data, freq in zip(uv_data, freq_data)]
     )
-    # needs to be changed to fit the new data structure, will fail now
+    bundle = np.floor_divide(i * conf["bundle_size"], len(open_bundles(sky_dist[0])))
     gridded_truth = np.array(
         [
-            open_bundles(dist)[n]
-            for dist in sky_dist
+            open_bundles(sky_dist[bundle])[n]
             for n in np.arange(
-                i * conf["bundle_size"],
-                (i * conf["bundle_size"]) + conf["bundle_size"],
+                i * conf["bundle_size"] - bundle * len(open_bundles(sky_dist[0])),
+                (i * conf["bundle_size"])
+                + conf["bundle_size"]
+                - bundle * len(open_bundles(sky_dist[0])),
             )
         ]
     )
@@ -148,8 +143,7 @@ def calc_truth_fft(sky_dist):
     # norm = np.sum(np.sum(sky_dist_test, keepdims=True, axis=1), axis=2)
     # sky_dist_test = np.expand_dims(sky_dist_test, -1) / norm[:, None, None]
     truth_fft = np.fft.fftshift(
-        np.fft.fft2(np.fft.fftshift(sky_dist, axes=(1, 2)), axes=(1, 2)),
-        axes=(1, 2),
+        np.fft.fft2(np.fft.fftshift(sky_dist, axes=(1, 2)), axes=(1, 2)), axes=(1, 2),
     )
     return truth_fft
 
@@ -210,8 +204,8 @@ def ducc0_gridding(uv_data, freq_data):
 
 def grid_data(uv_data, freq_data, conf):
     cmplx = uv_data["DATA"]
-    real = np.squeeze(cmplx[..., 0, 0, 0])#.ravel()
-    imag = np.squeeze(cmplx[..., 0, 0, 1])#.ravel()
+    real = np.squeeze(cmplx[..., 0, 0, 0])  # .ravel()
+    imag = np.squeeze(cmplx[..., 0, 0, 1])  # .ravel()
     # weight = np.squeeze(cmplx[..., 0, 2])
 
     freq = freq_data[1]

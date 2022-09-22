@@ -1,10 +1,10 @@
 [sampling_options]
 mode = "basic"
 layout = "vla"
-img_size = 63
+img_size = 128
 fov_center_ra = [100, 110]
 fov_center_dec = [30, 40]
-fov_size = 25 # max res 0.1
+fov_size = 100 # max res 0.1
 corr_int_time = 30.0
 scan_start = ["16-01-2020 00:04:01", "16-01-2020 08:59:59"]
 scan_duration = [60, 90]
@@ -15,13 +15,10 @@ frequsel = [0e8, 0.8e8, 1.44e8, 2.08e8]
 bandwidths = [6.4e7, 6.4e7, 6.4e7, 6.4e7]
 
 [bundle_options]
-num_bundles = 5
-size_bundles = 10
-in_path = "../noise/benchmark_data/clean/"
-out_path = "./build/fits"
-num_test_images = 2
-bundle_size = 2
+in_path = "build/skies/"
+out_path = "build/uvfits"
+num_test_images = 500
+bundle_size = 100
 train_valid_split = 0.2
 grid_size = 128
 amp_phase = true
-target = "fourier"
