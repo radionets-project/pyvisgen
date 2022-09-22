@@ -15,12 +15,14 @@ os.environ["HDF5_USE_FILE_LOCKING"] = "FALSE"
 def create_gridded_data_set(config):
     conf = read_data_set_conf(config)
     out_path_fits = Path(conf["out_path"])
-    out_path = out_path_fits.parent / "gridded/"
+    # out_path = out_path_fits.parent / "gridded/"
+    out_path = Path("/net/big-tank/POOL/users/kschmidt/radio_analyse/rime_vlba/gridded")
     out_path.mkdir(parents=True, exist_ok=True)
 
     sky_dist = load_bundles(conf["in_path"])
     fits_files = fits_data(out_path_fits)
     size = len(fits_files)
+    print(size)
 
     ###################
     # test
