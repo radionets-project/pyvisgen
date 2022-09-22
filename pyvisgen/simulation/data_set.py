@@ -15,13 +15,12 @@ from pyvisgen.simulation.utils import calc_ref_elev, calc_time_steps
 
 
 def simulate_data_set(config, slurm=False, job_id=None, n=None):
-    np.random.seed(1)
     conf = read_data_set_conf(config)
     out_path = Path(conf["out_path"])
     out_path.mkdir(parents=True, exist_ok=True)
 
     if slurm:
-        job_id = int(job_id + n * 1000)
+        job_id = int(job_id + n * 500)
         data = load_bundles(conf["in_path"])
         out = out_path / Path("vis_" + str(job_id) + ".fits")
         imgs_bundle = len(open_bundles(data[0]))
