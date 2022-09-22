@@ -5,7 +5,7 @@ from pathlib import Path
 np.random.seed(1)
 config = "tests/test_conf.toml"
 conf = read_data_set_conf(config)
-out_path = Path(conf["out_path"])
+out_path = Path(conf["out_path_fits"])
 out_path.mkdir(parents=True, exist_ok=True)
 
 
