@@ -21,7 +21,7 @@ def simulate_data_set(config, slurm=False, job_id=None, n=None):
     out_path.mkdir(parents=True, exist_ok=True)
 
     if slurm:
-        job_id = int(job_id + n * 1000)
+        job_id = int(job_id + n * 500)
         data = load_bundles(conf["in_path"])
         out = out_path / Path("vis_" + str(job_id) + ".fits")
         imgs_bundle = len(open_bundles(data[0]))
