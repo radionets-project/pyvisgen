@@ -296,8 +296,8 @@ def corrupted(lm, baselines, wave, time, src_crd, array_layout, SI, rd):
     E1 = torch.tensor(E_st[:, :, st1_num], dtype=torch.cdouble)
     E2 = torch.tensor(E_st[:, :, st2_num], dtype=torch.cdouble)
 
-    print("X", X.shape)
-    print("E", E1.shape)
+    # print("X", X.shape)
+    # print("E", E1.shape)
 
     EX = torch.einsum("lmb,lmbi->lmbi", E1, X)
 
@@ -311,7 +311,7 @@ def corrupted(lm, baselines, wave, time, src_crd, array_layout, SI, rd):
     # P matrix
     # parallactic angle
 
-    print("EXE", EXE.shape)
+    # print("EXE", EXE.shape)
 
     beta = np.array(
         [
@@ -322,15 +322,15 @@ def corrupted(lm, baselines, wave, time, src_crd, array_layout, SI, rd):
         ]
     )
     tsob = time_step_of_baseline(baselines, base_num)
-    print(st1_num.shape[0])
-    print(tsob.shape)
+    # print(st1_num.shape[0])
+    # print(tsob.shape)
     b1 = np.array([beta[st1_num[i], tsob[i]] for i in range(st1_num.shape[0])])
     b2 = np.array([beta[st2_num[i], tsob[i]] for i in range(st2_num.shape[0])])
     P1 = torch.tensor(getP(b1), dtype=torch.cdouble)
     P2 = torch.tensor(getP(b2), dtype=torch.cdouble)
 
-    print("P", P1.shape)
-    print("EXE", EXE.shape)
+    # print("P", P1.shape)
+    # print("EXE", EXE.shape)
 
     PEXE = torch.einsum("bi,lmbi->lmbi", P1, EXE)
     del EXE
