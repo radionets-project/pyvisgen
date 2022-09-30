@@ -99,6 +99,7 @@ def draw_sampling_opts(conf):
             conf["base_freq"],
             conf["frequsel"],
             conf["bandwidths"],
+            conf["corrupted"],
         ],
         dtype="object",
     )
@@ -117,6 +118,7 @@ def draw_sampling_opts(conf):
         "base_freq": opts[11],
         "frequsel": opts[12],
         "bandwidths": opts[13],
+        "corrupted": opts[14],
     }
     return samp_ops
 

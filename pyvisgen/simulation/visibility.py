@@ -123,12 +123,14 @@ def vis_loop(rc, SI, num_threads=10):
             baselines, base_num, t, rc
         )
 
-        int_values = np.array(
-            [
-                calc_vis(lm, baselines, IF, t, src_crd, array_layout, SI, rd, vis_num,)
-                for IF in IFs
-            ]
-        )
+        int_values = []
+        for IF in IFs:
+            val_i = calc_vis(lm, baselines, IF, t, src_crd, array_layout, SI, rd, vis_num, corrupted=rc["corrupted"])
+            int_values.append(val_i)
+            del val_i
+
+        int_values = np.array(int_values)
+        print(int_values, int_values.dtype)
         if int_values.dtype != np.complex128:
             continue
         int_values = np.swapaxes(int_values, 0, 1)
@@ -154,16 +156,23 @@ def vis_loop(rc, SI, num_threads=10):
     # when num vis is below N sampling is redone
     # if visibilities.get_values().shape[1] < 3500:
     #     return 0
+        del int_values
     return visibilities
 
 
-def calc_vis(lm, baselines, wave, t, src_crd, array_layout, SI, rd, vis_num):
-    X1 = scan.corrupted(lm, baselines, wave, t, src_crd, array_layout, SI, rd)
-    if X1.shape[0] == 1:
-        return -1
-    X2 = scan.corrupted(lm, baselines, wave, t, src_crd, array_layout, SI, rd)
+def calc_vis(lm, baselines, wave, t, src_crd, array_layout, SI, rd, vis_num, corrupted=True):
+    if corrupted:
+        X1 = scan.corrupted(lm, baselines, wave, t, src_crd, array_layout, SI, rd)
+        if X1.shape[0] == 1:
+            return -1
+        X2 = scan.corrupted(lm, baselines, wave, t, src_crd, array_layout, SI, rd)
+    else:
+        X1 = scan.uncorrupted(lm, baselines, wave, t, src_crd, array_layout, SI)
+        if X1.shape[0] == 1:
+            return -1
+        X2 = scan.uncorrupted(lm, baselines, wave, t, src_crd, array_layout, SI)
 
     int_values = scan.integrate(X1, X2).numpy()
-    del X1, X2
+    del X1, X2, SI
     int_values = int_values
     return int_values

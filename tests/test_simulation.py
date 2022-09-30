@@ -20,7 +20,7 @@ def test_create_sampling_rc():
     from pyvisgen.simulation.data_set import test_opts, create_sampling_rc
 
     samp_ops = create_sampling_rc(conf)
-    assert len(samp_ops) == 14
+    assert len(samp_ops) == 15
 
     test_opts(samp_ops)
 

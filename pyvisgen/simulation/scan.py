@@ -287,7 +287,7 @@ def corrupted(lm, baselines, wave, time, src_crd, array_layout, SI, rd):
     # X = np.einsum('lmij,lmb->lmbij', B, K, optimize=True)
     # X = torch.tensor(B)[:,:,None,:,:] * K[:,:,:,None,None]
 
-    del K
+    del K, B
 
     # telescope response
     E_st = getE(rd, array_layout, wave, src_crd)
@@ -301,7 +301,7 @@ def corrupted(lm, baselines, wave, time, src_crd, array_layout, SI, rd):
 
     EX = torch.einsum("lmb,lmbi->lmbi", E1, X)
 
-    del E1, X
+    del E1, X, E_st
     # EXE = torch.einsum('lmbij,lmbjk->lmbik',EX,torch.transpose(torch.conj(E2),3,4))
     EXE = torch.einsum("lmbi,lmb->lmbi", EX, E2)
     del EX, E2
@@ -333,9 +333,9 @@ def corrupted(lm, baselines, wave, time, src_crd, array_layout, SI, rd):
     # print("EXE", EXE.shape)
 
     PEXE = torch.einsum("bi,lmbi->lmbi", P1, EXE)
-    del EXE
+    del EXE, P1, beta, tsob
     PEXEP = torch.einsum("lmbi,bi->lmbi", PEXE, torch.conj(P2))
-    del PEXE
+    del PEXE, P2
 
     return PEXEP
 

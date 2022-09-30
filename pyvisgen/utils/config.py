@@ -33,6 +33,7 @@ def read_data_set_conf(conf_toml):
     conf["base_freq"] = config["sampling_options"]["base_freq"]
     conf["frequsel"] = config["sampling_options"]["frequsel"]
     conf["bandwidths"] = config["sampling_options"]["bandwidths"]
+    conf["corrupted"] = config["sampling_options"]["corrupted"]
 
     conf["num_test_images"] = config["bundle_options"]["num_test_images"]
     conf["bundle_size"] = config["bundle_options"]["bundle_size"]
