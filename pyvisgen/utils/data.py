@@ -6,9 +6,7 @@ from pathlib import Path
 
 def load_bundles(data_path):
     bundle_paths = get_bundles(data_path)
-    bundles = np.sort(
-        [path for path in bundle_paths if re.findall("fft_", path.name)]
-    )
+    bundles = np.sort([path for path in bundle_paths if re.findall("fft_", path.name)])
     return bundles
 
 

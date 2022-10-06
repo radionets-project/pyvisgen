@@ -5,8 +5,8 @@ from pyvisgen.gridding.gridder import create_gridded_data_set
 
 @click.command()
 @click.argument("configuration_path", type=click.Path(exists=True, dir_okay=False))
-@click.option('--job_id', required=False, type=int, default=None)
-@click.option('--n', required=False, type=int, default=None)
+@click.option("--job_id", required=False, type=int, default=None)
+@click.option("--n", required=False, type=int, default=None)
 @click.option(
     "--mode",
     type=click.Choice(

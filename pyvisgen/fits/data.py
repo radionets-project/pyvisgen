@@ -31,6 +31,7 @@ class fits_data:
 
     def get_files(self, path):
         import natsort
+
         fits_files = [str(x) for x in path.iterdir()]
         fits_files_sorted = natsort.natsorted(fits_files)
         return fits_files_sorted

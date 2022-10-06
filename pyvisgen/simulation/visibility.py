@@ -80,7 +80,7 @@ def vis_loop(rc, SI, num_threads=10):
     # define array, source coords, and IFs
     array_layout = layouts.get_array_layout(rc["layout"])
     src_crd = SkyCoord(
-        ra=rc["fov_center_ra"], dec=rc["fov_center_dec"], unit=(un.deg, un.deg),
+        ra=rc["fov_center_ra"], dec=rc["fov_center_dec"], unit=(un.deg, un.deg)
     )
 
     # define IFs
@@ -125,7 +125,18 @@ def vis_loop(rc, SI, num_threads=10):
 
         int_values = []
         for IF in IFs:
-            val_i = calc_vis(lm, baselines, IF, t, src_crd, array_layout, SI, rd, vis_num, corrupted=rc["corrupted"])
+            val_i = calc_vis(
+                lm,
+                baselines,
+                IF,
+                t,
+                src_crd,
+                array_layout,
+                SI,
+                rd,
+                vis_num,
+                corrupted=rc["corrupted"],
+            )
             int_values.append(val_i)
             del val_i
 
@@ -152,15 +163,17 @@ def vis_loop(rc, SI, num_threads=10):
         )
 
         visibilities.add(vis)
-    # workaround to guarantee min number of visibilities
-    # when num vis is below N sampling is redone
-    # if visibilities.get_values().shape[1] < 3500:
-    #     return 0
+        # workaround to guarantee min number of visibilities
+        # when num vis is below N sampling is redone
+        # if visibilities.get_values().shape[1] < 3500:
+        #     return 0
         del int_values
     return visibilities
 
 
-def calc_vis(lm, baselines, wave, t, src_crd, array_layout, SI, rd, vis_num, corrupted=True):
+def calc_vis(
+    lm, baselines, wave, t, src_crd, array_layout, SI, rd, vis_num, corrupted=True
+):
     if corrupted:
         X1 = scan.corrupted(lm, baselines, wave, t, src_crd, array_layout, SI, rd)
         if X1.shape[0] == 1:

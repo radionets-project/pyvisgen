@@ -62,12 +62,12 @@ def create_sampling_rc(conf):
 
 def draw_sampling_opts(conf):
     angles_ra = np.arange(
-        conf["fov_center_ra"][0][0], conf["fov_center_ra"][0][1], step=0.1,
+        conf["fov_center_ra"][0][0], conf["fov_center_ra"][0][1], step=0.1
     )
     fov_center_ra = np.random.choice(angles_ra)
 
     angles_dec = np.arange(
-        conf["fov_center_dec"][0][0], conf["fov_center_dec"][0][1], step=0.1,
+        conf["fov_center_dec"][0][0], conf["fov_center_dec"][0][1], step=0.1
     )
     fov_center_dec = np.random.choice(angles_dec)
     start_time_l = datetime.strptime(conf["scan_start"][0], "%d-%m-%Y %H:%M:%S")

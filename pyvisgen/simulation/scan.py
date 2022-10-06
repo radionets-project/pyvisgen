@@ -4,11 +4,7 @@ from astropy.coordinates import EarthLocation
 import numpy as np
 from scipy.special import j1
 from astroplan import Observer
-from pyvisgen.simulation.utils import (
-    calc_ref_elev,
-    Array,
-    calc_direction_cosines
-)
+from pyvisgen.simulation.utils import calc_ref_elev, Array, calc_direction_cosines
 import torch
 import itertools
 import numexpr as ne
@@ -228,7 +224,7 @@ def uncorrupted(lm, baselines, wave, time, src_crd, array_layout, SI):
     # B[:, :, 1, 0] = SI[:, :, 2] - 1j * SI[:, :, 3]
     # B[:, :, 1, 1] = SI[:, :, 0] - SI[:, :, 1]
 
-    X = torch.einsum('lmi,lmb->lmbi', torch.tensor(B), K)
+    X = torch.einsum("lmi,lmb->lmbi", torch.tensor(B), K)
     # X = torch.einsum("lmi,lmb->lmbi", torch.tensor(B), K)
 
     return X
@@ -283,7 +279,7 @@ def corrupted(lm, baselines, wave, time, src_crd, array_layout, SI, rd):
     # B[:, :, 1, 0] = SI[:, :, 2] - 1j * SI[:, :, 3]
     # B[:, :, 1, 1] = SI[:, :, 0] - SI[:, :, 1]
 
-    X = torch.einsum('lmi,lmb->lmbi', torch.tensor(B), K)
+    X = torch.einsum("lmi,lmb->lmbi", torch.tensor(B), K)
     # X = np.einsum('lmij,lmb->lmbij', B, K, optimize=True)
     # X = torch.tensor(B)[:,:,None,:,:] * K[:,:,:,None,None]
 
