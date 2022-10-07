@@ -129,11 +129,13 @@ def test_opts(rc):
         ra=rc["fov_center_ra"], dec=rc["fov_center_dec"], unit=(un.deg, un.deg),
     )
     time = calc_time_steps(rc)
-    _, el_st_all = calc_ref_elev(src_crd, time[0], array_layout)
+    _, el_st_0 = calc_ref_elev(src_crd, time[0], array_layout)
+    _, el_st_1 = calc_ref_elev(src_crd, time[1], array_layout)
     el_min = 15
     el_max = 85
-    active_telescopes = np.sum((el_st_all >= el_min) & (el_st_all <= el_max))
-    return active_telescopes
+    active_telescopes_0 = np.sum((el_st_0 >= el_min) & (el_st_0 <= el_max))
+    active_telescopes_1 = np.sum((el_st_1 >= el_min) & (el_st_1 <= el_max))
+    return min(active_telescopes_0, active_telescopes_1)
 
 
 if __name__ == "__main__":
