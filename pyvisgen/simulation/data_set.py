@@ -80,7 +80,6 @@ def draw_sampling_opts(conf):
     )
     scan_duration = (
         np.random.randint(conf["scan_duration"][0], conf["scan_duration"][1])
-        * conf["corr_int_time"]
     )
     scans = np.random.randint(conf["scans"][0], conf["scans"][1])
     opts = np.array(
