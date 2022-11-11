@@ -1,24 +1,26 @@
 [sampling_options]
 mode = "basic"
-layout = "vlba"
-img_size = 64
-fov_center_ra = [00:00:00.0, 23:59:59.59]
-fov_center_dec = [00:00:00.0, 11:59:59.59]
-fov_size = 0.0064 # max res 0.1
-corr_int_time = 10.0
-scan_start = ["01-01-2020 00:00:01", "31-12-2021 23:59:59"]
-scan_duration = [50, 300]
-scans = [30, 72]
-interval_length = 1200
+layout = "vla"
+img_size = 128
+fov_center_ra = [100, 110]
+fov_center_dec = [30, 40]
+fov_size = 100 # max res 0.1
+corr_int_time = 30.0
+scan_start = ["16-01-2020 00:04:01", "16-01-2020 08:59:59"]
+scan_duration = [60, 90]
+scans = [1, 2]
+interval_length = 360
 base_freq = 15.21e9
 frequsel = [0e8, 0.8e8, 1.44e8, 2.08e8]
 bandwidths = [6.4e7, 6.4e7, 6.4e7, 6.4e7]
+corrupted = true
 
 [bundle_options]
-num_bundles = 5
-size_bundles = 10
-in_path = "../../../test_radiosim/build/test_data"
-out_path = "./build"
-
-[cluster_options]
-num_jobs = 4
+in_path = "build/skies/"
+out_path_fits = "build/uvfits"
+out_path_gridded = "build/gridded"
+num_test_images = 500
+bundle_size = 100
+train_valid_split = 0.2
+grid_size = 128
+amp_phase = true

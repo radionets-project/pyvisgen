@@ -1,10 +1,10 @@
 from dataclasses import dataclass
 from astropy import units as un
-from astropy.coordinates import EarthLocation, AltAz, Angle
+from astropy.coordinates import EarthLocation
 import numpy as np
 from scipy.special import j1
 from astroplan import Observer
-from pyvisgen.simulation.utils import single_occurance, get_pairs
+from pyvisgen.simulation.utils import calc_ref_elev, Array, calc_direction_cosines
 import torch
 import itertools
 import numexpr as ne
@@ -72,108 +72,42 @@ def get_baselines(src_crd, time, array_layout):
     Returns
     -------
     dataclass object
-        baselines between telescopes with visinility flags
+        baselines between telescopes with visibility flags
     """
     # Calculate for all times
     # calculate GHA, Greenwich as reference for EHT
-    ha_all = Angle(
-        [t.sidereal_time("apparent", "greenwich") - src_crd.ra for t in time]
-    )
+    ha_all, el_st_all = calc_ref_elev(src_crd, time, array_layout)
 
-    # calculate elevations
-    el_st_all = src_crd.transform_to(
-        AltAz(
-            obstime=time.reshape(len(time), -1),
-            location=EarthLocation.from_geocentric(
-                np.repeat([array_layout.x], len(time), axis=0),
-                np.repeat([array_layout.y], len(time), axis=0),
-                np.repeat([array_layout.z], len(time), axis=0),
-                unit=un.m,
-            ),
-        )
-    ).alt.degree
-
-    # fails for 1 timestep
-    assert len(ha_all.value) == len(el_st_all)
-
-    # always the same
-    delta_x, delta_y, delta_z = get_pairs(array_layout)
-    indices = single_occurance(delta_x)
-    delta_x = delta_x[indices]
-    delta_y = delta_y[indices]
-    delta_z = delta_z[indices]
-    mask = [i * len(array_layout.x) + i for i in range(len(array_layout.x))]
-    pairs = np.delete(
-        np.array(np.meshgrid(array_layout.name, array_layout.name)).T.reshape(-1, 2),
-        mask,
-        axis=0,
-    )[indices]
-
-    st_nums = np.delete(
-        np.array(np.meshgrid(array_layout.st_num, array_layout.st_num)).T.reshape(
-            -1, 2
-        ),
-        mask,
-        axis=0,
-    )[indices]
-
-    els_low = np.delete(
-        np.array(np.meshgrid(array_layout.el_low, array_layout.el_low)).T.reshape(
-            -1, 2
-        ),
-        mask,
-        axis=0,
-    )[indices]
-
-    els_high = np.delete(
-        np.array(np.meshgrid(array_layout.el_high, array_layout.el_high)).T.reshape(
-            -1, 2
-        ),
-        mask,
-        axis=0,
-    )[indices]
+    ar = Array(array_layout)
+    delta_x, delta_y, delta_z, indices = ar.calc_relative_pos
+    mask = ar.get_baseline_mask
+    antenna_pairs, st_num_pairs, els_low_pairs, els_high_pairs = ar.calc_ant_pair_vals
+    names = antenna_pairs[:, 0] + "-" + antenna_pairs[:, 1]
 
     # Loop over ha and el_st
     baselines = Baselines([], [], [], [], [], [], [])
     for ha, el_st in zip(ha_all, el_st_all):
-        u = np.sin(ha) * delta_x + np.cos(ha) * delta_y
-        v = (
-            -np.sin(src_crd.ra) * np.cos(ha) * delta_x
-            + np.sin(src_crd.ra) * np.sin(ha) * delta_y
-            + np.cos(src_crd.ra) * delta_z
-        )
-        w = (
-            np.cos(src_crd.ra) * np.cos(ha) * delta_x
-            - np.cos(src_crd.ra) * np.sin(ha) * delta_y
-            + np.sin(src_crd.ra) * delta_z
-        )
-        assert u.shape == v.shape == w.shape
+        u, v, w = calc_direction_cosines(ha, el_st, delta_x, delta_y, delta_z, src_crd)
 
+        # calc current elevations
         els_st = np.delete(
             np.array(np.meshgrid(el_st, el_st)).T.reshape(-1, 2),
             mask,
             axis=0,
         )[indices]
 
+        # calc valid baselines
         valid = np.ones(u.shape).astype(bool)
-
-        m1 = (els_st < els_low).any(axis=1)
-        m2 = (els_st > els_high).any(axis=1)
+        m1 = (els_st < els_low_pairs).any(axis=1)
+        m2 = (els_st > els_high_pairs).any(axis=1)
         valid_mask = np.ma.mask_or(m1, m2)
         valid[valid_mask] = False
-
-        names = pairs[:, 0] + "-" + pairs[:, 1]
-
-        u = u.reshape(-1)
-        v = v.reshape(-1)
-        w = w.reshape(-1)
-        valid = valid.reshape(-1)
 
         # collect baselines
         base = Baselines(
             names,
-            array_layout[st_nums[:, 0]],
-            array_layout[st_nums[:, 1]],
+            array_layout[st_num_pairs[:, 0]],
+            array_layout[st_num_pairs[:, 1]],
             u,
             v,
             w,
@@ -183,7 +117,7 @@ def get_baselines(src_crd, time, array_layout):
     return baselines
 
 
-def rd_grid(fov, samples, src_crd):
+def create_rd_grid(fov, samples, src_crd):
     """Calculates RA and Dec values for a given fov around a source position
 
     Parameters
@@ -200,6 +134,10 @@ def rd_grid(fov, samples, src_crd):
     3d array
         Returns a 3d array with every pixel containing a RA and Dec value
     """
+    # transform to rad
+    fov *= np.pi / (3600 * 180)
+
+    # define resolution
     res = fov / samples
 
     rd_grid = np.zeros((samples, samples, 2))
@@ -210,11 +148,10 @@ def rd_grid(fov, samples, src_crd):
         rd_grid[:, i, 1] = np.array(
             [-(i - samples / 2) * res + src_crd.dec.rad for i in range(samples)]
         )
-
     return rd_grid
 
 
-def lm_grid(rd_grid, src_crd):
+def create_lm_grid(rd_grid, src_crd):
     """Calculates sine projection for fov
 
     Parameters
@@ -335,17 +272,17 @@ def corrupted(lm, baselines, wave, time, src_crd, array_layout, SI, rd):
     B = np.zeros((lm.shape[0], lm.shape[1], 1), dtype=complex)
 
     B[:, :, 0] = SI + SI
-    # B[:, :, 0, 0] = I[:, :, 0] + I[:, :, 1]
-    # B[:, :, 0, 1] = I[:, :, 2] + 1j * I[:, :, 3]
-    # B[:, :, 1, 0] = I[:, :, 2] - 1j * I[:, :, 3]
-    # B[:, :, 1, 1] = I[:, :, 0] - I[:, :, 1]
+    # # only calculate without polarization for the moment
+    # B[:, :, 0, 0] = SI[:, :, 0] + SI[:, :, 1]
+    # B[:, :, 0, 1] = SI[:, :, 2] + 1j * SI[:, :, 3]
+    # B[:, :, 1, 0] = SI[:, :, 2] - 1j * SI[:, :, 3]
+    # B[:, :, 1, 1] = SI[:, :, 0] - SI[:, :, 1]
 
-    # coherency
     X = torch.einsum("lmi,lmb->lmbi", torch.tensor(B), K)
     # X = np.einsum('lmij,lmb->lmbij', B, K, optimize=True)
     # X = torch.tensor(B)[:,:,None,:,:] * K[:,:,:,None,None]
 
-    del K
+    del K, B
 
     # telescope response
     E_st = getE(rd, array_layout, wave, src_crd)
@@ -356,7 +293,7 @@ def corrupted(lm, baselines, wave, time, src_crd, array_layout, SI, rd):
 
     EX = torch.einsum("lmb,lmbi->lmbi", E1, X)
 
-    del E1, X
+    del E1, X, E_st
     # EXE = torch.einsum('lmbij,lmbjk->lmbik',EX,torch.transpose(torch.conj(E2),3,4))
     EXE = torch.einsum("lmbi,lmb->lmbi", EX, E2)
     del EX, E2
@@ -380,12 +317,10 @@ def corrupted(lm, baselines, wave, time, src_crd, array_layout, SI, rd):
     P1 = torch.tensor(getP(b1), dtype=torch.cdouble)
     P2 = torch.tensor(getP(b2), dtype=torch.cdouble)
 
-    print("P", P1.shape)
-
-    PEXE = torch.einsum("bi,lmbj->lmbi", P1, EXE)
-    del EXE
-    PEXEP = torch.einsum("lmbi,bk->lmbik", PEXE, torch.transpose(torch.conj(P2), 1, 2))
-    del PEXE
+    PEXE = torch.einsum("bi,lmbi->lmbi", P1, EXE)
+    del EXE, P1, beta, tsob
+    PEXEP = torch.einsum("lmbi,bi->lmbi", PEXE, torch.conj(P2))
+    del PEXE, P2
 
     return PEXEP
 
@@ -511,7 +446,6 @@ def getE(rd, array_layout, wave, src_crd):
     # calculate matrix E for every point in grid
     # E = np.zeros((rd.shape[0], rd.shape[1], array_layout.st_num.shape[0], 2, 2))
     E = np.zeros((rd.shape[0], rd.shape[1], array_layout.st_num.shape[0]))
-    # print("E", E.shape)
 
     # get diameters of all stations and do vectorizing stuff
     diameters = array_layout.diam
@@ -546,7 +480,7 @@ def angularDistance(rd, src_crd):
     r = rd[:, :, 0] - src_crd.ra.rad
     d = rd[:, :, 1] - src_crd.dec.rad
 
-    theta = np.arcsin(np.sqrt(r ** 2 + d ** 2))
+    theta = np.arcsin(np.sqrt(r**2 + d**2))
 
     return theta
 
@@ -615,7 +549,7 @@ def getK(baselines, lm, wave, base_num):
 
     l = torch.tensor(lm[:, :, 0])
     m = torch.tensor(lm[:, :, 1])
-    n = torch.sqrt(1 - l ** 2 - m ** 2)
+    n = torch.sqrt(1 - l**2 - m**2)
 
     ul = torch.einsum("b,ij->ijb", torch.tensor(u_cmplt), l)
     vm = torch.einsum("b,ij->ijb", torch.tensor(v_cmplt), m)
@@ -640,10 +574,6 @@ def jinc(x):
     array
         value of jinc function at x
     """
-    # if x == 0:
-    #     return 1
-    # jinc = 2 * j1(x) / x
-    # jinc[x == 0] = 1
     jinc = np.ones(x.shape)
     jinc[x != 0] = 2 * j1(x[x != 0]) / x[x != 0]
     return jinc

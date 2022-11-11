@@ -15,9 +15,7 @@ def create_vis_hdu(data, conf, layout="vlba", source_name="sim-source-0"):
 
     w = data.w
 
-    DATE = data.date - int(
-        data.date.min()
-    ) 
+    DATE = data.date - int(data.date.min())
 
     _DATE = data._date  # central time in the integration period
 

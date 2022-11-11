@@ -2,8 +2,8 @@ from setuptools import setup, find_packages
 
 setup(
     name="pyvisgen",
-    version="0.0.4",
-    description="Simulate radio interferometer observations and visibility generation.",
+    version="0.1.0",
+    description="Simulate radio interferometer observations and visibility generation with the RIME formalism.",
     url="https://github.com/radionets-project/pyvisgen",
     author="Kevin Schmidt, Felix Geyer, Stefan Fröse",
     author_email="kevin3.schmidt@tu-dortmund.de",
@@ -23,6 +23,11 @@ setup(
         "astroplan",
         "torch",
         "tqdm",
+        "numexpr",
+        "opencv-python",
+        "click",
+        "h5py",
+        "natsort",
     ],
     setup_requires=["pytest-runner"],
     tests_require=["pytest"],
@@ -33,7 +38,7 @@ setup(
         ],
     },
     classifiers=[
-        "Development Status :: 3 - Alpha",
+        "Development Status :: 4 - Beta",
         "Intended Audience :: Science/Research",
         "License :: OSI Approved :: MIT License",
         "Natural Language :: English",
@@ -45,7 +50,6 @@ setup(
         "Programming Language :: Python :: 3 :: Only",
         "Topic :: Scientific/Engineering :: Astronomy",
         "Topic :: Scientific/Engineering :: Physics",
-        "Topic :: Scientific/Engineering :: Artificial Intelligence",
         "Topic :: Scientific/Engineering :: Information Analysis",
     ],
 )

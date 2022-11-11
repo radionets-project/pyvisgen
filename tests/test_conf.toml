@@ -1,0 +1,32 @@
+[sampling_options]
+mode = "basic"
+layout = "vlba"
+img_size = 128
+fov_center_ra = [90, 140]
+fov_center_dec = [-20, 50]
+fov_size = 0.0064 # max res 0.1
+corr_int_time = 10.0
+scan_start = ["01-01-2020 00:00:01", "31-12-2021 23:59:59"]
+scan_duration = [0, 50]
+scans = [1, 10]
+interval_length = 1200
+base_freq = 15.21e9
+frequsel = [0e8, 0.8e8, 1.44e8, 2.08e8]
+bandwidths = [6.4e7, 6.4e7, 6.4e7, 6.4e7]
+corrupted = true
+
+[bundle_options]
+num_bundles = 5
+size_bundles = 10
+in_path = "./tests/data"
+out_path_fits = "./tests/build/fits"
+out_path_gridded = "./tests/build/gridded"
+num_test_images = 1000
+bundle_size = 10
+train_valid_split = 0.2
+grid_size = 5
+amp_phase = true
+target = 5
+
+[cluster_options]
+num_jobs = 4

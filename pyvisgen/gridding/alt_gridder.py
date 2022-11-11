@@ -98,11 +98,11 @@ def ms2dirty_python_fast(
             # xkernel = kernel(pos - ratposx + xle)
             # ykernel = kernel(pos - ratposy + yle)
             for xx in range(supp):
-                foo = vis #* xkernel[xx]
+                foo = vis  # * xkernel[xx]
                 myxpos = (xle + xx) % ng[0]
                 for yy in range(supp):
                     myypos = (yle + yy) % ng[1]
-                    grid[myxpos, myypos] += foo #* ykernel[yy]
+                    grid[myxpos, myypos] += foo  # * ykernel[yy]
     #     loopim = np.fft.fftshift(np.fft.ifft2(grid)*np.prod(ng))
     #     loopim = loopim[slc0, slc1]
     #     if do_wgridding:
@@ -116,9 +116,9 @@ def ms2dirty_python_fast(
 
 
 def get_npixdirty(uvw, freq, fov_deg, mask):
-    speedOfLight = 299792458.
-    bl = np.sqrt(uvw[:,0]**2+uvw[:,1]**2+uvw[:,2]**2)
-    bluvw = bl.reshape((-1,1))*freq.reshape((1,-1))/speedOfLight
-    maxbluvw = np.max(bluvw*mask)
-    minsize = int((2*fov_deg*np.pi/180*maxbluvw)) + 1
-    return minsize+(minsize%2)  # make even
+    speedOfLight = 299792458.0
+    bl = np.sqrt(uvw[:, 0] ** 2 + uvw[:, 1] ** 2 + uvw[:, 2] ** 2)
+    bluvw = bl.reshape((-1, 1)) * freq.reshape((1, -1)) / speedOfLight
+    maxbluvw = np.max(bluvw * mask)
+    minsize = int((2 * fov_deg * np.pi / 180 * maxbluvw)) + 1
+    return minsize + (minsize % 2)  # make even
