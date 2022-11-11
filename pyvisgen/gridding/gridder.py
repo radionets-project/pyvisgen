@@ -51,7 +51,7 @@ def create_gridded_data_set(config):
 
     size_train = int(size // (1 + conf["train_valid_split"]))
     size_valid = size - size_train
-    print(size_train, size_valid)
+    print(f"Training size: {size_train}, Validation size: {size_valid}")
     bundle_train = int(size_train // conf["bundle_size"])
     bundle_valid = int(size_valid // conf["bundle_size"])
 

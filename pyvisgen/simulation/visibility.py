@@ -141,7 +141,6 @@ def vis_loop(rc, SI, num_threads=10):
             del val_i
 
         int_values = np.array(int_values)
-        print(int_values, int_values.dtype)
         if int_values.dtype != np.complex128:
             continue
         int_values = np.swapaxes(int_values, 0, 1)
