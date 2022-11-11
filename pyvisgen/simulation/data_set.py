@@ -72,14 +72,14 @@ def draw_sampling_opts(conf):
     fov_center_dec = np.random.choice(angles_dec)
     start_time_l = datetime.strptime(conf["scan_start"][0], "%d-%m-%Y %H:%M:%S")
     start_time_h = datetime.strptime(conf["scan_start"][1], "%d-%m-%Y %H:%M:%S")
-    start_times = pd.date_range(start_time_l, start_time_h, freq="1h",).strftime(
+    start_times = pd.date_range(start_time_l, start_time_h, freq="1h").strftime(
         "%d-%m-%Y %H:%M:%S"
     )
     scan_start = np.random.choice(
         [datetime.strptime(time, "%d-%m-%Y %H:%M:%S") for time in start_times]
     )
-    scan_duration = (
-        np.random.randint(conf["scan_duration"][0], conf["scan_duration"][1])
+    scan_duration = np.random.randint(
+        conf["scan_duration"][0], conf["scan_duration"][1]
     )
     scans = np.random.randint(conf["scans"][0], conf["scans"][1])
     opts = np.array(
@@ -125,7 +125,7 @@ def draw_sampling_opts(conf):
 def test_opts(rc):
     array_layout = layouts.get_array_layout(rc["layout"])
     src_crd = SkyCoord(
-        ra=rc["fov_center_ra"], dec=rc["fov_center_dec"], unit=(un.deg, un.deg),
+        ra=rc["fov_center_ra"], dec=rc["fov_center_dec"], unit=(un.deg, un.deg)
     )
     time = calc_time_steps(rc)
     _, el_st_0 = calc_ref_elev(src_crd, time[0], array_layout)
