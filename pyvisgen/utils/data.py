@@ -2,11 +2,13 @@ import h5py
 import numpy as np
 import re
 from pathlib import Path
+from natsort import natsorted
 
 
 def load_bundles(data_path):
     bundle_paths = get_bundles(data_path)
-    bundles = np.sort([path for path in bundle_paths if re.findall("fft_", path.name)])
+    bundles = natsorted([path for path in bundle_paths if re.findall("fft_", path.name)])
+    print(bundles)
     return bundles
 
 
