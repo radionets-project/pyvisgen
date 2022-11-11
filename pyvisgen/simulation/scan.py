@@ -225,7 +225,6 @@ def uncorrupted(lm, baselines, wave, time, src_crd, array_layout, SI):
     # B[:, :, 1, 1] = SI[:, :, 0] - SI[:, :, 1]
 
     X = torch.einsum("lmi,lmb->lmbi", torch.tensor(B), K)
-    # X = torch.einsum("lmi,lmb->lmbi", torch.tensor(B), K)
 
     return X
 
