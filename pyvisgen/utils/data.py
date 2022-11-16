@@ -7,8 +7,9 @@ from natsort import natsorted
 
 def load_bundles(data_path):
     bundle_paths = get_bundles(data_path)
-    bundles = natsorted([path for path in bundle_paths if re.findall("fft_", path.name)])
-    print(bundles)
+    bundles = natsorted(
+        [path for path in bundle_paths if re.findall("fft_", path.name)]
+    )
     return bundles
 
 
