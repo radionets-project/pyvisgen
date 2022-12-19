@@ -108,17 +108,18 @@ def create_gridded_data_set(config):
 
 
 def open_data(fits_files, sky_dist, conf, i):
+    sky_sim_bundle_size = len(open_bundles(sky_dist[0]))
     uv_data = [
         fits_files.get_uv_data(n).copy()
         for n in np.arange(
-            i * conf["bundle_size"], (i * conf["bundle_size"]) + conf["bundle_size"]
+            i * sky_sim_bundle_size, (i * sky_sim_bundle_size) + sky_sim_bundle_size
         )
     ]
     freq_data = np.array(
         [
             fits_files.get_freq_data(n)
             for n in np.arange(
-                i * conf["bundle_size"], (i * conf["bundle_size"]) + conf["bundle_size"]
+                i * sky_sim_bundle_size, (i * sky_sim_bundle_size) + sky_sim_bundle_size
             )
         ],
         dtype="object",
@@ -126,15 +127,15 @@ def open_data(fits_files, sky_dist, conf, i):
     gridded_data = np.array(
         [grid_data(data, freq, conf).copy() for data, freq in zip(uv_data, freq_data)]
     )
-    bundle = np.floor_divide(i * conf["bundle_size"], len(open_bundles(sky_dist[0])))
+    bundle = np.floor_divide(i * sky_sim_bundle_size, sky_sim_bundle_size)
     gridded_truth = np.array(
         [
             open_bundles(sky_dist[bundle])[n]
             for n in np.arange(
-                i * conf["bundle_size"] - bundle * len(open_bundles(sky_dist[0])),
-                (i * conf["bundle_size"])
-                + conf["bundle_size"]
-                - bundle * len(open_bundles(sky_dist[0])),
+                i * sky_sim_bundle_size - bundle * sky_sim_bundle_size,
+                (i * sky_sim_bundle_size)
+                + sky_sim_bundle_size
+                - bundle * sky_sim_bundle_size,
             )
         ]
     )
