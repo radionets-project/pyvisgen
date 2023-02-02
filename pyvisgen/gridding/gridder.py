@@ -42,6 +42,9 @@ def create_gridded_data_set(config):
             if conf["amp_phase"]:
                 gridded_data_test = convert_amp_phase(gridded_data_test, sky_sim=False)
                 truth_amp_phase_test = convert_amp_phase(truth_fft_test, sky_sim=True)
+            else:
+                gridded_data_test = convert_real_imag(gridded_data_test, sky_sim=False)
+                truth_amp_phase_test = convert_real_imag(truth_fft_test, sky_sim=True)
             assert gridded_data_test.shape[1] == 2
 
             out = out_path / Path("samp_test" + str(i) + ".h5")
@@ -80,6 +83,9 @@ def create_gridded_data_set(config):
         if conf["amp_phase"]:
             gridded_data_train = convert_amp_phase(gridded_data_train, sky_sim=False)
             truth_amp_phase_train = convert_amp_phase(truth_fft_train, sky_sim=True)
+        else:
+            gridded_data_test = convert_real_imag(gridded_data_test, sky_sim=False)
+            truth_amp_phase_test = convert_real_imag(truth_fft_test, sky_sim=True)
 
         out = out_path / Path("samp_train" + str(i) + ".h5")
         save_fft_pair(out, gridded_data_train, truth_amp_phase_train)
@@ -100,6 +106,9 @@ def create_gridded_data_set(config):
         if conf["amp_phase"]:
             gridded_data_valid = convert_amp_phase(gridded_data_valid, sky_sim=False)
             truth_amp_phase_valid = convert_amp_phase(truth_fft_valid, sky_sim=True)
+        else:
+            gridded_data_test = convert_real_imag(gridded_data_test, sky_sim=False)
+            truth_amp_phase_test = convert_real_imag(truth_fft_test, sky_sim=True)
 
         out = out_path / Path("samp_valid" + str(i - train_index_last) + ".h5")
         save_fft_pair(out, gridded_data_valid, truth_amp_phase_valid)
@@ -281,6 +290,21 @@ def convert_amp_phase(data, sky_sim=False, rescale=False):
         #     amp = np.array([cv2.resize(a, (128, 128)) for a in amp])
         #     phase = np.array([cv2.resize(p, (128, 128)) for p in phase])
         data = np.stack((amp, phase), axis=1)
+    return data
+
+
+def convert_real_imag(data, sky_sim=False, rescale=False):
+    if sky_sim:
+        real = data.real
+        imag = data.imag
+
+        data = np.stack((real, imag), axis=1)
+    else:
+        test = data[:, 0] + 1j * data[:, 1]
+        real = test.real
+        imag = test.imag
+
+        data = np.stack((real, imag), axis=1)
     return data
 
 
