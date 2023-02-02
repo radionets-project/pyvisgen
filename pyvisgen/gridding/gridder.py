@@ -84,8 +84,8 @@ def create_gridded_data_set(config):
             gridded_data_train = convert_amp_phase(gridded_data_train, sky_sim=False)
             truth_amp_phase_train = convert_amp_phase(truth_fft_train, sky_sim=True)
         else:
-            gridded_data_test = convert_real_imag(gridded_data_test, sky_sim=False)
-            truth_amp_phase_test = convert_real_imag(truth_fft_test, sky_sim=True)
+            gridded_data_train = convert_real_imag(gridded_data_train, sky_sim=False)
+            truth_amp_phase_train = convert_real_imag(truth_fft_train, sky_sim=True)
 
         out = out_path / Path("samp_train" + str(i) + ".h5")
         save_fft_pair(out, gridded_data_train, truth_amp_phase_train)
@@ -107,8 +107,8 @@ def create_gridded_data_set(config):
             gridded_data_valid = convert_amp_phase(gridded_data_valid, sky_sim=False)
             truth_amp_phase_valid = convert_amp_phase(truth_fft_valid, sky_sim=True)
         else:
-            gridded_data_test = convert_real_imag(gridded_data_test, sky_sim=False)
-            truth_amp_phase_test = convert_real_imag(truth_fft_test, sky_sim=True)
+            gridded_data_valid = convert_real_imag(gridded_data_valid, sky_sim=False)
+            truth_amp_phase_valid = convert_real_imag(truth_fft_valid, sky_sim=True)
 
         out = out_path / Path("samp_valid" + str(i - train_index_last) + ".h5")
         save_fft_pair(out, gridded_data_valid, truth_amp_phase_valid)
