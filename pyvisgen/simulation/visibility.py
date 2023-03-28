@@ -144,6 +144,8 @@ def vis_loop(rc, SI, num_threads=10):
         if int_values.dtype != np.complex128:
             continue
         int_values = np.swapaxes(int_values, 0, 1)
+        noise = generate_noise(int_values.shape, rc)
+        int_values += noise
         vis_num = np.arange(int_values.shape[0]) + 1 + vis_num.max()
 
         vis = Visibilities(
