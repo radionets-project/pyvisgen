@@ -200,8 +200,7 @@ def generate_noise(shape, rc):
     eta = 0.95
 
     # taken from simulations
-    print(rc["bandwidths"][0])
-    chan_width = rc["bandwidths"]
+    chan_width = rc["bandwidths"][0]
 
     # corr_int_time
     exposure = rc["corr_int_time"]
