@@ -4,10 +4,10 @@ from pathlib import Path
 from pyvisgen.fits.data import fits_data
 from pyvisgen.utils.config import read_data_set_conf
 from pyvisgen.utils.data import load_bundles, open_bundles
-from radionets.dl_framework.data import save_fft_pair
 import astropy.constants as const
 from pyvisgen.gridding.alt_gridder import ms2dirty_python_fast
 import os
+import h5py
 
 os.environ["HDF5_USE_FILE_LOCKING"] = "FALSE"
 
@@ -307,6 +307,18 @@ def convert_real_imag(data, sky_sim=False, rescale=False):
         data = np.stack((real, imag), axis=1)
     return data
 
+
+def save_fft_pair(path, x, y, name_x="x", name_y="y"):
+    """
+    write fft_pairs created in second analysis step to h5 file
+    """
+    print("x shape: ", x.shape)
+    x = x[:, :65, :]
+    y = y[:, :65, :]
+    with h5py.File(path, "w") as hf:
+        hf.create_dataset(name_x, data=x)
+        hf.create_dataset(name_y, data=y)
+        hf.close()
 
 if __name__ == "__main__":
     create_gridded_data_set(
