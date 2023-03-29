@@ -271,38 +271,28 @@ def grid_data(uv_data, freq_data, conf):
     return gridded_vis
 
 
-def convert_amp_phase(data, sky_sim=False, rescale=False):
+def convert_amp_phase(data, sky_sim=False):
     if sky_sim:
         amp = np.abs(data)
         phase = np.angle(data)
-        # get rescale clear
-        # amp = (np.log10(amp + 1e-10) / 10) + 1
-        # if rescale:
-        #     amp = np.array([cv2.resize(a, (128, 128)) for a in amp])
-        #     phase = np.array([cv2.resize(p, (128, 128)) for p in phase])
         data = np.stack((amp, phase), axis=1)
     else:
         test = data[:, 0] + 1j * data[:, 1]
         amp = np.abs(test)
         phase = np.angle(test)
-        # amp = (np.log10(amp + 1e-10) / 10) + 1
-        # if rescale:
-        #     amp = np.array([cv2.resize(a, (128, 128)) for a in amp])
-        #     phase = np.array([cv2.resize(p, (128, 128)) for p in phase])
         data = np.stack((amp, phase), axis=1)
     return data
 
 
-def convert_real_imag(data, sky_sim=False, rescale=False):
+def convert_real_imag(data, sky_sim=False):
     if sky_sim:
         real = data.real
         imag = data.imag
 
         data = np.stack((real, imag), axis=1)
     else:
-        test = data[:, 0] + 1j * data[:, 1]
-        real = test.real
-        imag = test.imag
+        real = data[:, 0]
+        imag = data[:, 1]
 
         data = np.stack((real, imag), axis=1)
     return data
@@ -318,6 +308,7 @@ def save_fft_pair(path, x, y, name_x="x", name_y="y"):
         hf.create_dataset(name_x, data=x)
         hf.create_dataset(name_y, data=y)
         hf.close()
+
 
 if __name__ == "__main__":
     create_gridded_data_set(
