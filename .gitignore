@@ -25,3 +25,4 @@ dist/
 *.csv
 coverage.xml
 *.fits
+*.swp

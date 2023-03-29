@@ -144,6 +144,8 @@ def vis_loop(rc, SI, num_threads=10):
         if int_values.dtype != np.complex128:
             continue
         int_values = np.swapaxes(int_values, 0, 1)
+        noise = generate_noise(int_values.shape, rc)
+        int_values += noise
         vis_num = np.arange(int_values.shape[0]) + 1 + vis_num.max()
 
         vis = Visibilities(
@@ -188,3 +190,27 @@ def calc_vis(
     del X1, X2, SI
     int_values = int_values
     return int_values
+
+
+def generate_noise(shape, rc):
+    # scaling factor for the noise
+    factor = 1
+
+    # system efficency factor, near 1
+    eta = 0.95
+
+    # taken from simulations
+    chan_width = rc["bandwidths"][0]
+
+    # corr_int_time
+    exposure = rc["corr_int_time"]
+
+    # taken from: https://science.nrao.edu/facilities/vla/docs/manuals/oss/performance/sensitivity
+    SEFD = 420
+
+    std = factor * eta * SEFD
+    std /= np.sqrt(2 * exposure * chan_width)
+    noise = np.random.normal(loc=0, scale=std, size=shape)
+    noise = noise + 1.j * np.random.normal(loc=0, scale=std, size=shape)
+
+    return noise

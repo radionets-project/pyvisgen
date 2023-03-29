@@ -4,10 +4,10 @@ from pathlib import Path
 from pyvisgen.fits.data import fits_data
 from pyvisgen.utils.config import read_data_set_conf
 from pyvisgen.utils.data import load_bundles, open_bundles
-from radionets.dl_framework.data import save_fft_pair
 import astropy.constants as const
 from pyvisgen.gridding.alt_gridder import ms2dirty_python_fast
 import os
+import h5py
 
 os.environ["HDF5_USE_FILE_LOCKING"] = "FALSE"
 
@@ -42,6 +42,9 @@ def create_gridded_data_set(config):
             if conf["amp_phase"]:
                 gridded_data_test = convert_amp_phase(gridded_data_test, sky_sim=False)
                 truth_amp_phase_test = convert_amp_phase(truth_fft_test, sky_sim=True)
+            else:
+                gridded_data_test = convert_real_imag(gridded_data_test, sky_sim=False)
+                truth_amp_phase_test = convert_real_imag(truth_fft_test, sky_sim=True)
             assert gridded_data_test.shape[1] == 2
 
             out = out_path / Path("samp_test" + str(i) + ".h5")
@@ -80,6 +83,9 @@ def create_gridded_data_set(config):
         if conf["amp_phase"]:
             gridded_data_train = convert_amp_phase(gridded_data_train, sky_sim=False)
             truth_amp_phase_train = convert_amp_phase(truth_fft_train, sky_sim=True)
+        else:
+            gridded_data_train = convert_real_imag(gridded_data_train, sky_sim=False)
+            truth_amp_phase_train = convert_real_imag(truth_fft_train, sky_sim=True)
 
         out = out_path / Path("samp_train" + str(i) + ".h5")
         save_fft_pair(out, gridded_data_train, truth_amp_phase_train)
@@ -100,6 +106,9 @@ def create_gridded_data_set(config):
         if conf["amp_phase"]:
             gridded_data_valid = convert_amp_phase(gridded_data_valid, sky_sim=False)
             truth_amp_phase_valid = convert_amp_phase(truth_fft_valid, sky_sim=True)
+        else:
+            gridded_data_valid = convert_real_imag(gridded_data_valid, sky_sim=False)
+            truth_amp_phase_valid = convert_real_imag(truth_fft_valid, sky_sim=True)
 
         out = out_path / Path("samp_valid" + str(i - train_index_last) + ".h5")
         save_fft_pair(out, gridded_data_valid, truth_amp_phase_valid)
@@ -108,17 +117,18 @@ def create_gridded_data_set(config):
 
 
 def open_data(fits_files, sky_dist, conf, i):
+    sky_sim_bundle_size = len(open_bundles(sky_dist[0]))
     uv_data = [
         fits_files.get_uv_data(n).copy()
         for n in np.arange(
-            i * conf["bundle_size"], (i * conf["bundle_size"]) + conf["bundle_size"]
+            i * sky_sim_bundle_size, (i * sky_sim_bundle_size) + sky_sim_bundle_size
         )
     ]
     freq_data = np.array(
         [
             fits_files.get_freq_data(n)
             for n in np.arange(
-                i * conf["bundle_size"], (i * conf["bundle_size"]) + conf["bundle_size"]
+                i * sky_sim_bundle_size, (i * sky_sim_bundle_size) + sky_sim_bundle_size
             )
         ],
         dtype="object",
@@ -126,15 +136,15 @@ def open_data(fits_files, sky_dist, conf, i):
     gridded_data = np.array(
         [grid_data(data, freq, conf).copy() for data, freq in zip(uv_data, freq_data)]
     )
-    bundle = np.floor_divide(i * conf["bundle_size"], len(open_bundles(sky_dist[0])))
+    bundle = np.floor_divide(i * sky_sim_bundle_size, sky_sim_bundle_size)
     gridded_truth = np.array(
         [
             open_bundles(sky_dist[bundle])[n]
             for n in np.arange(
-                i * conf["bundle_size"] - bundle * len(open_bundles(sky_dist[0])),
-                (i * conf["bundle_size"])
-                + conf["bundle_size"]
-                - bundle * len(open_bundles(sky_dist[0])),
+                i * sky_sim_bundle_size - bundle * sky_sim_bundle_size,
+                (i * sky_sim_bundle_size)
+                + sky_sim_bundle_size
+                - bundle * sky_sim_bundle_size,
             )
         ]
     )
@@ -261,26 +271,43 @@ def grid_data(uv_data, freq_data, conf):
     return gridded_vis
 
 
-def convert_amp_phase(data, sky_sim=False, rescale=False):
+def convert_amp_phase(data, sky_sim=False):
     if sky_sim:
         amp = np.abs(data)
         phase = np.angle(data)
-        # get rescale clear
-        # amp = (np.log10(amp + 1e-10) / 10) + 1
-        # if rescale:
-        #     amp = np.array([cv2.resize(a, (128, 128)) for a in amp])
-        #     phase = np.array([cv2.resize(p, (128, 128)) for p in phase])
         data = np.stack((amp, phase), axis=1)
     else:
         test = data[:, 0] + 1j * data[:, 1]
         amp = np.abs(test)
         phase = np.angle(test)
-        # amp = (np.log10(amp + 1e-10) / 10) + 1
-        # if rescale:
-        #     amp = np.array([cv2.resize(a, (128, 128)) for a in amp])
-        #     phase = np.array([cv2.resize(p, (128, 128)) for p in phase])
         data = np.stack((amp, phase), axis=1)
     return data
+
+
+def convert_real_imag(data, sky_sim=False):
+    if sky_sim:
+        real = data.real
+        imag = data.imag
+
+        data = np.stack((real, imag), axis=1)
+    else:
+        real = data[:, 0]
+        imag = data[:, 1]
+
+        data = np.stack((real, imag), axis=1)
+    return data
+
+
+def save_fft_pair(path, x, y, name_x="x", name_y="y"):
+    """
+    write fft_pairs created in second analysis step to h5 file
+    """
+    x = x[:, :, :65, :]
+    y = y[:, :, :65, :]
+    with h5py.File(path, "w") as hf:
+        hf.create_dataset(name_x, data=x)
+        hf.create_dataset(name_y, data=y)
+        hf.close()
 
 
 if __name__ == "__main__":
