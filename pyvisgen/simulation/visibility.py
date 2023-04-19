@@ -76,7 +76,7 @@ class Vis:
     _date: float
 
 
-def vis_loop(rc, SI, num_threads=10):
+def vis_loop(rc, SI, num_threads=10, noisy=True):
     torch.set_num_threads(num_threads)
 
     # define array, source coords, and IFs
@@ -146,8 +146,11 @@ def vis_loop(rc, SI, num_threads=10):
         if int_values.dtype != np.complex128:
             continue
         int_values = np.swapaxes(int_values, 0, 1)
-        noise = generate_noise(int_values.shape, rc)
-        int_values += noise
+
+        if noisy:
+            noise = generate_noise(int_values.shape, rc)
+            int_values += noise
+
         vis_num = np.arange(int_values.shape[0]) + 1 + vis_num.max()
 
         vis = Visibilities(

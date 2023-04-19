@@ -1,5 +1,5 @@
-import toml
 import astropy.units as un
+import toml
 from astropy.coordinates import SkyCoord
 
 
@@ -34,6 +34,7 @@ def read_data_set_conf(conf_toml):
     conf["frequsel"] = config["sampling_options"]["frequsel"]
     conf["bandwidths"] = config["sampling_options"]["bandwidths"]
     conf["corrupted"] = config["sampling_options"]["corrupted"]
+    conf["noisy"] = config["sampling_options"]["noisy"]
 
     conf["num_test_images"] = config["bundle_options"]["num_test_images"]
     conf["bundle_size"] = config["bundle_options"]["bundle_size"]
