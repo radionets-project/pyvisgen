@@ -1,11 +1,13 @@
-import numpy as np
 from dataclasses import dataclass
-from pyvisgen.simulation.utils import get_IFs, calc_valid_baselines, calc_time_steps
-import pyvisgen.layouts.layouts as layouts
-from astropy import units as un
-import pyvisgen.simulation.scan as scan
+
+import numpy as np
 import torch
+from astropy import units as un
 from astropy.coordinates import SkyCoord
+
+import pyvisgen.layouts.layouts as layouts
+import pyvisgen.simulation.scan as scan
+from pyvisgen.simulation.utils import calc_time_steps, calc_valid_baselines, get_IFs
 
 
 @dataclass
@@ -205,12 +207,13 @@ def generate_noise(shape, rc):
     # corr_int_time
     exposure = rc["corr_int_time"]
 
-    # taken from: https://science.nrao.edu/facilities/vla/docs/manuals/oss/performance/sensitivity
+    # taken from:
+    # https://science.nrao.edu/facilities/vla/docs/manuals/oss/performance/sensitivity
     SEFD = 420
 
-    std = factor * eta * SEFD
+    std = factor * 1 / eta * SEFD
     std /= np.sqrt(2 * exposure * chan_width)
     noise = np.random.normal(loc=0, scale=std, size=shape)
-    noise = noise + 1.j * np.random.normal(loc=0, scale=std, size=shape)
+    noise = noise + 1.0j * np.random.normal(loc=0, scale=std, size=shape)
 
     return noise
