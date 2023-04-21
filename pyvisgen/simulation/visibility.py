@@ -202,7 +202,7 @@ def generate_noise(shape, rc):
     factor = 1
 
     # system efficency factor, near 1
-    eta = 0.95
+    eta = 0.93
 
     # taken from simulations
     chan_width = rc["bandwidths"][0]
