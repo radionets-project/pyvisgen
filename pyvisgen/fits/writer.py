@@ -323,14 +323,22 @@ def create_antenna_hdu(conf):
         "Reference date",
     )
     hdu_ant.header["POLARX"] = (
-        0.10819000005722046,
+        5.760021507597,
         "x coordinate of North Pole (arc seconds)",
-    )  # MOJAVE
+    )  # VLA
+    #hdu_ant.header["POLARX"] = (
+    #    0.10819000005722046,
+    #    "x coordinate of North Pole (arc seconds)",
+    #)  # MOJAVE
     hdu_ant.header["POLARY"] = (
-        0.28815001249313354,
+        8.804016993726,
         "y coordinate of North Pole (arc seconds)",
-    )  # MOJAVE
-    hdu_ant.header["UT1UTC"] = (0, "UT1 - UTC (sec)")  # missing
+    )  # VLA
+    #hdu_ant.header["POLARY"] = (
+    #    0.28815001249313354,
+    #    "y coordinate of North Pole (arc seconds)",
+    #)  # MOJAVE
+    hdu_ant.header["UT1UTC"] = (0.2025, "UT1 - UTC (sec)")  # VLA
     hdu_ant.header["DATUTC"] = (0, "time system - UTC (sec)")  # missing
     hdu_ant.header["TIMSYS"] = ("UTC", "Time system")
     hdu_ant.header["ARRNAM"] = (conf["layout"], "Array name")
@@ -344,7 +352,7 @@ def create_antenna_hdu(conf):
     hdu_ant.header["NO_IF"] = (4, "Number IFs (n IF)")
     hdu_ant.header["FREQID"] = (-1, "Frequency setup number")
     hdu_ant.header["IATUTC"] = (
-        0,
+        36,
         "No one knows.....",
     )  # how to calculate?? international atomic time
     hdu_ant.header["POLTYPE"] = (" ", "Type of polarization calibration")
