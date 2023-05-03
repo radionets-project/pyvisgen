@@ -303,8 +303,8 @@ def create_antenna_hdu(conf):
     freq = (conf["base_freq"] * un.Hz).value
     ref_date = Time(conf["scan_start"].isoformat(), format="isot")
 	
-	from astropy.utils import iers
-	iers_b = iers.IERS_B.open()
+    from astropy.utils import iers
+    iers_b = iers.IERS_B.open()
 
     # add additional keywords
     hdu_ant.header["EXTNAME"] = ("AIPS AN", "AIPS table file")
@@ -333,7 +333,7 @@ def create_antenna_hdu(conf):
         iers_b.pm_xy(ref_date)[1].value,
         "y coordinate of North Pole (arc seconds)",
     )
-    hdu_ant.header["UT1UTC"] = (iers_b.ut1_utc(ref_date), "UT1 - UTC (sec)")
+    hdu_ant.header["UT1UTC"] = (iers_b.ut1_utc(ref_date).value, "UT1 - UTC (sec)")
     hdu_ant.header["DATUTC"] = (0, "time system - UTC (sec)")  # missing
     hdu_ant.header["TIMSYS"] = ("UTC", "Time system")
     hdu_ant.header["ARRNAM"] = (conf["layout"], "Array name")
