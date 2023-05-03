@@ -302,6 +302,9 @@ def create_antenna_hdu(conf):
 
     freq = (conf["base_freq"] * un.Hz).value
     ref_date = Time(conf["scan_start"].isoformat(), format="isot")
+	
+	from astropy.utils import iers
+	iers_b = iers.IERS_B.open()
 
     # add additional keywords
     hdu_ant.header["EXTNAME"] = ("AIPS AN", "AIPS table file")
@@ -323,27 +326,19 @@ def create_antenna_hdu(conf):
         "Reference date",
     )
     hdu_ant.header["POLARX"] = (
-        5.760021507597,
+        iers_b.pm_xy(ref_date)[0].value,
         "x coordinate of North Pole (arc seconds)",
-    )  # VLA
-    #hdu_ant.header["POLARX"] = (
-    #    0.10819000005722046,
-    #    "x coordinate of North Pole (arc seconds)",
-    #)  # MOJAVE
+    )
     hdu_ant.header["POLARY"] = (
-        8.804016993726,
+        iers_b.pm_xy(ref_date)[1].value,
         "y coordinate of North Pole (arc seconds)",
-    )  # VLA
-    #hdu_ant.header["POLARY"] = (
-    #    0.28815001249313354,
-    #    "y coordinate of North Pole (arc seconds)",
-    #)  # MOJAVE
-    hdu_ant.header["UT1UTC"] = (0.2025, "UT1 - UTC (sec)")  # VLA
+    )
+    hdu_ant.header["UT1UTC"] = (iers_b.ut1_utc(ref_date), "UT1 - UTC (sec)")
     hdu_ant.header["DATUTC"] = (0, "time system - UTC (sec)")  # missing
     hdu_ant.header["TIMSYS"] = ("UTC", "Time system")
     hdu_ant.header["ARRNAM"] = (conf["layout"], "Array name")
     hdu_ant.header["XYZHAND"] = ("RIGHT", "Handedness of station coordinates")
-    hdu_ant.header["FRAME"] = ("????", "Coordinate frame")
+    hdu_ant.header["FRAME"] = ("????", "Coordinate frame, FOR IGNORANCE")
     hdu_ant.header["NUMORB"] = (0, "Number orbital parameters in table (n orb)")
     hdu_ant.header["NOPCAL"] = (
         2,
@@ -352,9 +347,9 @@ def create_antenna_hdu(conf):
     hdu_ant.header["NO_IF"] = (4, "Number IFs (n IF)")
     hdu_ant.header["FREQID"] = (-1, "Frequency setup number")
     hdu_ant.header["IATUTC"] = (
-        36,
-        "No one knows.....",
-    )  # how to calculate?? international atomic time
+        ref_date.tai.ymdhms[-1],
+        "Difference between TAI and UTC",
+    )
     hdu_ant.header["POLTYPE"] = (" ", "Type of polarization calibration")
 
     # add comments
