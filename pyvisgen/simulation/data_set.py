@@ -1,17 +1,19 @@
+from datetime import datetime
+from pathlib import Path
+
 import numpy as np
 import pandas as pd
 import torch
-from tqdm import tqdm
-from pathlib import Path
-from datetime import datetime
-from pyvisgen.utils.config import read_data_set_conf
-from pyvisgen.utils.data import load_bundles, open_bundles
-from pyvisgen.simulation.visibility import vis_loop
-import pyvisgen.fits.writer as writer
-import pyvisgen.layouts.layouts as layouts
 from astropy import units as un
 from astropy.coordinates import SkyCoord
+from tqdm import tqdm
+
+import pyvisgen.fits.writer as writer
+import pyvisgen.layouts.layouts as layouts
 from pyvisgen.simulation.utils import calc_ref_elev, calc_time_steps
+from pyvisgen.simulation.visibility import vis_loop
+from pyvisgen.utils.config import read_data_set_conf
+from pyvisgen.utils.data import load_bundles, open_bundles
 
 
 def simulate_data_set(config, slurm=False, job_id=None, n=None):
@@ -29,10 +31,10 @@ def simulate_data_set(config, slurm=False, job_id=None, n=None):
         SI = torch.tensor(open_bundles(data[bundle])[image], dtype=torch.cdouble)
 
         samp_ops = create_sampling_rc(conf)
-        vis_data = vis_loop(samp_ops, SI)
+        vis_data = vis_loop(samp_ops, SI, noisy=conf["noisy"])
         while vis_data == 0:
             samp_ops = create_sampling_rc(conf)
-            vis_data = vis_loop(samp_ops, SI)
+            vis_data = vis_loop(samp_ops, SI, noisy=conf["noisy"])
         hdu_list = writer.create_hdu_list(vis_data, samp_ops)
         hdu_list.writeto(out, overwrite=True)
 
@@ -43,10 +45,10 @@ def simulate_data_set(config, slurm=False, job_id=None, n=None):
             for j, SI in enumerate(tqdm(SIs)):
                 out = out_path / Path("vis_" + str(j) + ".fits")
                 samp_ops = create_sampling_rc(conf)
-                vis_data = vis_loop(samp_ops, SI)
+                vis_data = vis_loop(samp_ops, SI, noisy=conf["noisy"])
                 while vis_data == 0:
                     samp_ops = create_sampling_rc(conf)
-                    vis_data = vis_loop(samp_ops, SI)
+                    vis_data = vis_loop(samp_ops, SI, noisy=conf["noisy"])
                 hdu_list = writer.create_hdu_list(vis_data, samp_ops)
                 hdu_list.writeto(out, overwrite=True)
 

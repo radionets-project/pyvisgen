@@ -1,11 +1,13 @@
-import numpy as np
 from dataclasses import dataclass
-from pyvisgen.simulation.utils import get_IFs, calc_valid_baselines, calc_time_steps
-import pyvisgen.layouts.layouts as layouts
-from astropy import units as un
-import pyvisgen.simulation.scan as scan
+
+import numpy as np
 import torch
+from astropy import units as un
 from astropy.coordinates import SkyCoord
+
+import pyvisgen.layouts.layouts as layouts
+import pyvisgen.simulation.scan as scan
+from pyvisgen.simulation.utils import calc_time_steps, calc_valid_baselines, get_IFs
 
 
 @dataclass
@@ -74,7 +76,7 @@ class Vis:
     _date: float
 
 
-def vis_loop(rc, SI, num_threads=10):
+def vis_loop(rc, SI, num_threads=10, noisy=True):
     torch.set_num_threads(num_threads)
 
     # define array, source coords, and IFs
@@ -144,8 +146,11 @@ def vis_loop(rc, SI, num_threads=10):
         if int_values.dtype != np.complex128:
             continue
         int_values = np.swapaxes(int_values, 0, 1)
-        noise = generate_noise(int_values.shape, rc)
-        int_values += noise
+
+        if noisy:
+            noise = generate_noise(int_values.shape, rc)
+            int_values += noise
+
         vis_num = np.arange(int_values.shape[0]) + 1 + vis_num.max()
 
         vis = Visibilities(
@@ -176,10 +181,14 @@ def calc_vis(
     lm, baselines, wave, t, src_crd, array_layout, SI, rd, vis_num, corrupted=True
 ):
     if corrupted:
-        X1 = scan.corrupted(lm, baselines, wave, t, src_crd, array_layout, SI, rd)
+        X1 = scan.direction_independent(
+            lm, baselines, wave, t, src_crd, array_layout, SI, rd
+        )
         if X1.shape[0] == 1:
             return -1
-        X2 = scan.corrupted(lm, baselines, wave, t, src_crd, array_layout, SI, rd)
+        X2 = scan.direction_independent(
+            lm, baselines, wave, t, src_crd, array_layout, SI, rd
+        )
     else:
         X1 = scan.uncorrupted(lm, baselines, wave, t, src_crd, array_layout, SI)
         if X1.shape[0] == 1:
@@ -197,7 +206,7 @@ def generate_noise(shape, rc):
     factor = 1
 
     # system efficency factor, near 1
-    eta = 0.95
+    eta = 0.93
 
     # taken from simulations
     chan_width = rc["bandwidths"][0]
@@ -205,12 +214,13 @@ def generate_noise(shape, rc):
     # corr_int_time
     exposure = rc["corr_int_time"]
 
-    # taken from: https://science.nrao.edu/facilities/vla/docs/manuals/oss/performance/sensitivity
+    # taken from:
+    # https://science.nrao.edu/facilities/vla/docs/manuals/oss/performance/sensitivity
     SEFD = 420
 
-    std = factor * eta * SEFD
+    std = factor * 1 / eta * SEFD
     std /= np.sqrt(2 * exposure * chan_width)
     noise = np.random.normal(loc=0, scale=std, size=shape)
-    noise = noise + 1.j * np.random.normal(loc=0, scale=std, size=shape)
+    noise = noise + 1.0j * np.random.normal(loc=0, scale=std, size=shape)
 
     return noise

@@ -1,13 +1,15 @@
+import os
+from pathlib import Path
+
+import astropy.constants as const
+import h5py
 import numpy as np
 from tqdm import tqdm
-from pathlib import Path
+
 from pyvisgen.fits.data import fits_data
+from pyvisgen.gridding.alt_gridder import ms2dirty_python_fast
 from pyvisgen.utils.config import read_data_set_conf
 from pyvisgen.utils.data import load_bundles, open_bundles
-import astropy.constants as const
-from pyvisgen.gridding.alt_gridder import ms2dirty_python_fast
-import os
-import h5py
 
 os.environ["HDF5_USE_FILE_LOCKING"] = "FALSE"
 
@@ -48,6 +50,9 @@ def create_gridded_data_set(config):
             assert gridded_data_test.shape[1] == 2
 
             out = out_path / Path("samp_test" + str(i) + ".h5")
+
+            # rescaled to level Stokes I
+            gridded_data_test /= 2
             save_fft_pair(out, gridded_data_test, truth_amp_phase_test)
     #
     ###################
@@ -88,6 +93,9 @@ def create_gridded_data_set(config):
             truth_amp_phase_train = convert_real_imag(truth_fft_train, sky_sim=True)
 
         out = out_path / Path("samp_train" + str(i) + ".h5")
+
+        # rescaled to level Stokes I
+        gridded_data_train /= 2
         save_fft_pair(out, gridded_data_train, truth_amp_phase_train)
         train_index_last = i
     #
@@ -111,6 +119,9 @@ def create_gridded_data_set(config):
             truth_amp_phase_valid = convert_real_imag(truth_fft_valid, sky_sim=True)
 
         out = out_path / Path("samp_valid" + str(i - train_index_last) + ".h5")
+
+        # rescaled to level Stokes I
+        gridded_data_valid /= 2
         save_fft_pair(out, gridded_data_valid, truth_amp_phase_valid)
     #
     ###################

@@ -14,6 +14,7 @@ base_freq = 15.21e9
 frequsel = [0e8, 0.8e8, 1.44e8, 2.08e8]
 bandwidths = [6.4e7, 6.4e7, 6.4e7, 6.4e7]
 corrupted = true
+noisy = true
 
 [bundle_options]
 num_bundles = 5

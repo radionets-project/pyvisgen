@@ -1,13 +1,15 @@
+import itertools
 from dataclasses import dataclass
+
+import numexpr as ne
+import numpy as np
+import torch
+from astroplan import Observer
 from astropy import units as un
 from astropy.coordinates import EarthLocation
-import numpy as np
 from scipy.special import j1
-from astroplan import Observer
-from pyvisgen.simulation.utils import calc_ref_elev, Array, calc_direction_cosines
-import torch
-import itertools
-import numexpr as ne
+
+from pyvisgen.simulation.utils import Array, calc_direction_cosines, calc_ref_elev
 
 
 @dataclass
