@@ -217,7 +217,7 @@ def uncorrupted(lm, baselines, wave, time, src_crd, array_layout, SI):
 
     B = np.zeros((lm.shape[0], lm.shape[1], 1), dtype=complex)
 
-    B[:, :, 0] = SI + SI
+    B[:, :, 0] = SI
     # # only calculate without polarization for the moment
     # B[:, :, 0, 0] = SI[:, :, 0] + SI[:, :, 1]
     # B[:, :, 0, 1] = SI[:, :, 2] + 1j * SI[:, :, 3]
@@ -271,7 +271,7 @@ def corrupted(lm, baselines, wave, time, src_crd, array_layout, SI, rd):
 
     B = np.zeros((lm.shape[0], lm.shape[1], 1), dtype=complex)
 
-    B[:, :, 0] = SI + SI
+    B[:, :, 0] = SI
     # # only calculate without polarization for the moment
     # B[:, :, 0, 0] = SI[:, :, 0] + SI[:, :, 1]
     # B[:, :, 0, 1] = SI[:, :, 2] + 1j * SI[:, :, 3]
@@ -366,7 +366,7 @@ def direction_independent(lm, baselines, wave, time, src_crd, array_layout, SI, 
 
     B = np.zeros((lm.shape[0], lm.shape[1], 1), dtype=complex)
 
-    B[:, :, 0] = SI + SI
+    B[:, :, 0] = SI
     # B[:, :, 0, 0] = I[:, :, 0] + I[:, :, 1]
     # B[:, :, 0, 1] = I[:, :, 2] + 1j * I[:, :, 3]
     # B[:, :, 1, 0] = I[:, :, 2] - 1j * I[:, :, 3]

@@ -181,10 +181,14 @@ def calc_vis(
     lm, baselines, wave, t, src_crd, array_layout, SI, rd, vis_num, corrupted=True
 ):
     if corrupted:
-        X1 = scan.corrupted(lm, baselines, wave, t, src_crd, array_layout, SI, rd)
+        X1 = scan.direction_independent(
+            lm, baselines, wave, t, src_crd, array_layout, SI, rd
+        )
         if X1.shape[0] == 1:
             return -1
-        X2 = scan.corrupted(lm, baselines, wave, t, src_crd, array_layout, SI, rd)
+        X2 = scan.direction_independent(
+            lm, baselines, wave, t, src_crd, array_layout, SI, rd
+        )
     else:
         X1 = scan.uncorrupted(lm, baselines, wave, t, src_crd, array_layout, SI)
         if X1.shape[0] == 1:
