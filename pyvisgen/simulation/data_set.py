@@ -56,7 +56,7 @@ def simulate_data_set(config, slurm=False, job_id=None, n=None):
 def create_sampling_rc(conf):
     samp_ops = draw_sampling_opts(conf)
 
-    while test_opts(samp_ops) <= 5:
+    while test_opts(samp_ops) <= 20:
         samp_ops = draw_sampling_opts(conf)
 
     return samp_ops
