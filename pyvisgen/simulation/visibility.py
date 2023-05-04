@@ -209,10 +209,10 @@ def generate_noise(shape, rc):
     eta = 0.93
 
     # taken from simulations
-    chan_width = rc["bandwidths"][0]
+    chan_width = rc["bandwidths"][0] * 4
 
     # corr_int_time
-    exposure = rc["corr_int_time"]
+    exposure = rc["corr_int_time"] * 2
 
     # taken from:
     # https://science.nrao.edu/facilities/vla/docs/manuals/oss/performance/sensitivity
