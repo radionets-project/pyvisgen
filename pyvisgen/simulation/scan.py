@@ -1,13 +1,15 @@
+import itertools
 from dataclasses import dataclass
+
+import numexpr as ne
+import numpy as np
+import torch
+from astroplan import Observer
 from astropy import units as un
 from astropy.coordinates import EarthLocation
-import numpy as np
 from scipy.special import j1
-from astroplan import Observer
-from pyvisgen.simulation.utils import calc_ref_elev, Array, calc_direction_cosines
-import torch
-import itertools
-import numexpr as ne
+
+from pyvisgen.simulation.utils import Array, calc_direction_cosines, calc_ref_elev
 
 
 @dataclass
@@ -217,7 +219,7 @@ def uncorrupted(lm, baselines, wave, time, src_crd, array_layout, SI):
 
     B = np.zeros((lm.shape[0], lm.shape[1], 1), dtype=complex)
 
-    B[:, :, 0] = SI
+    B[:, :, 0] = SI + SI
     # # only calculate without polarization for the moment
     # B[:, :, 0, 0] = SI[:, :, 0] + SI[:, :, 1]
     # B[:, :, 0, 1] = SI[:, :, 2] + 1j * SI[:, :, 3]
@@ -271,7 +273,7 @@ def corrupted(lm, baselines, wave, time, src_crd, array_layout, SI, rd):
 
     B = np.zeros((lm.shape[0], lm.shape[1], 1), dtype=complex)
 
-    B[:, :, 0] = SI
+    B[:, :, 0] = SI + SI
     # # only calculate without polarization for the moment
     # B[:, :, 0, 0] = SI[:, :, 0] + SI[:, :, 1]
     # B[:, :, 0, 1] = SI[:, :, 2] + 1j * SI[:, :, 3]
@@ -366,7 +368,7 @@ def direction_independent(lm, baselines, wave, time, src_crd, array_layout, SI, 
 
     B = np.zeros((lm.shape[0], lm.shape[1], 1), dtype=complex)
 
-    B[:, :, 0] = SI
+    B[:, :, 0] = SI + SI
     # B[:, :, 0, 0] = I[:, :, 0] + I[:, :, 1]
     # B[:, :, 0, 1] = I[:, :, 2] + 1j * I[:, :, 3]
     # B[:, :, 1, 0] = I[:, :, 2] - 1j * I[:, :, 3]
