@@ -49,7 +49,7 @@ def create_vis_hdu(data, conf, layout="vlba", source_name="sim-source-0"):
     ws = wcs.WCS(naxis=7)
     ws.wcs.crpix = [1, 1, 1, 1, 1, 1, 1]
     ws.wcs.cdelt = np.array([1, 1, -1, freq_d, 1, 1, 1])
-    ws.wcs.crval = [1, 1, -5, freq, 1, ra, dec]
+    ws.wcs.crval = [1, 1, -1, freq, 1, ra, dec]
     ws.wcs.ctype = ["", "COMPLEX", "STOKES", "FREQ", "IF", "RA", "DEC"]
     h = ws.to_header()
 
