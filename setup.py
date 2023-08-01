@@ -1,4 +1,4 @@
-from setuptools import setup, find_packages
+from setuptools import find_packages, setup
 
 setup(
     name="pyvisgen",
@@ -25,7 +25,6 @@ setup(
         "torch",
         "tqdm",
         "numexpr",
-        "opencv-python",
         "click",
         "h5py",
         "natsort",
