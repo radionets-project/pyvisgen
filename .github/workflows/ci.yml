@@ -50,13 +50,6 @@ jobs:
         if: matrix.install-method == 'mamba'
         uses: mamba-org/provision-with-micromamba@v14
 
-      - name: Python setup
-        if: matrix.install-method == 'pip'
-        uses: actions/setup-python@v4
-        with:
-          python-version: ${{ matrix.python-version }}
-          check-latest: true
-
       - name: Install dependencies
         run: |
           python --version
