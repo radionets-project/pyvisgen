@@ -1,0 +1,3 @@
+update ci:
+  - change conda to mamba
+  - install towncrier
