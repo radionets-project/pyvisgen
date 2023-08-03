@@ -30,7 +30,6 @@ setup(
         "h5py",
         "natsort",
         "pre-commit",
-        "radionets",
     ],
     setup_requires=["pytest-runner"],
     tests_require=["pytest"],
