@@ -2,13 +2,14 @@ from setuptools import find_packages, setup
 
 setup(
     name="pyvisgen",
-    version="0.1.3",
+    version="0.1.4",
     description="Simulate radio interferometer observations \
             and visibility generation with the RIME formalism.",
     url="https://github.com/radionets-project/pyvisgen",
     author="Kevin Schmidt, Felix Geyer, Stefan Fröse",
     author_email="kevin3.schmidt@tu-dortmund.de",
     license="MIT",
+    include_package_data=True,
     packages=find_packages(),
     install_requires=[
         "numpy",

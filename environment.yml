@@ -1,0 +1,14 @@
+---
+name: pyvisgen
+channels:
+    - pytorch
+    - defaults
+    - conda-forge
+dependencies:
+  - python
+  - pytorch
+  - numpy
+  - pip
+  - pip:
+    - towncrier
+    - -e .
