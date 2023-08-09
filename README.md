@@ -16,7 +16,7 @@ $ pyvisgen_create_dataset --mode=simulate some_file.toml
 In the examples directory, you can find introductory jupyter notebooks which can be used as an entry point.
 
 ## Input images
-As input images for the RIME formalism we use GAN-generated radio galaxies created by [Rustige et. al.](https://doi.org/10.1093/rasti/rzad016) and [Kummer et. al.](https://doi.org/10.18420/inf2022_38).
+As input images for the RIME formalism, we use GAN-generated radio galaxies created by [Rustige et. al.](https://doi.org/10.1093/rasti/rzad016) and [Kummer et. al.](https://doi.org/10.18420/inf2022_38).
 Below, you can see four example images consisting of FRI and FRII sources.
 
 ![sources](https://github.com/radionets-project/pyvisgen/assets/23259659/285e36f6-74e7-45f1-9976-896a38217880)
@@ -32,6 +32,7 @@ An exemplary result can be found below.
 ![visibilities](https://github.com/radionets-project/pyvisgen/assets/23259659/858a5d4b-893a-4216-8d33-41d33981354c)
 
 ## Visualization of Jones matrices
+In this section, you can see visualizations of the matrices $\mathbf{E}(l, m)$  and $\mathbf{K}(l, m)$.
 ### Visualization of the E matrix
 ![visualize_E](https://github.com/radionets-project/pyvisgen/assets/23259659/194a321b-77cd-423b-9d01-c18c0741d6c5)
 
