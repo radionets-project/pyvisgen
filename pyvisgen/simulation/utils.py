@@ -1,4 +1,5 @@
 import toml
+import torch
 from astropy.coordinates import SkyCoord
 import astropy.units as un
 import numpy as np
@@ -42,29 +43,39 @@ def read_config(conf):
     return sim_conf
 
 
-def single_occurance(array):
+def unique(x, dim=0):
+    unique, inverse, counts = torch.unique(x, dim=dim, 
+        sorted=True, return_inverse=True, return_counts=True)
+    inv_sorted = inverse.argsort(stable=True)
+    tot_counts = torch.cat((counts.new_zeros(1), counts.cumsum(dim=0)))[:-1]
+    index = inv_sorted[tot_counts]
+    index = index
+    return unique, index
+
+
+def single_occurance(tensor):
     # only calc one half of visibility because of Fourier symmetry
-    vals, index = np.unique(np.abs(array), return_index=True)
+    vals, index = unique(torch.abs(tensor))
     return index
 
 
 def get_pairs(array_layout):
     delta_x = (
-        np.array(
+        torch.stack(
             [val - array_layout.x[val - array_layout.x != 0] for val in array_layout.x]
         )
         .ravel()
         .reshape(-1, 1)
     )
     delta_y = (
-        np.array(
+        torch.stack(
             [val - array_layout.y[val - array_layout.y != 0] for val in array_layout.y]
         )
         .ravel()
         .reshape(-1, 1)
     )
     delta_z = (
-        np.array(
+        torch.stack(
             [val - array_layout.z[val - array_layout.z != 0] for val in array_layout.z]
         )
         .ravel()
@@ -149,53 +160,50 @@ class Array:
         ]
         return self.mask
 
+    def delete(self, arr: torch.Tensor, ind: int, dim: int) -> torch.Tensor:
+        skip = [i for i in range(arr.size(dim)) if i != ind]
+        indices = [slice(None) if i != dim else skip for i in range(arr.ndim)]
+        return arr.__getitem__(indices)
+
     @lazyproperty
     def calc_ant_pair_vals(self):
-        antenna_pairs = np.delete(
-            np.array(
-                np.meshgrid(self.array_layout.name, self.array_layout.name)
-            ).T.reshape(-1, 2),
-            self.mask,
-            axis=0,
+        st_num_pairs = self.delete(
+            arr=torch.stack(
+                    torch.meshgrid(self.array_layout.st_num, self.array_layout.st_num)
+                ).T.reshape(-1, 2),
+            ind=self.mask,
+            dim=0,
         )[self.indices]
 
-        st_num_pairs = np.delete(
-            np.array(
-                np.meshgrid(self.array_layout.st_num, self.array_layout.st_num)
-            ).T.reshape(-1, 2),
-            self.mask,
-            axis=0,
+        els_low_pairs = self.delete(
+            arr=torch.stack(
+                    torch.meshgrid(self.array_layout.el_low, self.array_layout.el_low)
+                ).T.reshape(-1, 2),
+            ind=self.mask,
+            dim=0,
         )[self.indices]
 
-        els_low_pairs = np.delete(
-            np.array(
-                np.meshgrid(self.array_layout.el_low, self.array_layout.el_low)
-            ).T.reshape(-1, 2),
-            self.mask,
-            axis=0,
+        els_high_pairs = self.delete(
+            arr=torch.stack(
+                    torch.meshgrid(self.array_layout.el_high, self.array_layout.el_high)
+                ).T.reshape(-1, 2),
+            ind=self.mask,
+            dim=0,
         )[self.indices]
-
-        els_high_pairs = np.delete(
-            np.array(
-                np.meshgrid(self.array_layout.el_high, self.array_layout.el_high)
-            ).T.reshape(-1, 2),
-            self.mask,
-            axis=0,
-        )[self.indices]
-        return antenna_pairs, st_num_pairs, els_low_pairs, els_high_pairs
+        return st_num_pairs, els_low_pairs, els_high_pairs
 
 
 def calc_direction_cosines(ha, el_st, delta_x, delta_y, delta_z, src_crd):
-    u = (np.sin(ha) * delta_x + np.cos(ha) * delta_y).reshape(-1)
+    u = (torch.sin(ha) * delta_x + torch.cos(ha) * delta_y).reshape(-1)
     v = (
-        -np.sin(src_crd.ra) * np.cos(ha) * delta_x
-        + np.sin(src_crd.ra) * np.sin(ha) * delta_y
-        + np.cos(src_crd.ra) * delta_z
+        -torch.sin(src_crd.ra) * torch.cos(ha) * delta_x
+        + torch.sin(src_crd.ra) * torch.sin(ha) * delta_y
+        + torch.cos(src_crd.ra) * delta_z
     ).reshape(-1)
     w = (
-        np.cos(src_crd.ra) * np.cos(ha) * delta_x
-        - np.cos(src_crd.ra) * np.sin(ha) * delta_y
-        + np.sin(src_crd.ra) * delta_z
+        torch.cos(src_crd.ra) * torch.cos(ha) * delta_x
+        - torch.cos(src_crd.ra) * torch.sin(ha) * delta_y
+        + torch.sin(src_crd.ra) * delta_z
     ).reshape(-1)
     assert u.shape == v.shape == w.shape
     return u, v, w
