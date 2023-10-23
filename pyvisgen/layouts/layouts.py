@@ -3,6 +3,7 @@ import pandas as pd
 from dataclasses import dataclass
 import numpy as np
 from astropy.coordinates import EarthLocation
+import torch
 
 
 file_dir = Path(__file__).parent.resolve()
@@ -11,7 +12,6 @@ file_dir = Path(__file__).parent.resolve()
 @dataclass
 class Stations:
     st_num: [int]
-    name: [str]
     x: [float]
     y: [float]
     z: [float]
@@ -22,12 +22,13 @@ class Stations:
     altitude: [float]
 
     def __getitem__(self, i):
-        if isinstance(i, np.ndarray):
-            return [self.__getitem__(int(_i)) for _i in i]
+        if torch.is_tensor(i):
+            print(self)
+            print(i)
+            return torch.stack([self.__getitem__(int(_i)) for _i in i])
         else:
             station = Station(
                 self.st_num[i],
-                self.name[i],
                 self.x[i],
                 self.y[i],
                 self.z[i],
@@ -40,13 +41,12 @@ class Stations:
         return station
 
     def get_station(self, name):
-        return self[np.where(self.name == name)[0][0]]
+        return self[torch.where(self.name == name)[0][0]]
 
 
 @dataclass
 class Station:
     st_num: int
-    name: str
     x: float
     y: float
     z: float
@@ -81,16 +81,15 @@ def get_array_layout(array_name, writer=False):
         array["Z"] += loc.value[2]
 
     stations = Stations(
-        np.arange(len(array)),
-        array["station_name"].values,
-        array["X"].values,
-        array["Y"].values,
-        array["Z"].values,
-        array["dish_dia"].values,
-        array["el_low"].values,
-        array["el_high"].values,
-        array["SEFD"].values,
-        array["altitude"].values,
+        torch.arange(len(array)),
+        torch.tensor(array["X"].values),
+        torch.tensor(array["Y"].values),
+        torch.tensor(array["Z"].values),
+        torch.tensor(array["dish_dia"].values),
+        torch.tensor(array["el_low"].values),
+        torch.tensor(array["el_high"].values),
+        torch.tensor(array["SEFD"].values),
+        torch.tensor(array["altitude"].values),
     )
     if writer:
         return array
