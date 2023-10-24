@@ -83,8 +83,8 @@ def get_baselines(src_crd, time, array_layout):
     ar = Array(array_layout)
     delta_x, delta_y, delta_z, indices = ar.calc_relative_pos
     mask = ar.get_baseline_mask
-    antenna_pairs, st_num_pairs, els_low_pairs, els_high_pairs = ar.calc_ant_pair_vals
-    names = antenna_pairs[:, 0] + "-" + antenna_pairs[:, 1]
+    st_num_pairs, els_low_pairs, els_high_pairs = ar.calc_ant_pair_vals
+    names = str(st_num_pairs) + "-" + str(st_num_pairs)
 
     # Loop over ha and el_st
     baselines = Baselines([], [], [], [], [], [], [])
