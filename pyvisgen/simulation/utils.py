@@ -1,11 +1,11 @@
-import toml
-from astropy.coordinates import SkyCoord
+from datetime import datetime
+
+import astropy.constants as const
 import astropy.units as un
 import numpy as np
+import toml
+from astropy.coordinates import AltAz, Angle, EarthLocation, SkyCoord
 from astropy.time import Time
-from datetime import datetime
-import astropy.constants as const
-from astropy.coordinates import EarthLocation, AltAz, Angle
 from astropy.utils.decorators import lazyproperty
 
 
