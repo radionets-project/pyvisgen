@@ -259,6 +259,8 @@ def grid_data(uv_data, freq_data, conf):
     delta = 1 / fov
 
     bins = np.arange(start=-(N / 2) * delta, stop=(N / 2 + 1) * delta, step=delta)
+    if len(bins) - 1 > N:
+        bins = np.delete(bins, -1)
 
     mask, *_ = np.histogram2d(samps[0], samps[1], bins=[bins, bins], normed=False)
     mask[mask == 0] = 1
@@ -313,8 +315,8 @@ def save_fft_pair(path, x, y, name_x="x", name_y="y"):
     """
     write fft_pairs created in second analysis step to h5 file
     """
-    x = x[:, :, :65, :]
-    y = y[:, :, :65, :]
+    # x = x[:, :, :65, :]
+    # y = y[:, :, :65, :]
     with h5py.File(path, "w") as hf:
         hf.create_dataset(name_x, data=x)
         hf.create_dataset(name_y, data=y)
