@@ -85,7 +85,7 @@ def draw_sampling_opts(conf):
     scan_duration = np.random.randint(
         conf["scan_duration"][0], conf["scan_duration"][1]
     )
-    scans = np.random.randint(conf["scans"][0], conf["scans"][1])
+    num_scans = np.random.randint(conf["num_scans"][0], conf["num_scans"][1])
     opts = np.array(
         [
             conf["mode"][0],
@@ -97,10 +97,10 @@ def draw_sampling_opts(conf):
             conf["corr_int_time"],
             scan_start,
             scan_duration,
-            scans,
-            conf["interval_length"],
-            conf["base_freq"],
-            conf["frequsel"],
+            num_scans,
+            conf["scan_separation"],
+            conf["ref_frequency"],
+            conf["spectral_windows"],
             conf["bandwidths"],
             conf["corrupted"],
         ],
@@ -116,10 +116,10 @@ def draw_sampling_opts(conf):
         "corr_int_time": opts[6],
         "scan_start": opts[7],
         "scan_duration": opts[8],
-        "scans": opts[9],
-        "interval_length": opts[10],
-        "base_freq": opts[11],
-        "frequsel": opts[12],
+        "num_scans": opts[9],
+        "scan_separation": opts[10],
+        "ref_frequency": opts[11],
+        "spectral_windows": opts[12],
         "bandwidths": opts[13],
         "corrupted": opts[14],
     }

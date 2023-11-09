@@ -37,9 +37,9 @@ def read_config(conf):
         config["sampling_options"]["scan_start"], "%d-%m-%Y %H:%M:%S"
     )
     sim_conf["scan_duration"] = config["sampling_options"]["scan_duration"]
-    sim_conf["scans"] = config["sampling_options"]["scans"]
+    sim_conf["num_scans"] = config["sampling_options"]["num_scans"]
     sim_conf["channel"] = config["sampling_options"]["channel"]
-    sim_conf["interval_length"] = config["sampling_options"]["interval_length"]
+    sim_conf["scan_separation"] = config["sampling_options"]["scan_separation"]
     return sim_conf
 
 
@@ -86,13 +86,13 @@ def get_pairs(array_layout):
 
 def calc_time_steps(conf):
     start_time = Time(conf["scan_start"].isoformat(), format="isot")
-    interval = conf["interval_length"]
-    num_scans = conf["scans"]
+    scan_separation = conf["scan_separation"]
+    num_scans = conf["num_scans"]
     scan_duration = conf["scan_duration"]
     int_time = conf["corr_int_time"]
 
     time_lst = [
-        start_time + interval * i * un.second + j * int_time * un.second
+        start_time + scan_separation * i * un.second + i * scan_duration * un.second + j * int_time * un.second
         for i in range(num_scans)
         for j in range(int(scan_duration / int_time) + 1)
     ]

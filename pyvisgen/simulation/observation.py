@@ -59,12 +59,12 @@ class Observation:
         src_dec,
         start_time,
         scan_duration,
-        number_scans,
+        num_scans,
         scan_separation,
         integration_time,
         ref_frequency,
         spectral_windows,
-        bandwiths,
+        bandwidths,
         fov,
         image_size,
         array_layout,
@@ -72,9 +72,9 @@ class Observation:
         self.ra = torch.tensor(src_ra).float()
         self.dec = torch.tensor(src_dec).float()
 
-        self.start = Time(start_time, format="isot", scale="utc")
+        self.start = Time(start_time.isoformat(), format="isot", scale="utc")
         self.scan_duration = scan_duration
-        self.num_scans = number_scans
+        self.num_scans = num_scans
         self.int_time = integration_time
         self.scan_separation = scan_separation
         self.times = self.calc_time_steps()
@@ -85,15 +85,15 @@ class Observation:
             dim=0,
         )
 
-        self.base_freq = torch.tensor(base_frequency)
-        self.frequsel = torch.tensor(frequency_bands)
-        self.bandwiths = torch.tensor(bandwiths)
-        self.IFs = self.base_freq + self.frequsel
+        self.ref_frequency = torch.tensor(ref_frequency)
+        # self.frequsel = torch.tensor(frequency_bands)
+        self.bandwidths = torch.tensor(bandwidths)
+        self.spectral_windows = torch.tensor(spectral_windows)
         self.waves_low = torch.from_numpy(
-            (const.c / (self.IFs - self.bandwiths) * un.second / un.meter).value
+            (const.c / (self.spectral_windows - self.bandwidths) * un.second / un.meter).value
         )
         self.waves_high = torch.from_numpy(
-            (const.c / (self.IFs + self.bandwiths) * un.second / un.meter).value
+            (const.c / (self.spectral_windows + self.bandwidths) * un.second / un.meter).value
         )
 
         self.fov = fov
@@ -101,6 +101,7 @@ class Observation:
         self.pix_size = fov / image_size
 
         self.array = layouts.get_array_layout(array_layout)
+        self.num_baselines = int(len(self.array.st_num) * (len(self.array.st_num) - 1) / 2)
 
         self.rd = self.create_rd_grid()
         self.lm = self.create_lm_grid()

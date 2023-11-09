@@ -83,29 +83,25 @@ def vis_loop(rc, SI, num_threads=10, noisy=True):
     obs = Observation(
         src_ra=rc["fov_center_ra"],
         src_dec=rc["fov_center_dec"],
-        start_time=rc[""],
-        scan_duration=rc[""],
-        number_scans=rc[""],
-        scan_separation=rc[""],
-        integration_time=rc[""],
-        ref_frequency=rc[""],
-        spectral_windows=rc[""],
-        bandwiths=rc[""],
-        fov=rc[""],
-        image_size=rc[""],
-        array_layout=rc[""],
+        start_time=rc["scan_start"],
+        scan_duration=rc["scan_duration"],
+        num_scans=rc["num_scans"],
+        scan_separation=rc["scan_separation"],
+        integration_time=rc["corr_int_time"],
+        ref_frequency=rc["ref_frequency"],
+        spectral_windows=rc["spectral_windows"],
+        bandwidths=rc["bandwidths"],
+        fov=rc["fov_size"],
+        image_size=rc["img_size"],
+        array_layout=rc["layout"],
     )
-
-    # def number stations and number baselines
-    stat_num = len(obs.array.st_num)
-    base_num = int(stat_num * (stat_num - 1) / 2)
 
     # calculate vis
     visibilities = Visibilities(
-        np.empty(shape=[0] + [len(IFs)]),
-        np.empty(shape=[0] + [len(IFs)]),
-        np.empty(shape=[0] + [len(IFs)]),
-        np.empty(shape=[0] + [len(IFs)]),
+        np.empty(shape=[0] + [len(obs.spectral_windows)]),
+        np.empty(shape=[0] + [len(obs.spectral_windows)]),
+        np.empty(shape=[0] + [len(obs.spectral_windows)]),
+        np.empty(shape=[0] + [len(obs.spectral_windows)]),
         [],
         [],
         [],
@@ -116,25 +112,21 @@ def vis_loop(rc, SI, num_threads=10, noisy=True):
         [],
     )
     vis_num = np.zeros(1)
-    for i in range(rc["scans"]):
+    for i in range(rc["num_scans"]):
         end_idx = int((rc["scan_duration"] / rc["corr_int_time"]) + 1)
         t = obs.times[i * end_idx : (i + 1) * end_idx]
 
         src_crd = SkyCoord(
-            ra=self.ra, dec=self.dec, unit=(un.deg, un.deg)
+            ra=obs.ra, dec=obs.dec, unit=(un.deg, un.deg)
         )
 
         int_values = []
         for spw in rc["spectral_windows"]:
             val_i = calc_vis(
-                obs.lm,
-                obs.baselines,
+                obs,
                 spw,
                 t,
-                src_crd,
-                obs.array,
                 SI,
-                obs.rd,
                 vis_num,
                 corrupted=rc["corrupted"],
             )
@@ -168,31 +160,27 @@ def vis_loop(rc, SI, num_threads=10, noisy=True):
         )
 
         visibilities.add(vis)
-        # workaround to guarantee min number of visibilities
-        # when num vis is below N sampling is redone
-        # if visibilities.get_values().shape[1] < 3500:
-        #     return 0
         del int_values
     return visibilities
 
 
 def calc_vis(
-    lm, baselines, wave, t, src_crd, array_layout, SI, rd, vis_num, corrupted=True
+    obs, t, SI, vis_num, corrupted=True
 ):
     if corrupted:
         X1 = scan.direction_independent(
-            lm, baselines, wave, t, src_crd, array_layout, SI, rd
+            obs, t, SI
         )
         if X1.shape[0] == 1:
             return -1
         X2 = scan.direction_independent(
-            lm, baselines, wave, t, src_crd, array_layout, SI, rd
+            obs, t, SI
         )
     else:
-        X1 = scan.uncorrupted(lm, baselines, wave, t, src_crd, array_layout, SI)
+        X1 = scan.uncorrupted(obs, t, SI)
         if X1.shape[0] == 1:
             return -1
-        X2 = scan.uncorrupted(lm, baselines, wave, t, src_crd, array_layout, SI)
+        X2 = scan.uncorrupted(obs, t, SI)
 
     int_values = scan.integrate(X1, X2).numpy()
     del X1, X2, SI
