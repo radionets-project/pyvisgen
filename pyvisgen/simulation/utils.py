@@ -1,11 +1,11 @@
-import toml
-from astropy.coordinates import SkyCoord
+from datetime import datetime
+
+import astropy.constants as const
 import astropy.units as un
 import numpy as np
+import toml
+from astropy.coordinates import AltAz, Angle, EarthLocation, SkyCoord
 from astropy.time import Time
-from datetime import datetime
-import astropy.constants as const
-from astropy.coordinates import EarthLocation, AltAz, Angle
 from astropy.utils.decorators import lazyproperty
 
 
@@ -188,14 +188,14 @@ class Array:
 def calc_direction_cosines(ha, el_st, delta_x, delta_y, delta_z, src_crd):
     u = (np.sin(ha) * delta_x + np.cos(ha) * delta_y).reshape(-1)
     v = (
-        -np.sin(src_crd.ra) * np.cos(ha) * delta_x
-        + np.sin(src_crd.ra) * np.sin(ha) * delta_y
-        + np.cos(src_crd.ra) * delta_z
+        -np.sin(src_crd.dec) * np.cos(ha) * delta_x
+        + np.sin(src_crd.dec) * np.sin(ha) * delta_y
+        + np.cos(src_crd.dec) * delta_z
     ).reshape(-1)
     w = (
-        np.cos(src_crd.ra) * np.cos(ha) * delta_x
-        - np.cos(src_crd.ra) * np.sin(ha) * delta_y
-        + np.sin(src_crd.ra) * delta_z
+        np.cos(src_crd.dec) * np.cos(ha) * delta_x
+        - np.cos(src_crd.dec) * np.sin(ha) * delta_y
+        + np.sin(src_crd.dec) * delta_z
     ).reshape(-1)
     assert u.shape == v.shape == w.shape
     return u, v, w
