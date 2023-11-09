@@ -8,6 +8,7 @@ from astropy.coordinates import SkyCoord
 import pyvisgen.layouts.layouts as layouts
 import pyvisgen.simulation.scan as scan
 from pyvisgen.simulation.utils import calc_time_steps, calc_valid_baselines, get_IFs
+from pyvisgen.simulation.observation import Observation
 
 
 @dataclass
@@ -79,24 +80,24 @@ class Vis:
 def vis_loop(rc, SI, num_threads=10, noisy=True):
     torch.set_num_threads(num_threads)
 
-    # define array, source coords, and IFs
-    array_layout = layouts.get_array_layout(rc["layout"])
-    src_crd = SkyCoord(
-        ra=rc["fov_center_ra"], dec=rc["fov_center_dec"], unit=(un.deg, un.deg)
+    obs = Observation(
+        src_ra=rc["fov_center_ra"],
+        src_dec=rc["fov_center_dec"],
+        start_time=rc[""],
+        scan_duration=rc[""],
+        number_scans=rc[""],
+        scan_separation=rc[""],
+        integration_time=rc[""],
+        ref_frequency=rc[""],
+        spectral_windows=rc[""],
+        bandwiths=rc[""],
+        fov=rc[""],
+        image_size=rc[""],
+        array_layout=rc[""],
     )
 
-    # define IFs
-    IFs = get_IFs(rc)
-
-    # calculate time steps
-    time = calc_time_steps(rc)
-
-    # calculate rd, lm
-    rd = scan.create_rd_grid(rc["fov_size"], rc["img_size"], src_crd)
-    lm = scan.create_lm_grid(rd, src_crd)
-
     # def number stations and number baselines
-    stat_num = array_layout.st_num.shape[0]
+    stat_num = len(obs.array.st_num)
     base_num = int(stat_num * (stat_num - 1) / 2)
 
     # calculate vis
@@ -117,25 +118,23 @@ def vis_loop(rc, SI, num_threads=10, noisy=True):
     vis_num = np.zeros(1)
     for i in range(rc["scans"]):
         end_idx = int((rc["scan_duration"] / rc["corr_int_time"]) + 1)
-        t = time[i * end_idx : (i + 1) * end_idx]
+        t = obs.times[i * end_idx : (i + 1) * end_idx]
 
-        baselines = scan.get_baselines(src_crd, t, array_layout)
-
-        base_valid, u_valid, v_valid, w_valid, date, _date = calc_valid_baselines(
-            baselines, base_num, t, rc
+        src_crd = SkyCoord(
+            ra=self.ra, dec=self.dec, unit=(un.deg, un.deg)
         )
 
         int_values = []
-        for IF in IFs:
+        for spw in rc["spectral_windows"]:
             val_i = calc_vis(
-                lm,
-                baselines,
-                IF,
+                obs.lm,
+                obs.baselines,
+                spw,
                 t,
                 src_crd,
-                array_layout,
+                obs.array,
                 SI,
-                rd,
+                obs.rd,
                 vis_num,
                 corrupted=rc["corrupted"],
             )
