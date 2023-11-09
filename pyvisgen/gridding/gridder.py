@@ -315,8 +315,8 @@ def save_fft_pair(path, x, y, name_x="x", name_y="y"):
     """
     write fft_pairs created in second analysis step to h5 file
     """
-    # x = x[:, :, :65, :]
-    # y = y[:, :, :65, :]
+    x = x[:, :, :65, :]
+    y = y[:, :, :65, :]
     with h5py.File(path, "w") as hf:
         hf.create_dataset(name_x, data=x)
         hf.create_dataset(name_y, data=y)
