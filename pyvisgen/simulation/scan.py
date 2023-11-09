@@ -196,7 +196,7 @@ def uncorrupted(lm, baselines, wave, time, src_crd, array_layout, SI):
         source position
     array_layout : dataclass
         station information
-    I : 2d array
+    SI : 2d array
         source brightness distribution / input img
 
     Returns
@@ -248,7 +248,7 @@ def corrupted(lm, baselines, wave, time, src_crd, array_layout, SI, rd):
         source position
     array_layout : dataclass
         station information
-    I : 2d array
+    SI : 2d array
         source brightness distribution / input img
     rd : 3d array
         RA and dec values for every pixel
@@ -328,7 +328,7 @@ def corrupted(lm, baselines, wave, time, src_crd, array_layout, SI, rd):
 
 
 def direction_independent(lm, baselines, wave, time, src_crd, array_layout, SI, rd):
-    """Calculates direction independet visibility
+    """Calculates direction independent visibility
 
     Parameters
     ----------
@@ -344,7 +344,7 @@ def direction_independent(lm, baselines, wave, time, src_crd, array_layout, SI, 
         source position
     array_layout : dataclass
         station information
-    I : 2d array
+    SI : 2d array
         source brightness distribution / input img
     rd : 3d array
         RA and dec values for every pixel

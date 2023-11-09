@@ -169,10 +169,6 @@ def vis_loop(rc, SI, num_threads=10, noisy=True):
         )
 
         visibilities.add(vis)
-        # workaround to guarantee min number of visibilities
-        # when num vis is below N sampling is redone
-        # if visibilities.get_values().shape[1] < 3500:
-        #     return 0
         del int_values
     return visibilities
 
