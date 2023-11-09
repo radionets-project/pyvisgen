@@ -196,14 +196,14 @@ class Array:
 def calc_direction_cosines(ha, el_st, delta_x, delta_y, delta_z, src_crd):
     u = (torch.sin(ha) * delta_x + torch.cos(ha) * delta_y).reshape(-1)
     v = (
-        -torch.sin(src_crd.ra) * torch.cos(ha) * delta_x
-        + torch.sin(src_crd.ra) * torch.sin(ha) * delta_y
-        + torch.cos(src_crd.ra) * delta_z
+        -torch.sin(src_crd.dec) * torch.cos(ha) * delta_x
+        + torch.sin(src_crd.dec) * torch.sin(ha) * delta_y
+        + torch.cos(src_crd.dec) * delta_z
     ).reshape(-1)
     w = (
-        torch.cos(src_crd.ra) * torch.cos(ha) * delta_x
-        - torch.cos(src_crd.ra) * torch.sin(ha) * delta_y
-        + torch.sin(src_crd.ra) * delta_z
+        torch.cos(src_crd.dec) * torch.cos(ha) * delta_x
+        - torch.cos(src_crd.dec) * torch.sin(ha) * delta_y
+        + torch.sin(src_crd.dec) * delta_z
     ).reshape(-1)
     assert u.shape == v.shape == w.shape
     return u, v, w
