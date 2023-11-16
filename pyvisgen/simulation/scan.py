@@ -179,7 +179,7 @@ def create_lm_grid(rd_grid, src_crd):
     return lm_grid
 
 
-def uncorrupted(lm, baselines, wave, time, src_crd, array_layout, SI):
+def uncorrupted(obs, spw, time, SI):
     """Calculates uncorrupted visibility
 
     Parameters
@@ -204,18 +204,7 @@ def uncorrupted(lm, baselines, wave, time, src_crd, array_layout, SI):
     4d array
         Returns visibility for every lm and baseline
     """
-    stat_num = array_layout.st_num.shape[0]
-    base_num = int(stat_num * (stat_num - 1) / 2)
-
-    vectorized_num = np.vectorize(lambda st: st.st_num, otypes=[int])
-    st1, st2 = get_valid_baselines(baselines, base_num)
-
-    st1_num = vectorized_num(st1)
-
-    if st1_num.shape[0] == 0:
-        return torch.zeros(1)
-
-    K = getK(baselines, lm, wave, base_num)
+    K = getK(obs, spw, time)
 
     B = np.zeros((lm.shape[0], lm.shape[1], 1), dtype=complex)
 
@@ -511,7 +500,7 @@ def getP(beta):
     return P
 
 
-def getK(baselines, lm, wave, base_num):
+def getK(obs, spw, time):
     """Calculates Fouriertransformation Kernel for every baseline and pixel in lm grid.
 
     Parameters
@@ -530,32 +519,28 @@ def getK(baselines, lm, wave, base_num):
         Shape is given by lm axes and baseline axis
     """
     # new valid baseline calculus. for details see function get_valid_baselines()
+    bas_t = obs.baselines[(obs.baselines.time >= time[0]).bool() & (obs.baselines.time <= time[-1]).bool()]
+    mask_start = (bas_t.valid[:-1].bool()) & (bas_t.valid[1:]).bool()
+    mask_stop = (bas_t.valid[1:].bool()) & (bas_t.valid[:-1]).bool()
 
-    valid = baselines.valid.reshape(-1, base_num)
-    mask = np.array(valid[:-1]).astype(bool) & np.array(valid[1:]).astype(bool)
+    u_start = bas_t.u[:-1][mask_start] / spw
+    u_stop = bas_t.u[1:][mask_stop] / spw
+    v_start = bas_t.v[:-1][mask_start] / spw
+    v_stop = bas_t.v[1:][mask_stop] / spw
+    w_start = bas_t.w[:-1][mask_start] / spw
+    w_stop = bas_t.w[1:][mask_stop] / spw
 
-    u = baselines.u.reshape(-1, base_num) / wave
-    v = baselines.v.reshape(-1, base_num) / wave
-    w = baselines.w.reshape(-1, base_num) / wave
+    u_cmplt = torch.cat((u_start, u_stop))
+    v_cmplt = torch.cat((v_start, v_stop))
+    w_cmplt = torch.cat((w_start, w_stop))
 
-    u_start = u[:-1][mask]
-    u_stop = u[1:][mask]
-    v_start = v[:-1][mask]
-    v_stop = v[1:][mask]
-    w_start = w[:-1][mask]
-    w_stop = w[1:][mask]
-
-    u_cmplt = np.append(u_start, u_stop)
-    v_cmplt = np.append(v_start, v_stop)
-    w_cmplt = np.append(w_start, w_stop)
-
-    l = torch.tensor(lm[:, :, 0])
-    m = torch.tensor(lm[:, :, 1])
+    l = obs.lm[:, :, 0]
+    m = obs.lm[:, :, 1]
     n = torch.sqrt(1 - l**2 - m**2)
 
-    ul = torch.einsum("b,ij->ijb", torch.tensor(u_cmplt), l)
-    vm = torch.einsum("b,ij->ijb", torch.tensor(v_cmplt), m)
-    wn = torch.einsum("b,ij->ijb", torch.tensor(w_cmplt), (n - 1))
+    ul = torch.einsum("b,ij->ijb", u_cmplt, l)
+    vm = torch.einsum("b,ij->ijb", v_cmplt, m)
+    wn = torch.einsum("b,ij->ijb", w_cmplt, (n - 1))
 
     pi = np.pi
     test = ul + vm + wn
@@ -607,7 +592,9 @@ def get_valid_baselines(baselines, base_num):
     # t_0<-mask[0]->t_1, t_1<-mask[1]->t_2,...
     mask = np.array(valid[:-1]).astype(bool) & np.array(valid[1:]).astype(bool)
 
+    print(mask.shape)
     # reshape stations to apply mask
+    print(baselines.st1.shape)
     st1 = baselines.st1.reshape(-1, base_num)
     st2 = baselines.st2.reshape(-1, base_num)
 

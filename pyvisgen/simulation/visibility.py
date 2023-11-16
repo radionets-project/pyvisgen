@@ -114,7 +114,7 @@ def vis_loop(rc, SI, num_threads=10, noisy=True):
     vis_num = np.zeros(1)
     for i in range(rc["num_scans"]):
         end_idx = int((rc["scan_duration"] / rc["corr_int_time"]) + 1)
-        t = obs.times[i * end_idx : (i + 1) * end_idx]
+        t = obs.times_mjd[i * end_idx : (i + 1) * end_idx]
 
         src_crd = SkyCoord(
             ra=obs.ra, dec=obs.dec, unit=(un.deg, un.deg)
@@ -165,22 +165,22 @@ def vis_loop(rc, SI, num_threads=10, noisy=True):
 
 
 def calc_vis(
-    obs, t, SI, vis_num, corrupted=True
+    obs, spw, t, SI, vis_num, corrupted=True
 ):
     if corrupted:
         X1 = scan.direction_independent(
-            obs, t, SI
+            obs, spw, t, SI,
         )
         if X1.shape[0] == 1:
             return -1
         X2 = scan.direction_independent(
-            obs, t, SI
+            obs, spw, t, SI,
         )
     else:
-        X1 = scan.uncorrupted(obs, t, SI)
+        X1 = scan.uncorrupted(obs, spw, t, SI)
         if X1.shape[0] == 1:
             return -1
-        X2 = scan.uncorrupted(obs, t, SI)
+        X2 = scan.uncorrupted(obs, spw, t, SI)
 
     int_values = scan.integrate(X1, X2).numpy()
     del X1, X2, SI

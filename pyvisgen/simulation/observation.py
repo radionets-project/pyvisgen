@@ -18,6 +18,7 @@ class Baselines:
     v: [float]
     w: [float]
     valid: [bool]
+    time: [float]
 
     def __getitem__(self, i):
         baseline = Baseline(
@@ -27,6 +28,7 @@ class Baselines:
             self.v[i],
             self.w[i],
             self.valid[i],
+            self.time[i],
         )
         return baseline
 
@@ -37,6 +39,7 @@ class Baselines:
         self.v = torch.cat([self.v, baselines.v])
         self.w = torch.cat([self.w, baselines.w])
         self.valid = torch.cat([self.valid, baselines.valid])
+        self.time = torch.cat([self.time, baselines.time])
 
 
 @dataclass
@@ -47,6 +50,7 @@ class Baseline:
     v: float
     w: float
     valid: bool
+    time: float
 
     def baselineNum(self):
         return 256 * (self.st1.st_num + 1) + self.st2.st_num + 1
@@ -77,7 +81,7 @@ class Observation:
         self.num_scans = num_scans
         self.int_time = integration_time
         self.scan_separation = scan_separation
-        self.times = self.calc_time_steps()
+        self.times, self.times_mjd = self.calc_time_steps()
         self.scans = torch.stack(
             torch.split(
                 torch.arange(len(self.times)), (len(self.times) // self.num_scans)
@@ -110,10 +114,12 @@ class Observation:
         self.baselines.num = int(
             len(self.array.st_num) * (len(self.array.st_num) - 1) / 2
         )
+        self.baselines.times_unique = torch.unique(self.baselines.time)
         self.calc_valid_baselines()
 
     def calc_baselines(self):
         self.baselines = Baselines(
+            torch.tensor([]),
             torch.tensor([]),
             torch.tensor([]),
             torch.tensor([]),
@@ -137,7 +143,7 @@ class Observation:
         # +1 because t_1 is the stop time of t_0
         # in order to save computing power we take one time more to complete interval
         time = Time(time_lst)
-        return time
+        return time, time.mjd * (60 * 60 * 24)
 
     def calc_ref_elev(self, time=None):
         if time is None:
@@ -273,8 +279,9 @@ class Observation:
             torch.tensor([]),
             torch.tensor([]),
             torch.tensor([]),
+            torch.tensor([]),
         )
-        for ha, el_st in zip(ha_all, el_st_all):
+        for ha, el_st, time in zip(ha_all, el_st_all, times):
             u, v, w = self.calc_direction_cosines(ha, el_st, delta_x, delta_y, delta_z)
 
             # calc current elevations
@@ -291,6 +298,7 @@ class Observation:
             valid_mask = torch.logical_or(m1, m2)
             valid[valid_mask] = False
 
+            time_mjd = torch.repeat_interleave(torch.tensor(time.mjd) * (24 * 60 * 60), len(valid))
             # collect baselines
             base = Baselines(
                 st_num_pairs[:, 0],
@@ -299,6 +307,7 @@ class Observation:
                 v,
                 w,
                 valid,
+                time_mjd,
             )
             baselines.add(base)
         return baselines
