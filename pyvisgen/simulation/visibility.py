@@ -3,11 +3,8 @@ from dataclasses import dataclass
 import numpy as np
 import torch
 from astropy import units as un
-from astropy.coordinates import SkyCoord
 
-import pyvisgen.layouts.layouts as layouts
 import pyvisgen.simulation.scan as scan
-from pyvisgen.simulation.utils import calc_time_steps, calc_valid_baselines, get_IFs
 from pyvisgen.simulation.observation import Observation
 
 
@@ -24,7 +21,6 @@ class Visibilities:
     v: [un]
     w: [un]
     date: [float]
-    _date: [float]
 
     def __getitem__(self, i):
         baseline = Vis(
@@ -39,7 +35,6 @@ class Visibilities:
             self.v[i],
             self.w[i],
             self.date[i],
-            self._date[i],
         )
         return baseline
 
@@ -58,7 +53,6 @@ class Visibilities:
         self.v = np.concatenate([self.v, visibilities.v])
         self.w = np.concatenate([self.w, visibilities.w])
         self.date = np.concatenate([self.date, visibilities.date])
-        self._date = np.concatenate([self._date, visibilities._date])
 
 
 @dataclass
@@ -74,7 +68,6 @@ class Vis:
     v: un
     w: un
     date: float
-    _date: float
 
 
 def vis_loop(rc, SI, num_threads=10, noisy=True):
@@ -109,17 +102,11 @@ def vis_loop(rc, SI, num_threads=10, noisy=True):
         [],
         [],
         [],
-        [],
     )
     vis_num = np.zeros(1)
     for i in range(rc["num_scans"]):
         end_idx = int((rc["scan_duration"] / rc["corr_int_time"]) + 1)
         t = obs.times_mjd[i * end_idx : (i + 1) * end_idx]
-
-        print(t)
-        src_crd = SkyCoord(
-            ra=obs.ra, dec=obs.dec, unit=(un.deg, un.deg)
-        )
 
         int_values = []
         for spw in rc["spectral_windows"]:
@@ -154,11 +141,10 @@ def vis_loop(rc, SI, num_threads=10, noisy=True):
             vis_num,
             torch.repeat_interleave(i + 1, len(vis_num)),
             obs.baselines.baseline_nums(),
-            u_valid,
-            v_valid,
-            w_valid,
-            date,
-            _date,
+            obs.baselines.u,
+            obs.baselines.v,
+            obs.baselines.w,
+            obs.baselines.time,
         )
 
         visibilities.add(vis)
@@ -166,17 +152,21 @@ def vis_loop(rc, SI, num_threads=10, noisy=True):
     return visibilities
 
 
-def calc_vis(
-    obs, spw, t, SI, vis_num, corrupted=True
-):
+def calc_vis(obs, spw, t, SI, vis_num, corrupted=True):
     if corrupted:
         X1 = scan.direction_independent(
-            obs, spw, t, SI,
+            obs,
+            spw,
+            t,
+            SI,
         )
         if X1.shape[0] == 1:
             return -1
         X2 = scan.direction_independent(
-            obs, spw, t, SI,
+            obs,
+            spw,
+            t,
+            SI,
         )
     else:
         X1 = scan.uncorrupted(obs, spw, t, SI)
