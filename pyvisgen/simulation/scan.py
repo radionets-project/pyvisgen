@@ -4,58 +4,13 @@ from dataclasses import dataclass
 import numexpr as ne
 import numpy as np
 import torch
+from math import pi
 from astroplan import Observer
 from astropy import units as un
 from astropy.coordinates import EarthLocation
 from scipy.special import j1
 
 from pyvisgen.simulation.utils import Array, calc_direction_cosines, calc_ref_elev
-
-
-@dataclass
-class Baselines:
-    name: [str]
-    st1: [object]
-    st2: [object]
-    u: [float]
-    v: [float]
-    w: [float]
-    valid: [bool]
-
-    def __getitem__(self, i):
-        baseline = Baseline(
-            self.name[i],
-            self.st1[i],
-            self.st2[i],
-            self.u[i],
-            self.v[i],
-            self.w[i],
-            self.valid[i],
-        )
-        return baseline
-
-    def add(self, baselines):
-        self.name = np.concatenate([self.name, baselines.name])
-        self.st1 = np.concatenate([self.st1, baselines.st1])
-        self.st2 = np.concatenate([self.st2, baselines.st2])
-        self.u = np.concatenate([self.u, baselines.u])
-        self.v = np.concatenate([self.v, baselines.v])
-        self.w = np.concatenate([self.w, baselines.w])
-        self.valid = np.concatenate([self.valid, baselines.valid])
-
-
-@dataclass
-class Baseline:
-    name: str
-    st1: object
-    st2: object
-    u: float
-    v: float
-    w: float
-    valid: bool
-
-    def baselineNum(self):
-        return 256 * (self.st1.st_num + 1) + self.st2.st_num + 1
 
 
 def get_baselines(src_crd, time, array_layout):
@@ -205,18 +160,12 @@ def uncorrupted(obs, spw, time, SI):
         Returns visibility for every lm and baseline
     """
     K = getK(obs, spw, time)
+    B = torch.zeros((obs.lm.shape[0], obs.lm.shape[1], 1))
 
-    B = np.zeros((lm.shape[0], lm.shape[1], 1), dtype=complex)
+    B[:, :, 0] = torch.tensor(SI) + torch.tensor(SI)
 
-    B[:, :, 0] = SI + SI
-    # # only calculate without polarization for the moment
-    # B[:, :, 0, 0] = SI[:, :, 0] + SI[:, :, 1]
-    # B[:, :, 0, 1] = SI[:, :, 2] + 1j * SI[:, :, 3]
-    # B[:, :, 1, 0] = SI[:, :, 2] - 1j * SI[:, :, 3]
-    # B[:, :, 1, 1] = SI[:, :, 0] - SI[:, :, 1]
-
-    X = torch.einsum("lmi,lmb->lmbi", torch.tensor(B), K)
-
+    X = torch.einsum("lmi,lmb->lmbi", B, K)
+    del K, B
     return X
 
 
@@ -523,16 +472,18 @@ def getK(obs, spw, time):
     mask_start = (bas_t.valid[:-1].bool()) & (bas_t.valid[1:]).bool()
     mask_stop = (bas_t.valid[1:].bool()) & (bas_t.valid[:-1]).bool()
 
-    u_start = bas_t.u[:-1][mask_start] / spw
-    u_stop = bas_t.u[1:][mask_stop] / spw
-    v_start = bas_t.v[:-1][mask_start] / spw
-    v_stop = bas_t.v[1:][mask_stop] / spw
-    w_start = bas_t.w[:-1][mask_start] / spw
-    w_stop = bas_t.w[1:][mask_stop] / spw
+    u_start = bas_t.u[:-1][mask_start] / 3e8 / spw
+    u_stop = bas_t.u[1:][mask_stop] / 3e8 / spw
+    v_start = bas_t.v[:-1][mask_start] / 3e8 / spw
+    v_stop = bas_t.v[1:][mask_stop] /3e8 / spw
+    w_start = bas_t.w[:-1][mask_start] /3e8 / spw
+    w_stop = bas_t.w[1:][mask_stop] / 3e8 / spw
+    del mask_start, mask_stop, bas_t
 
     u_cmplt = torch.cat((u_start, u_stop))
     v_cmplt = torch.cat((v_start, v_stop))
     w_cmplt = torch.cat((w_start, w_stop))
+    del u_start, u_stop, v_start, v_stop, w_start, w_stop
 
     l = obs.lm[:, :, 0]
     m = obs.lm[:, :, 1]
@@ -541,11 +492,11 @@ def getK(obs, spw, time):
     ul = torch.einsum("b,ij->ijb", u_cmplt, l)
     vm = torch.einsum("b,ij->ijb", v_cmplt, m)
     wn = torch.einsum("b,ij->ijb", w_cmplt, (n - 1))
+    del l, m, n, u_cmplt, v_cmplt, w_cmplt
 
-    pi = np.pi
-    test = ul + vm + wn
-    K = ne.evaluate("exp(-2 * pi * 1j * (ul + vm + wn))")  # -0.4 secs for vlba
-    return torch.tensor(K)
+    K = torch.exp(-2 * pi * 1j * (ul + vm + wn))
+    del ul, vm, wn
+    return K
 
 
 def jinc(x):

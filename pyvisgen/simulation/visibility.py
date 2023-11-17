@@ -116,6 +116,7 @@ def vis_loop(rc, SI, num_threads=10, noisy=True):
         end_idx = int((rc["scan_duration"] / rc["corr_int_time"]) + 1)
         t = obs.times_mjd[i * end_idx : (i + 1) * end_idx]
 
+        print(t)
         src_crd = SkyCoord(
             ra=obs.ra, dec=obs.dec, unit=(un.deg, un.deg)
         )
@@ -131,6 +132,7 @@ def vis_loop(rc, SI, num_threads=10, noisy=True):
                 corrupted=rc["corrupted"],
             )
             int_values.append(val_i)
+            print(int_values)
             del val_i
 
         int_values = np.array(int_values)
@@ -142,7 +144,7 @@ def vis_loop(rc, SI, num_threads=10, noisy=True):
             noise = generate_noise(int_values.shape, rc)
             int_values += noise
 
-        vis_num = np.arange(int_values.shape[0]) + 1 + vis_num.max()
+        vis_num = torch.arange(int_values.shape[0]) + 1 + vis_num.max()
 
         vis = Visibilities(
             torch.tensor(int_values[:, :, 0]),
@@ -150,8 +152,8 @@ def vis_loop(rc, SI, num_threads=10, noisy=True):
             torch.zeros(int_values[:, :, 0].shape, dtype=torch.complex128),
             torch.zeros(int_values[:, :, 0].shape, dtype=torch.complex128),
             vis_num,
-            np.repeat(i + 1, len(vis_num)),
-            np.array([baselines[i].baselineNum() for i in base_valid]),
+            torch.repeat_interleave(i + 1, len(vis_num)),
+            obs.baselines.baseline_nums(),
             u_valid,
             v_valid,
             w_valid,
@@ -178,10 +180,11 @@ def calc_vis(
         )
     else:
         X1 = scan.uncorrupted(obs, spw, t, SI)
+        print("X1", X1)
         if X1.shape[0] == 1:
             return -1
         X2 = scan.uncorrupted(obs, spw, t, SI)
-
+        print("X2", X2)
     int_values = scan.integrate(X1, X2).numpy()
     del X1, X2, SI
     int_values = int_values

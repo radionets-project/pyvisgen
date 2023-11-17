@@ -41,6 +41,9 @@ class Baselines:
         self.valid = torch.cat([self.valid, baselines.valid])
         self.time = torch.cat([self.time, baselines.time])
 
+    def baseline_nums(self):
+        return 256 * (self.st1 + 1) + self.st2 + 1
+
 
 @dataclass
 class Baseline:
