@@ -1,11 +1,13 @@
-from astropy.io import fits
+import warnings
+
+import astropy.constants as const
+import astropy.units as un
 import numpy as np
 from astropy import wcs
-import astropy.units as un
+from astropy.io import fits
 from astropy.time import Time
-import astropy.constants as const
+
 import pyvisgen.layouts.layouts as layouts
-import warnings
 
 
 def create_vis_hdu(data, conf, layout="vlba", source_name="sim-source-0"):
@@ -17,7 +19,7 @@ def create_vis_hdu(data, conf, layout="vlba", source_name="sim-source-0"):
 
     DATE = data.date - int(data.date.min())
 
-    _DATE = data._date  # central time in the integration period
+    _DATE = np.zeros(DATE.shape)  # central time in the integration period
 
     BASELINE = data.base_num
 
@@ -43,7 +45,7 @@ def create_vis_hdu(data, conf, layout="vlba", source_name="sim-source-0"):
     # wcs
     ra = conf["fov_center_ra"]
     dec = conf["fov_center_dec"]
-    freq = (conf["base_freq"] * un.Hz).value
+    freq = (conf["ref_frequency"] * un.Hz).value
     freq_d = (conf["bandwidths"][0] * un.Hz).value
 
     ws = wcs.WCS(naxis=7)
@@ -183,7 +185,7 @@ def create_frequency_hdu(conf):
     col1 = fits.Column(name="FRQSEL", format="1J", unit=" ", array=FRQSEL)
 
     IF_FREQ = np.array(
-        [conf["frequsel"]], dtype=">f8"
+        [conf["spectral_windows"] - conf["ref_frequency"]], dtype=">f8"
     )  # start with 0, add ch_with per IF
     col2 = fits.Column(
         name="IF FREQ", format=str(IF_FREQ.shape[-1]) + "D", unit="Hz", array=IF_FREQ
@@ -300,10 +302,11 @@ def create_antenna_hdu(conf):
     )
     hdu_ant = fits.BinTableHDU.from_columns(coldefs_ant)
 
-    freq = (conf["base_freq"] * un.Hz).value
+    freq = (conf["ref_frequency"] * un.Hz).value
     ref_date = Time(conf["scan_start"].isoformat(), format="isot")
-	
+
     from astropy.utils import iers
+
     iers_b = iers.IERS_B.open()
 
     # add additional keywords
