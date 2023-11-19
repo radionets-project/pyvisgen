@@ -17,6 +17,22 @@ from pyvisgen.utils.data import load_bundles, open_bundles
 
 
 def simulate_data_set(config, slurm=False, job_id=None, n=None):
+    """
+    Wrapper function for simulating visibilities.
+    Distinction between slurm and non-threaded simulation.
+
+    Parameters
+    ----------
+    config : toml file
+        path to config file
+    slurm : bool
+        True, if slurm is used
+    job_id : int
+        job_id, given by slurm
+    n : int
+        running index
+
+    """
     conf = read_data_set_conf(config)
     out_path = Path(conf["out_path_fits"])
     out_path.mkdir(parents=True, exist_ok=True)
@@ -54,6 +70,20 @@ def simulate_data_set(config, slurm=False, job_id=None, n=None):
 
 
 def create_sampling_rc(conf):
+    """
+    Draw sampling options and test if atleast half of the telescopes can see the source.
+    If not, then new parameters are drawn.
+
+    Parameters
+    ----------
+    conf : dict
+        simulation options
+
+    Returns
+    -------
+    dict
+        contains the observation parameters
+    """
     samp_ops = draw_sampling_opts(conf)
     array_layout = layouts.get_array_layout(conf["layout"][0])
     half_telescopes = array_layout.x.shape[0] // 2
@@ -65,6 +95,19 @@ def create_sampling_rc(conf):
 
 
 def draw_sampling_opts(conf):
+    """
+    Draw observation options from given intervals.
+
+    Parameters
+    ----------
+    conf : dict
+        simulation options
+
+    Returns
+    -------
+    dict
+        contains randomly drawn observation options
+    """
     angles_ra = np.arange(
         conf["fov_center_ra"][0][0], conf["fov_center_ra"][0][1], step=0.1
     )
@@ -127,6 +170,19 @@ def draw_sampling_opts(conf):
 
 
 def test_opts(rc):
+    """
+    Compute the number of telescopes that can observe the source given
+    certain randomly drawn parameters.
+
+    Parameters
+    ----------
+    rc : dict
+        randomly drawn observational parameters
+
+    Returns
+    -------
+
+    """
     array_layout = layouts.get_array_layout(rc["layout"])
     src_crd = SkyCoord(
         ra=rc["fov_center_ra"], dec=rc["fov_center_dec"], unit=(un.deg, un.deg)

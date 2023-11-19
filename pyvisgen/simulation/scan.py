@@ -1,15 +1,14 @@
 import itertools
-from dataclasses import dataclass
+from math import pi
 
-import numexpr as ne
 import numpy as np
 import torch
-from math import pi
 from astroplan import Observer
 from astropy import units as un
 from astropy.coordinates import EarthLocation
 from scipy.special import j1
 
+from pyvisgen.simulation.observation import Baselines
 from pyvisgen.simulation.utils import Array, calc_direction_cosines, calc_ref_elev
 
 
@@ -151,7 +150,7 @@ def uncorrupted(obs, spw, time, SI):
         source position
     array_layout : dataclass
         station information
-    I : 2d array
+    SI : 2d array
         source brightness distribution / input img
 
     Returns
@@ -186,7 +185,7 @@ def corrupted(lm, baselines, wave, time, src_crd, array_layout, SI, rd):
         source position
     array_layout : dataclass
         station information
-    I : 2d array
+    SI : 2d array
         source brightness distribution / input img
     rd : 3d array
         RA and dec values for every pixel
@@ -266,7 +265,7 @@ def corrupted(lm, baselines, wave, time, src_crd, array_layout, SI, rd):
 
 
 def direction_independent(lm, baselines, wave, time, src_crd, array_layout, SI, rd):
-    """Calculates direction independet visibility
+    """Calculates direction independent visibility
 
     Parameters
     ----------
@@ -282,7 +281,7 @@ def direction_independent(lm, baselines, wave, time, src_crd, array_layout, SI, 
         source position
     array_layout : dataclass
         station information
-    I : 2d array
+    SI : 2d array
         source brightness distribution / input img
     rd : 3d array
         RA and dec values for every pixel
@@ -468,15 +467,17 @@ def getK(obs, spw, time):
         Shape is given by lm axes and baseline axis
     """
     # new valid baseline calculus. for details see function get_valid_baselines()
-    bas_t = obs.baselines[(obs.baselines.time >= time[0]).bool() & (obs.baselines.time <= time[-1]).bool()]
+    bas_t = obs.baselines[
+        (obs.baselines.time >= time[0]).bool() & (obs.baselines.time <= time[-1]).bool()
+    ]
     mask_start = (bas_t.valid[:-1].bool()) & (bas_t.valid[1:]).bool()
     mask_stop = (bas_t.valid[1:].bool()) & (bas_t.valid[:-1]).bool()
 
     u_start = bas_t.u[:-1][mask_start] / 3e8 / spw
     u_stop = bas_t.u[1:][mask_stop] / 3e8 / spw
     v_start = bas_t.v[:-1][mask_start] / 3e8 / spw
-    v_stop = bas_t.v[1:][mask_stop] /3e8 / spw
-    w_start = bas_t.w[:-1][mask_start] /3e8 / spw
+    v_stop = bas_t.v[1:][mask_stop] / 3e8 / spw
+    w_start = bas_t.w[:-1][mask_start] / 3e8 / spw
     w_stop = bas_t.w[1:][mask_stop] / 3e8 / spw
     del mask_start, mask_stop, bas_t
 

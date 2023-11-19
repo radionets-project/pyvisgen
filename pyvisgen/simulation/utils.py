@@ -1,12 +1,12 @@
-import toml
-import torch
-from astropy.coordinates import SkyCoord
+from datetime import datetime
+
+import astropy.constants as const
 import astropy.units as un
 import numpy as np
+import toml
+import torch
+from astropy.coordinates import AltAz, Angle, EarthLocation, SkyCoord
 from astropy.time import Time
-from datetime import datetime
-import astropy.constants as const
-from astropy.coordinates import EarthLocation, AltAz, Angle
 from astropy.utils.decorators import lazyproperty
 
 
@@ -44,8 +44,9 @@ def read_config(conf):
 
 
 def unique(x, dim=0):
-    unique, inverse, counts = torch.unique(x, dim=dim, 
-        sorted=True, return_inverse=True, return_counts=True)
+    unique, inverse, counts = torch.unique(
+        x, dim=dim, sorted=True, return_inverse=True, return_counts=True
+    )
     inv_sorted = inverse.argsort(stable=True)
     tot_counts = torch.cat((counts.new_zeros(1), counts.cumsum(dim=0)))[:-1]
     index = inv_sorted[tot_counts]
@@ -92,7 +93,10 @@ def calc_time_steps(conf):
     int_time = conf["corr_int_time"]
 
     time_lst = [
-        start_time + scan_separation * i * un.second + i * scan_duration * un.second + j * int_time * un.second
+        start_time
+        + scan_separation * i * un.second
+        + i * scan_duration * un.second
+        + j * int_time * un.second
         for i in range(num_scans)
         for j in range(int(scan_duration / int_time) + 1)
     ]
@@ -169,24 +173,24 @@ class Array:
     def calc_ant_pair_vals(self):
         st_num_pairs = self.delete(
             arr=torch.stack(
-                    torch.meshgrid(self.array_layout.st_num, self.array_layout.st_num)
-                ).T.reshape(-1, 2),
+                torch.meshgrid(self.array_layout.st_num, self.array_layout.st_num)
+            ).T.reshape(-1, 2),
             ind=self.mask,
             dim=0,
         )[self.indices]
 
         els_low_pairs = self.delete(
             arr=torch.stack(
-                    torch.meshgrid(self.array_layout.el_low, self.array_layout.el_low)
-                ).T.reshape(-1, 2),
+                torch.meshgrid(self.array_layout.el_low, self.array_layout.el_low)
+            ).T.reshape(-1, 2),
             ind=self.mask,
             dim=0,
         )[self.indices]
 
         els_high_pairs = self.delete(
             arr=torch.stack(
-                    torch.meshgrid(self.array_layout.el_high, self.array_layout.el_high)
-                ).T.reshape(-1, 2),
+                torch.meshgrid(self.array_layout.el_high, self.array_layout.el_high)
+            ).T.reshape(-1, 2),
             ind=self.mask,
             dim=0,
         )[self.indices]
@@ -196,14 +200,14 @@ class Array:
 def calc_direction_cosines(ha, el_st, delta_x, delta_y, delta_z, src_crd):
     u = (torch.sin(ha) * delta_x + torch.cos(ha) * delta_y).reshape(-1)
     v = (
-        -torch.sin(src_crd.dec) * torch.cos(ha) * delta_x
-        + torch.sin(src_crd.dec) * torch.sin(ha) * delta_y
-        + torch.cos(src_crd.dec) * delta_z
+        -np.sin(src_crd.dec) * np.cos(ha) * delta_x
+        + np.sin(src_crd.dec) * np.sin(ha) * delta_y
+        + np.cos(src_crd.dec) * delta_z
     ).reshape(-1)
     w = (
-        torch.cos(src_crd.dec) * torch.cos(ha) * delta_x
-        - torch.cos(src_crd.dec) * torch.sin(ha) * delta_y
-        + torch.sin(src_crd.dec) * delta_z
+        np.cos(src_crd.dec) * np.cos(ha) * delta_x
+        - np.cos(src_crd.dec) * np.sin(ha) * delta_y
+        + np.sin(src_crd.dec) * delta_z
     ).reshape(-1)
     assert u.shape == v.shape == w.shape
     return u, v, w

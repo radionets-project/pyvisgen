@@ -1,11 +1,13 @@
-from astropy.io import fits
+import warnings
+
+import astropy.constants as const
+import astropy.units as un
 import numpy as np
 from astropy import wcs
-import astropy.units as un
+from astropy.io import fits
 from astropy.time import Time
-import astropy.constants as const
+
 import pyvisgen.layouts.layouts as layouts
-import warnings
 
 
 def create_vis_hdu(data, conf, layout="vlba", source_name="sim-source-0"):
@@ -26,7 +28,7 @@ def create_vis_hdu(data, conf, layout="vlba", source_name="sim-source-0"):
     # visibility data
     values = np.swapaxes(data.get_values(), 0, 1)
 
-    num_ifs = values.shape[1]
+    num_ifs = values.shape[2]
 
     vis = np.swapaxes(
         np.swapaxes(
@@ -302,8 +304,9 @@ def create_antenna_hdu(conf):
 
     freq = (conf["base_freq"] * un.Hz).value
     ref_date = Time(conf["scan_start"].isoformat(), format="isot")
-	
+
     from astropy.utils import iers
+
     iers_b = iers.IERS_B.open()
 
     # add additional keywords

@@ -259,6 +259,8 @@ def grid_data(uv_data, freq_data, conf):
     delta = 1 / fov
 
     bins = np.arange(start=-(N / 2) * delta, stop=(N / 2 + 1) * delta, step=delta)
+    if len(bins) - 1 > N:
+        bins = np.delete(bins, -1)
 
     mask, *_ = np.histogram2d(samps[0], samps[1], bins=[bins, bins], normed=False)
     mask[mask == 0] = 1
