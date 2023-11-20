@@ -185,7 +185,8 @@ def create_frequency_hdu(conf):
     col1 = fits.Column(name="FRQSEL", format="1J", unit=" ", array=FRQSEL)
 
     IF_FREQ = np.array(
-        [conf["spectral_windows"] - conf["ref_frequency"]], dtype=">f8"
+        [np.array(conf["spectral_windows"]) - np.array(conf["ref_frequency"])],
+        dtype=">f8",
     )  # start with 0, add ch_with per IF
     col2 = fits.Column(
         name="IF FREQ", format=str(IF_FREQ.shape[-1]) + "D", unit="Hz", array=IF_FREQ
