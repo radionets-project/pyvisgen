@@ -108,6 +108,8 @@ def vis_loop(rc, SI, num_threads=10, noisy=True):
         end_idx = int((rc["scan_duration"] / rc["corr_int_time"]) + 1)
         t = obs.times_mjd[i * end_idx : (i + 1) * end_idx]
 
+        # get baseline subset
+
         int_values = []
         for spw in rc["spectral_windows"]:
             val_i = calc_vis(
@@ -139,12 +141,12 @@ def vis_loop(rc, SI, num_threads=10, noisy=True):
             torch.zeros(int_values[:, :, 0].shape, dtype=torch.complex128),
             torch.zeros(int_values[:, :, 0].shape, dtype=torch.complex128),
             vis_num,
-            torch.repeat_interleave(i + 1, len(vis_num)),
+            torch.repeat_interleave(torch.tensor(i) + 1, len(vis_num)),
             obs.baselines.baseline_nums(),
-            obs.baselines.u,
-            obs.baselines.v,
-            obs.baselines.w,
-            obs.baselines.time,
+            obs.u_start,
+            obs.v_start,
+            obs.w_start,
+            obs.date,
         )
 
         visibilities.add(vis)

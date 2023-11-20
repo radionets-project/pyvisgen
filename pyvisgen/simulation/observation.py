@@ -1,12 +1,14 @@
 from dataclasses import dataclass
-import torch
-from astropy.time import Time
-import numpy as np
-import astropy.units as un
-from astropy.coordinates import EarthLocation, AltAz, Angle, SkyCoord
-from pyvisgen.layouts import layouts
-import astropy.constants as const
 from math import pi
+
+import astropy.constants as const
+import astropy.units as un
+import numpy as np
+import torch
+from astropy.coordinates import AltAz, Angle, EarthLocation, SkyCoord
+from astropy.time import Time
+
+from pyvisgen.layouts import layouts
 from pyvisgen.simulation.utils import Array
 
 
@@ -97,10 +99,20 @@ class Observation:
         self.bandwidths = torch.tensor(bandwidths)
         self.spectral_windows = torch.tensor(spectral_windows)
         self.waves_low = torch.from_numpy(
-            (const.c / (self.spectral_windows - self.bandwidths) * un.second / un.meter).value
+            (
+                const.c
+                / (self.spectral_windows - self.bandwidths)
+                * un.second
+                / un.meter
+            ).value
         )
         self.waves_high = torch.from_numpy(
-            (const.c / (self.spectral_windows + self.bandwidths) * un.second / un.meter).value
+            (
+                const.c
+                / (self.spectral_windows + self.bandwidths)
+                * un.second
+                / un.meter
+            ).value
         )
 
         self.fov = fov
@@ -108,7 +120,9 @@ class Observation:
         self.pix_size = fov / image_size
 
         self.array = layouts.get_array_layout(array_layout)
-        self.num_baselines = int(len(self.array.st_num) * (len(self.array.st_num) - 1) / 2)
+        self.num_baselines = int(
+            len(self.array.st_num) * (len(self.array.st_num) - 1) / 2
+        )
 
         self.rd = self.create_rd_grid()
         self.lm = self.create_lm_grid()
@@ -301,7 +315,9 @@ class Observation:
             valid_mask = torch.logical_or(m1, m2)
             valid[valid_mask] = False
 
-            time_mjd = torch.repeat_interleave(torch.tensor(time.mjd) * (24 * 60 * 60), len(valid))
+            time_mjd = torch.repeat_interleave(
+                torch.tensor(time.mjd) * (24 * 60 * 60), len(valid)
+            )
             # collect baselines
             base = Baselines(
                 st_num_pairs[:, 0],
@@ -358,3 +374,18 @@ class Observation:
             self.baselines.num,
             dim=1,
         )[mask]
+
+
+"""
+    # new valid baseline calculus. for details see function get_valid_baselines()
+    bas_t = obs.baselines[(obs.baselines.time >= time[0]).bool() & (obs.baselines.time <= time[-1]).bool()]
+    mask_start = (bas_t.valid[:-1].bool()) & (bas_t.valid[1:]).bool()
+    mask_stop = (bas_t.valid[1:].bool()) & (bas_t.valid[:-1]).bool()
+
+    u_start = bas_t.u[:-1][mask_start]
+    u_stop = bas_t.u[1:][mask_stop]
+    v_start = bas_t.v[:-1][mask_start]
+    v_stop = bas_t.v[1:][mask_stop]
+    w_start = bas_t.w[:-1][mask_start]
+    w_stop = bas_t.w[1:][mask_stop]
+"""
