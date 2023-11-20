@@ -28,7 +28,7 @@ def create_vis_hdu(data, conf, layout="vlba", source_name="sim-source-0"):
     # visibility data
     values = np.swapaxes(data.get_values(), 0, 1)
 
-    num_ifs = values.shape[1]
+    num_ifs = values.shape[2]
 
     vis = np.swapaxes(
         np.swapaxes(
