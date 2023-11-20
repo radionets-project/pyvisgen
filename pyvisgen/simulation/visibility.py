@@ -109,10 +109,17 @@ def vis_loop(rc, SI, num_threads=10, noisy=True):
         t = obs.times_mjd[i * end_idx : (i + 1) * end_idx]
 
         # get baseline subset
+        bas_t = obs.baselines[
+            (obs.baselines.time >= t[0]) & (obs.baselines.time <= t[-1])
+        ]
+        bas_t.calc_valid_baselines()
+        if bas_t.valid.numel() == 0:
+            continue
 
         int_values = []
         for spw in rc["spectral_windows"]:
             val_i = calc_vis(
+                bas_t,
                 obs,
                 spw,
                 t,
@@ -124,10 +131,7 @@ def vis_loop(rc, SI, num_threads=10, noisy=True):
             print(int_values)
             del val_i
 
-        int_values = np.array(int_values)
-        if int_values.dtype != np.complex128:
-            continue
-        int_values = np.swapaxes(int_values, 0, 1)
+        int_values = torch.swapaxes(int_values, 0, 1)
 
         if noisy:
             noise = generate_noise(int_values.shape, rc)
@@ -142,11 +146,11 @@ def vis_loop(rc, SI, num_threads=10, noisy=True):
             torch.zeros(int_values[:, :, 0].shape, dtype=torch.complex128),
             vis_num,
             torch.repeat_interleave(torch.tensor(i) + 1, len(vis_num)),
-            obs.baselines.baseline_nums(),
-            obs.u_start,
-            obs.v_start,
-            obs.w_start,
-            obs.date,
+            bas_t.baselines.baseline_nums(),
+            bas_t.u_start,
+            bas_t.v_start,
+            bas_t.w_start,
+            bas_t.date,
         )
 
         visibilities.add(vis)
@@ -154,9 +158,10 @@ def vis_loop(rc, SI, num_threads=10, noisy=True):
     return visibilities
 
 
-def calc_vis(obs, spw, t, SI, vis_num, corrupted=True):
+def calc_vis(bas, obs, spw, t, SI, vis_num, corrupted=True):
     if corrupted:
         X1 = scan.direction_independent(
+            bas,
             obs,
             spw,
             t,
@@ -165,17 +170,18 @@ def calc_vis(obs, spw, t, SI, vis_num, corrupted=True):
         if X1.shape[0] == 1:
             return -1
         X2 = scan.direction_independent(
+            bas,
             obs,
             spw,
             t,
             SI,
         )
     else:
-        X1 = scan.uncorrupted(obs, spw, t, SI)
+        X1 = scan.uncorrupted(bas, obs, spw, t, SI)
         print("X1", X1)
         if X1.shape[0] == 1:
             return -1
-        X2 = scan.uncorrupted(obs, spw, t, SI)
+        X2 = scan.uncorrupted(bas, obs, spw, t, SI)
         print("X2", X2)
     int_values = scan.integrate(X1, X2).numpy()
     del X1, X2, SI
@@ -201,8 +207,8 @@ def generate_noise(shape, rc):
     SEFD = 420
 
     std = factor * 1 / eta * SEFD
-    std /= np.sqrt(2 * exposure * chan_width)
-    noise = np.random.normal(loc=0, scale=std, size=shape)
-    noise = noise + 1.0j * np.random.normal(loc=0, scale=std, size=shape)
+    std /= torch.sqrt(2 * exposure * chan_width)
+    noise = torch.normal(mean=0, std=std, size=shape)
+    noise = noise + 1.0j * torch.normal(mean=0, std=std, size=shape)
 
     return noise

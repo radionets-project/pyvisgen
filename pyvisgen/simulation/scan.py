@@ -133,7 +133,7 @@ def create_lm_grid(rd_grid, src_crd):
     return lm_grid
 
 
-def uncorrupted(obs, spw, time, SI):
+def uncorrupted(bas, obs, spw, time, SI):
     """Calculates uncorrupted visibility
 
     Parameters
@@ -158,7 +158,7 @@ def uncorrupted(obs, spw, time, SI):
     4d array
         Returns visibility for every lm and baseline
     """
-    K = getK(obs, spw, time)
+    K = getK(bas, obs, spw, time)
     B = torch.zeros((obs.lm.shape[0], obs.lm.shape[1], 1))
 
     B[:, :, 0] = torch.tensor(SI) + torch.tensor(SI)
@@ -448,7 +448,7 @@ def getP(beta):
     return P
 
 
-def getK(obs, spw, time):
+def getK(bas, obs, spw, time):
     """Calculates Fouriertransformation Kernel for every baseline and pixel in lm grid.
 
     Parameters
@@ -466,9 +466,9 @@ def getK(obs, spw, time):
         Return Fourier Kernel for every pixel in lm grid and given baselines.
         Shape is given by lm axes and baseline axis
     """
-    u_cmplt = torch.cat((obs.u_start, obs.u_stop)) / 3e8 / spw
-    v_cmplt = torch.cat((obs.v_start, obs.v_stop)) / 3e8 / spw
-    w_cmplt = torch.cat((obs.w_start, obs.w_stop)) / 3e8 / spw
+    u_cmplt = torch.cat((bas.u_start, bas.u_stop)) / 3e8 / spw
+    v_cmplt = torch.cat((bas.v_start, bas.v_stop)) / 3e8 / spw
+    w_cmplt = torch.cat((bas.w_start, bas.w_stop)) / 3e8 / spw
 
     l = obs.lm[:, :, 0]
     m = obs.lm[:, :, 1]

@@ -46,6 +46,17 @@ class Baselines:
     def baseline_nums(self):
         return 256 * (self.st1 + 1) + self.st2 + 1
 
+    def calc_valid_baselines(self):
+        mask_start = (self.valid[:-1].bool()) & (self.valid[1:]).bool()
+        mask_stop = (self.valid[1:].bool()) & (self.valid[:-1]).bool()
+        self.u_start = self.u[:-1][mask_start]
+        self.u_stop = self.u[1:][mask_stop]
+        self.v_start = self.v[:-1][mask_start]
+        self.v_stop = self.v[1:][mask_stop]
+        self.w_start = self.w[:-1][mask_start]
+        self.w_stop = self.w[1:][mask_stop]
+        self.date = torch.from_numpy(Time(self.time / (60 * 60 * 24), format="mjd").jd)
+
 
 @dataclass
 class Baseline:
@@ -59,6 +70,17 @@ class Baseline:
 
     def baselineNum(self):
         return 256 * (self.st1.st_num + 1) + self.st2.st_num + 1
+
+    def calc_valid_baselines(self):
+        mask_start = (self.valid[:-1].bool()) & (self.valid[1:]).bool()
+        mask_stop = (self.valid[1:].bool()) & (self.valid[:-1]).bool()
+        self.u_start = self.u[:-1][mask_start]
+        self.u_stop = self.u[1:][mask_stop]
+        self.v_start = self.v[:-1][mask_start]
+        self.v_stop = self.v[1:][mask_stop]
+        self.w_start = self.w[:-1][mask_start]
+        self.w_stop = self.w[1:][mask_stop]
+        self.date = torch.from_numpy(Time(self.time / (60 * 60 * 24), format="mjd").jd)
 
 
 class Observation:
@@ -132,7 +154,6 @@ class Observation:
             len(self.array.st_num) * (len(self.array.st_num) - 1) / 2
         )
         self.baselines.times_unique = torch.unique(self.baselines.time)
-        self.calc_valid_baselines()
 
     def calc_baselines(self):
         self.baselines = Baselines(
@@ -352,40 +373,3 @@ class Observation:
         ).reshape(-1)
         assert u.shape == v.shape == w.shape
         return u, v, w
-
-    def calc_valid_baselines(self, time=None):
-        if time is None:
-            time = self.times
-        valid = self.baselines.valid.reshape(-1, self.baselines.num)
-        print(valid)
-        mask = valid[:-1].bool() & valid[1:].bool()
-
-        self.u_start = self.baselines.u.reshape(-1, self.baselines.num)[:-1][mask]
-        self.u_stop = self.baselines.u.reshape(-1, self.baselines.num)[1:][mask]
-        self.v_start = self.baselines.v.reshape(-1, self.baselines.num)[:-1][mask]
-        self.v_stop = self.baselines.v.reshape(-1, self.baselines.num)[1:][mask]
-        self.w_start = self.baselines.w.reshape(-1, self.baselines.num)[:-1][mask]
-        self.w_stop = self.baselines.w.reshape(-1, self.baselines.num)[1:][mask]
-
-        self.date = torch.repeat_interleave(
-            torch.from_numpy(
-                (time[:-1] + self.int_time * un.second / 2).jd.reshape(-1, 1)
-            ),
-            self.baselines.num,
-            dim=1,
-        )[mask]
-
-
-"""
-    # new valid baseline calculus. for details see function get_valid_baselines()
-    bas_t = obs.baselines[(obs.baselines.time >= time[0]).bool() & (obs.baselines.time <= time[-1]).bool()]
-    mask_start = (bas_t.valid[:-1].bool()) & (bas_t.valid[1:]).bool()
-    mask_stop = (bas_t.valid[1:].bool()) & (bas_t.valid[:-1]).bool()
-
-    u_start = bas_t.u[:-1][mask_start]
-    u_stop = bas_t.u[1:][mask_stop]
-    v_start = bas_t.v[:-1][mask_start]
-    v_stop = bas_t.v[1:][mask_stop]
-    w_start = bas_t.w[:-1][mask_start]
-    w_stop = bas_t.w[1:][mask_stop]
-"""
