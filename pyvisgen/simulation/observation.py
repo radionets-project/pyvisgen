@@ -69,7 +69,7 @@ class Baseline:
     time: float
 
     def baseline_nums(self):
-        return 256 * (self.st1.st_num + 1) + self.st2.st_num + 1
+        return 256 * (self.st1 + 1) + self.st2 + 1
 
     def calc_valid_baselines(self):
         mask_start = (self.valid[:-1].bool()) & (self.valid[1:]).bool()
