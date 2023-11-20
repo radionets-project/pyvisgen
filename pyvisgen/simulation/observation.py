@@ -68,7 +68,7 @@ class Baseline:
     valid: bool
     time: float
 
-    def baselineNum(self):
+    def baseline_nums(self):
         return 256 * (self.st1.st_num + 1) + self.st2.st_num + 1
 
     def calc_valid_baselines(self):
