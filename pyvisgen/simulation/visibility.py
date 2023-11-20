@@ -116,20 +116,21 @@ def vis_loop(rc, SI, num_threads=10, noisy=True):
         if bas_t.valid.numel() == 0:
             continue
 
-        int_values = []
-        for spw in rc["spectral_windows"]:
-            val_i = calc_vis(
-                bas_t,
-                obs,
-                spw,
-                t,
-                SI,
-                vis_num,
-                corrupted=rc["corrupted"],
-            )
-            int_values.append(val_i)
-            print(int_values)
-            del val_i
+        int_values = torch.cat(
+            [
+                calc_vis(
+                    bas_t,
+                    obs,
+                    spw,
+                    t,
+                    SI,
+                    vis_num,
+                    corrupted=rc["corrupted"],
+                )[None]
+                for spw in rc["spectral_windows"]
+            ]
+        )
+        print(int_values.shape)
 
         int_values = torch.swapaxes(int_values, 0, 1)
 
