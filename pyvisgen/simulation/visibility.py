@@ -184,7 +184,7 @@ def calc_vis(bas, obs, spw, t, SI, vis_num, corrupted=True):
             return -1
         X2 = scan.uncorrupted(bas, obs, spw, t, SI)
         print("X2", X2)
-    int_values = scan.integrate(X1, X2).numpy()
+    int_values = scan.integrate(X1, X2)
     del X1, X2, SI
     int_values = int_values
     return int_values
