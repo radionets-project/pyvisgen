@@ -174,7 +174,9 @@ class Array:
         st_num_pairs = self.delete(
             arr=torch.stack(
                 torch.meshgrid(self.array_layout.st_num, self.array_layout.st_num)
-            ).T.reshape(-1, 2),
+            )
+            .swapaxes(0, 2)
+            .reshape(-1, 2),
             ind=self.mask,
             dim=0,
         )[self.indices]
@@ -182,7 +184,9 @@ class Array:
         els_low_pairs = self.delete(
             arr=torch.stack(
                 torch.meshgrid(self.array_layout.el_low, self.array_layout.el_low)
-            ).T.reshape(-1, 2),
+            )
+            .swapaxes(0, 2)
+            .reshape(-1, 2),
             ind=self.mask,
             dim=0,
         )[self.indices]
@@ -190,7 +194,9 @@ class Array:
         els_high_pairs = self.delete(
             arr=torch.stack(
                 torch.meshgrid(self.array_layout.el_high, self.array_layout.el_high)
-            ).T.reshape(-1, 2),
+            )
+            .swapaxes(0, 2)
+            .reshape(-1, 2),
             ind=self.mask,
             dim=0,
         )[self.indices]

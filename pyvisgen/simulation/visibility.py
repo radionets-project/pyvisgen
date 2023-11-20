@@ -112,7 +112,7 @@ def vis_loop(rc, SI, num_threads=10, noisy=True):
         bas_t = obs.baselines[
             (obs.baselines.time >= t[0]) & (obs.baselines.time <= t[-1])
         ]
-        bas_t.calc_valid_baselines()
+        bas_t.calc_valid_baselines(obs.num_baselines)
         if bas_t.valid.numel() == 0:
             continue
 
@@ -130,7 +130,6 @@ def vis_loop(rc, SI, num_threads=10, noisy=True):
                 for spw in rc["spectral_windows"]
             ]
         )
-        print(int_values.shape)
 
         int_values = torch.swapaxes(int_values, 0, 1)
 
@@ -139,19 +138,18 @@ def vis_loop(rc, SI, num_threads=10, noisy=True):
             int_values += noise
 
         vis_num = torch.arange(int_values.shape[0]) + 1 + vis_num.max()
-        print(bas_t.baseline_nums())
 
         vis = Visibilities(
-            torch.tensor(int_values[:, :, 0]),
+            int_values[:, :, 0],
             torch.zeros(int_values[:, :, 0].shape, dtype=torch.complex128),
             torch.zeros(int_values[:, :, 0].shape, dtype=torch.complex128),
             torch.zeros(int_values[:, :, 0].shape, dtype=torch.complex128),
             vis_num,
             torch.repeat_interleave(torch.tensor(i) + 1, len(vis_num)),
-            bas_t.baseline_nums(),
-            bas_t.u_start,
-            bas_t.v_start,
-            bas_t.w_start,
+            bas_t.baseline_nums,
+            bas_t.u_valid,
+            bas_t.v_valid,
+            bas_t.w_valid,
             bas_t.date,
         )
 
@@ -169,8 +167,6 @@ def calc_vis(bas, obs, spw, t, SI, vis_num, corrupted=True):
             t,
             SI,
         )
-        if X1.shape[0] == 1:
-            return -1
         X2 = scan.direction_independent(
             bas,
             obs,
@@ -180,14 +176,9 @@ def calc_vis(bas, obs, spw, t, SI, vis_num, corrupted=True):
         )
     else:
         X1 = scan.uncorrupted(bas, obs, spw, t, SI)
-        print("X1", X1)
-        if X1.shape[0] == 1:
-            return -1
         X2 = scan.uncorrupted(bas, obs, spw, t, SI)
-        print("X2", X2)
     int_values = scan.integrate(X1, X2)
     del X1, X2, SI
-    int_values = int_values
     return int_values
 
 

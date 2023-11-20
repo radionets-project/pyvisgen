@@ -46,15 +46,26 @@ class Baselines:
     def baseline_nums(self):
         return 256 * (self.st1 + 1) + self.st2 + 1
 
-    def calc_valid_baselines(self):
-        mask_start = (self.valid[:-1].bool()) & (self.valid[1:]).bool()
-        mask_stop = (self.valid[1:].bool()) & (self.valid[:-1]).bool()
-        self.u_start = self.u[:-1][mask_start]
-        self.u_stop = self.u[1:][mask_stop]
-        self.v_start = self.v[:-1][mask_start]
-        self.v_stop = self.v[1:][mask_stop]
-        self.w_start = self.w[:-1][mask_start]
-        self.w_stop = self.w[1:][mask_stop]
+    def calc_valid_baselines(self, num_baselines):
+        valid = self.valid.reshape(-1, num_baselines)
+        mask = (valid[:-1].bool()) & (valid[1:]).bool()
+        st1 = self.st1.reshape(-1, num_baselines)
+        st2 = self.st2.reshape(-1, num_baselines)
+        self.baseline_nums = (
+            256 * (st1[:-1][mask].ravel() + 1) + st2[:-1][mask].ravel() + 1
+        )
+        u = self.u.reshape(-1, num_baselines)
+        v = self.v.reshape(-1, num_baselines)
+        w = self.w.reshape(-1, num_baselines)
+        self.u_start = u[:-1][mask]
+        self.u_stop = u[1:][mask]
+        self.v_start = v[:-1][mask]
+        self.v_stop = v[1:][mask]
+        self.w_start = w[:-1][mask]
+        self.w_stop = w[1:][mask]
+        self.u_valid = (self.u_start + self.u_stop) / 2
+        self.v_valid = (self.v_start + self.v_stop) / 2
+        self.w_valid = (self.w_start + self.w_stop) / 2
         self.date = torch.from_numpy(Time(self.time / (60 * 60 * 24), format="mjd").jd)
 
 
@@ -71,16 +82,28 @@ class Baseline:
     def baseline_nums(self):
         return 256 * (self.st1 + 1) + self.st2 + 1
 
-    def calc_valid_baselines(self):
-        mask_start = (self.valid[:-1].bool()) & (self.valid[1:]).bool()
-        mask_stop = (self.valid[1:].bool()) & (self.valid[:-1]).bool()
-        self.u_start = self.u[:-1][mask_start]
-        self.u_stop = self.u[1:][mask_stop]
-        self.v_start = self.v[:-1][mask_start]
-        self.v_stop = self.v[1:][mask_stop]
-        self.w_start = self.w[:-1][mask_start]
-        self.w_stop = self.w[1:][mask_stop]
-        self.date = torch.from_numpy(Time(self.time / (60 * 60 * 24), format="mjd").jd)
+    def calc_valid_baselines(self, num_baselines):
+        valid = self.valid.reshape(-1, num_baselines)
+        mask = (valid[:-1].bool()) & (valid[1:]).bool()
+        st1 = self.st1.reshape(-1, num_baselines)
+        st2 = self.st2.reshape(-1, num_baselines)
+        self.baseline_nums = (
+            256 * (st1[:-1][mask].ravel() + 1) + st2[:-1][mask].ravel() + 1
+        )
+        u = self.u.reshape(-1, num_baselines)
+        v = self.v.reshape(-1, num_baselines)
+        w = self.w.reshape(-1, num_baselines)
+        self.u_start = u[:-1][mask]
+        self.u_stop = u[1:][mask]
+        self.v_start = v[:-1][mask]
+        self.v_stop = v[1:][mask]
+        self.w_start = w[:-1][mask]
+        self.w_stop = w[1:][mask]
+        self.u_valid = (self.u_start + self.u_stop) / 2
+        self.v_valid = (self.v_start + self.v_stop) / 2
+        self.w_valid = (self.w_start + self.w_stop) / 2
+        t = Time(self.time / (60 * 60 * 24), format="mjd").jd.reshape(-1, num_baselines)
+        self.date = ((t[:-1] + t[1:]) / 2).ravel()
 
 
 class Observation:
@@ -324,7 +347,9 @@ class Observation:
 
             # calc current elevations
             els_st = self.delete(
-                arr=torch.stack(torch.meshgrid(el_st, el_st)).T.reshape(-1, 2),
+                arr=torch.stack(torch.meshgrid(el_st, el_st))
+                .swapaxes(0, 2)
+                .reshape(-1, 2),
                 ind=mask,
                 dim=0,
             )[indices]
