@@ -161,11 +161,9 @@ def calc_vis(bas, obs, spw, SI, corrupted=True):
         print("Currently not supported!")
         return -1
     else:
-        rime = scan.RIME_uncorrupted(bas, obs, spw, device="cpu", grad=False)
-        print(SI)
-        int_values = rime(SI)
-        print(int_values.shape)
-    return int_values
+        rime = scan.RIME_uncorrupted(bas, obs, spw, device="cuda:0", grad=False)
+        int_values = rime(SI.permute(dims=(1, 2, 0)).cuda())
+    return int_values.cpu()
 
 
 def generate_noise(shape, rc):

@@ -57,7 +57,7 @@ def simulate_data_set(config, slurm=False, job_id=None, n=None):
     else:
         data = load_bundles(conf["in_path"])
         for i in range(len(data)):
-            SIs = open_bundles(data[i])
+            SIs = torch.tensor(open_bundles(data[i]))
             for j, SI in enumerate(tqdm(SIs)):
                 out = out_path / Path("vis_" + str(j) + ".fits")
                 samp_ops = create_sampling_rc(conf)
