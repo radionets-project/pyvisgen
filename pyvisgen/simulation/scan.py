@@ -1,12 +1,74 @@
-import itertools
 from math import pi
 
-import numpy as np
 import torch
-from astroplan import Observer
-from astropy import units as un
-from astropy.coordinates import EarthLocation
-from scipy.special import j1
+
+
+def getK(bas, obs, spw, time):
+    """Calculates Fouriertransformation Kernel for every baseline and pixel in lm grid.
+
+    Parameters
+    ----------
+    baselines : dataclass object
+        basline information
+    lm : 2d array
+        lm grid for FOV
+    wave : float
+        wavelength
+
+    Returns
+    -------
+    3d array
+        Return Fourier Kernel for every pixel in lm grid and given baselines.
+        Shape is given by lm axes and baseline axis
+    """
+    u_cmplt = torch.cat((bas.u_start, bas.u_stop)) / 3e8 / spw
+    v_cmplt = torch.cat((bas.v_start, bas.v_stop)) / 3e8 / spw
+    w_cmplt = torch.cat((bas.w_start, bas.w_stop)) / 3e8 / spw
+
+    l = obs.lm[:, :, 0]
+    m = obs.lm[:, :, 1]
+    n = torch.sqrt(1 - l**2 - m**2)
+
+    ul = torch.einsum("b,ij->ijb", u_cmplt, l)
+    vm = torch.einsum("b,ij->ijb", v_cmplt, m)
+    wn = torch.einsum("b,ij->ijb", w_cmplt, (n - 1))
+    del l, m, n, u_cmplt, v_cmplt, w_cmplt
+
+    K = torch.exp(-2 * pi * 1j * (ul + vm + wn))
+    del ul, vm, wn
+    return K
+
+
+def integrate(X1, X2):
+    """Summation over l and m and avering over time and freq
+
+    Parameters
+    ----------
+    X1 : 4d array
+        visibility for every l,m and baseline for freq1
+    X2 : 4d array
+        visibility for every l,m and baseline for freq2
+
+    Returns
+    -------
+    2d array
+        Returns visibility for every baseline
+    """
+    X_f = torch.stack((X1, X2))
+
+    int_m = torch.sum(X_f, dim=2)
+    del X_f
+    int_l = torch.sum(int_m, dim=1)
+    del int_m
+    int_f = 0.5 * torch.sum(int_l, dim=0)
+    del int_l
+
+    X_t = torch.stack(torch.split(int_f, int(int_f.shape[0] / 2), dim=0))
+    del int_f
+    int_t = 0.5 * torch.sum(X_t, dim=0)
+    del X_t
+
+    return int_t
 
 
 def uncorrupted(bas, obs, spw, time, SI):
@@ -14,19 +76,15 @@ def uncorrupted(bas, obs, spw, time, SI):
 
     Parameters
     ----------
-    lm : 3d array
-        every pixel containing a l and m value
-    baselines : dataclass
-        baseline information
-    wave : float
-        wavelength of observation
-    time : astropy Time
-        Time steps of observation
-    src_crd : astropy SkyCoord
-        source position
-    array_layout : dataclass
-        station information
-    SI : 2d array
+    bas : dataclass
+        baselines dataclass
+    obs : class
+        observation class
+    spw : float
+        spectral window
+    time : float
+        time steps in mjd
+    SI : 2d tensor
         source brightness distribution / input img
 
     Returns
@@ -44,6 +102,7 @@ def uncorrupted(bas, obs, spw, time, SI):
     return X
 
 
+'''
 def corrupted(lm, baselines, wave, time, src_crd, array_layout, SI, rd):
     """Calculates corrupted visibility
 
@@ -208,38 +267,6 @@ def direction_independent(lm, baselines, wave, time, src_crd, array_layout, SI, 
     return EXE
 
 
-def integrate(X1, X2):
-    """Summation over l and m and avering over time and freq
-
-    Parameters
-    ----------
-    X1 : 4d array
-        visibility for every l,m and baseline for freq1
-    X2 : 4d array
-        visibility for every l,m and baseline for freq2
-
-    Returns
-    -------
-    2d array
-        Returns visibility for every baseline
-    """
-    X_f = torch.stack((X1, X2))
-
-    int_m = torch.sum(X_f, dim=2)
-    del X_f
-    int_l = torch.sum(int_m, dim=1)
-    del int_m
-    int_f = 0.5 * torch.sum(int_l, dim=0)
-    del int_l
-
-    X_t = torch.stack(torch.split(int_f, int(int_f.shape[0] / 2), dim=0))
-    del int_f
-    int_t = 0.5 * torch.sum(X_t, dim=0)
-    del X_t
-
-    return int_t
-
-
 def getE(rd, array_layout, wave, src_crd):
     """Calculates Jones matrix E for every pixel in lm grid and every station given.
 
@@ -324,42 +351,6 @@ def getP(beta):
     return P
 
 
-def getK(bas, obs, spw, time):
-    """Calculates Fouriertransformation Kernel for every baseline and pixel in lm grid.
-
-    Parameters
-    ----------
-    baselines : dataclass object
-        basline information
-    lm : 2d array
-        lm grid for FOV
-    wave : float
-        wavelength
-
-    Returns
-    -------
-    3d array
-        Return Fourier Kernel for every pixel in lm grid and given baselines.
-        Shape is given by lm axes and baseline axis
-    """
-    u_cmplt = torch.cat((bas.u_start, bas.u_stop)) / 3e8 / spw
-    v_cmplt = torch.cat((bas.v_start, bas.v_stop)) / 3e8 / spw
-    w_cmplt = torch.cat((bas.w_start, bas.w_stop)) / 3e8 / spw
-
-    l = obs.lm[:, :, 0]
-    m = obs.lm[:, :, 1]
-    n = torch.sqrt(1 - l**2 - m**2)
-
-    ul = torch.einsum("b,ij->ijb", u_cmplt, l)
-    vm = torch.einsum("b,ij->ijb", v_cmplt, m)
-    wn = torch.einsum("b,ij->ijb", w_cmplt, (n - 1))
-    del l, m, n, u_cmplt, v_cmplt, w_cmplt
-
-    K = torch.exp(-2 * pi * 1j * (ul + vm + wn))
-    del ul, vm, wn
-    return K
-
-
 def jinc(x):
     """Create jinc function.
 
@@ -376,87 +367,4 @@ def jinc(x):
     jinc = np.ones(x.shape)
     jinc[x != 0] = 2 * j1(x[x != 0]) / x[x != 0]
     return jinc
-
-
-def get_valid_baselines(baselines, base_num):
-    """Calculates all valid baselines. This depens on the baselines that are visible at
-    start and stop times.
-
-    Parameters
-    ----------
-    baselines : dataclass object
-        baseline spec
-    base_num : number of all baselines per time step
-        N*(N-1)/2
-
-    Returns
-    -------
-    2 1d arrays
-        Returns valid stations for every baselines as array
-    """
-    # reshape valid mask to (time, total baselines per time)
-    valid = baselines.valid.reshape(-1, base_num)
-
-    # generate a mask to only take baselines that are visible at start and stop time
-    # example:  telescope is visible at time t_0 but not visible at time t_1, therefore
-    # throw away baseline
-    # this is checked for every pair of time: t_0-t_1, t_1-t_2,...
-    # t_0<-mask[0]->t_1, t_1<-mask[1]->t_2,...
-    mask = np.array(valid[:-1]).astype(bool) & np.array(valid[1:]).astype(bool)
-
-    print(mask.shape)
-    # reshape stations to apply mask
-    print(baselines.st1.shape)
-    st1 = baselines.st1.reshape(-1, base_num)
-    st2 = baselines.st2.reshape(-1, base_num)
-
-    # apply mask
-    # bas_stx[:-1][mask] gives all start stx
-    # bas_stx[1:][mask] gives all stop stx
-    st1_start = st1[:-1][mask]
-    st1_stop = st1[1:][mask]
-    st2_start = st2[:-1][mask]
-    st2_stop = st2[1:][mask]
-
-    st1_cmplt = np.append(st1_start, st1_stop)
-    st2_cmplt = np.append(st2_start, st2_stop)
-
-    return st1_cmplt, st2_cmplt
-
-
-def time_step_of_baseline(baselines, base_num):
-    """Calculates the time step for every valid baseline
-
-    Parameters
-    ----------
-    baselines : dataclass object
-        baseline specs
-    base_num : number of all baselines per time step
-        N*(N-1)/2
-
-    Returns
-    -------
-    1d array
-        Return array with every time step repeated N times, where N is the number of
-        valid baselines per time step
-    """
-    # reshape valid mask to (time, total baselines per time)
-    valid = baselines.valid.reshape(-1, base_num)
-
-    # generate a mask to only take baselines that are visible at start and stop time
-    # example:  telescope is visible at time t_0 but not visible at time t_1, therefore
-    # throw away baseline
-    # this is checked for every pair of time: t_0-t_1, t_1-t_2,...
-    # t_0<-mask[0]->t_1, t_1<-mask[1]->t_2,...
-    mask = np.array(valid[:-1]).astype(bool) & np.array(valid[1:]).astype(bool)
-
-    # DIFFERENCE TO get_valid_baselines
-    # calculate sum over axis 1 to get number of valid baselines at each time step
-    valid_per_step = np.sum(mask, axis=1)
-
-    # write time for every valid basline into list and reshape
-    time_step = [[t_idx] * vps for t_idx, vps in enumerate(valid_per_step)]
-    time_step = np.array(list(itertools.chain(*time_step)))
-    time_step = np.append(time_step, time_step + 1)  # +1???
-
-    return time_step
+'''
