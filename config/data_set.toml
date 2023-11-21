@@ -1,5 +1,6 @@
 [sampling_options]
 mode = "basic"
+device = "cpu"
 layout = "vla"
 img_size = 128
 fov_center_ra = [100, 110]
