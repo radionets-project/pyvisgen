@@ -9,7 +9,7 @@ from astropy.coordinates import AltAz, Angle, EarthLocation, SkyCoord
 from astropy.time import Time
 
 from pyvisgen.layouts import layouts
-from pyvisgen.simulation.utils import Array
+from pyvisgen.simulation.array import Array
 
 
 @dataclass
