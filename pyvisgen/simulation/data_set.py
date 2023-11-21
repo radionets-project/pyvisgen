@@ -5,12 +5,12 @@ import numpy as np
 import pandas as pd
 import torch
 from astropy import units as un
-from astropy.coordinates import SkyCoord
+from astropy.coordinates import AltAz, Angle, EarthLocation, SkyCoord
+from astropy.time import Time
 from tqdm import tqdm
 
 import pyvisgen.fits.writer as writer
 import pyvisgen.layouts.layouts as layouts
-from pyvisgen.simulation.utils import calc_ref_elev, calc_time_steps
 from pyvisgen.simulation.visibility import vis_loop
 from pyvisgen.utils.config import read_data_set_conf
 from pyvisgen.utils.data import load_bundles, open_bundles
@@ -197,6 +197,52 @@ def test_opts(rc):
     active_telescopes_0 = np.sum((el_st_0 >= el_min) & (el_st_0 <= el_max))
     active_telescopes_1 = np.sum((el_st_1 >= el_min) & (el_st_1 <= el_max))
     return min(active_telescopes_0, active_telescopes_1)
+
+
+def calc_ref_elev(src_crd, time, array_layout):
+    if time.shape == ():
+        time = time[None]
+    # Calculate for all times
+    # calculate GHA, Greenwich as reference for EHT
+    ha_all = Angle(
+        [t.sidereal_time("apparent", "greenwich") - src_crd.ra for t in time]
+    )
+
+    # calculate elevations
+    el_st_all = src_crd.transform_to(
+        AltAz(
+            obstime=time.reshape(len(time), -1),
+            location=EarthLocation.from_geocentric(
+                np.repeat([array_layout.x], len(time), axis=0),
+                np.repeat([array_layout.y], len(time), axis=0),
+                np.repeat([array_layout.z], len(time), axis=0),
+                unit=un.m,
+            ),
+        )
+    ).alt.degree
+    assert len(ha_all.value) == len(el_st_all)
+    return ha_all, el_st_all
+
+
+def calc_time_steps(conf):
+    start_time = Time(conf["scan_start"].isoformat(), format="isot")
+    scan_separation = conf["scan_separation"]
+    num_scans = conf["num_scans"]
+    scan_duration = conf["scan_duration"]
+    int_time = conf["corr_int_time"]
+
+    time_lst = [
+        start_time
+        + scan_separation * i * un.second
+        + i * scan_duration * un.second
+        + j * int_time * un.second
+        for i in range(num_scans)
+        for j in range(int(scan_duration / int_time) + 1)
+    ]
+    # +1 because t_1 is the stop time of t_0
+    # in order to save computing power we take one time more to complete interval
+    time = Time(time_lst)
+    return time
 
 
 if __name__ == "__main__":
