@@ -122,9 +122,7 @@ def vis_loop(rc, SI, num_threads=10, noisy=True):
                     bas_t,
                     obs,
                     spw,
-                    t,
                     SI,
-                    vis_num,
                     corrupted=rc["corrupted"],
                 )[None]
                 for spw in rc["spectral_windows"]
@@ -158,27 +156,15 @@ def vis_loop(rc, SI, num_threads=10, noisy=True):
     return visibilities
 
 
-def calc_vis(bas, obs, spw, t, SI, vis_num, corrupted=True):
+def calc_vis(bas, obs, spw, SI, corrupted=True):
     if corrupted:
-        X1 = scan.direction_independent(
-            bas,
-            obs,
-            spw,
-            t,
-            SI,
-        )
-        X2 = scan.direction_independent(
-            bas,
-            obs,
-            spw,
-            t,
-            SI,
-        )
+        print("Currently not supported!")
+        return -1
     else:
-        X1 = scan.uncorrupted(bas, obs, spw, t, SI)
-        X2 = scan.uncorrupted(bas, obs, spw, t, SI)
-    int_values = scan.integrate(X1, X2)
-    del X1, X2, SI
+        rime = scan.RIME_uncorrupted(bas, obs, spw, device="cpu", grad=False)
+        print(SI)
+        int_values = rime(SI)
+        print(int_values.shape)
     return int_values
 
 
