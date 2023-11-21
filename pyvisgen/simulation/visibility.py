@@ -124,6 +124,7 @@ def vis_loop(rc, SI, num_threads=10, noisy=True):
                     spw,
                     SI,
                     corrupted=rc["corrupted"],
+                    device=rc["device"],
                 )[None]
                 for spw in rc["spectral_windows"]
             ]
@@ -156,14 +157,14 @@ def vis_loop(rc, SI, num_threads=10, noisy=True):
     return visibilities
 
 
-def calc_vis(bas, obs, spw, SI, corrupted=True):
+def calc_vis(bas, obs, spw, SI, corrupted=False, device="cpu"):
     if corrupted:
         print("Currently not supported!")
         return -1
     else:
-        rime = scan.RIME_uncorrupted(bas, obs, spw, device="cuda:0", grad=False)
-        int_values = rime(SI.permute(dims=(1, 2, 0)).cuda())
-    return int_values.cpu()
+        rime = scan.RIME_uncorrupted(bas, obs, spw, device=device, grad=False)
+        int_values = rime(SI.permute(dims=(1, 2, 0)).to(torch.device(device)))
+    return int_values
 
 
 def generate_noise(shape, rc):

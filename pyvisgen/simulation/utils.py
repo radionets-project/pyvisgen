@@ -31,6 +31,7 @@ def read_config(conf):
         dec=config["sampling_options"]["fov_center_dec"],
         unit=(un.deg, un.deg),
     )
+    sim_conf["device"] = config["sampling_options"]["device"]
     sim_conf["fov_size"] = config["sampling_options"]["fov_size"]
     sim_conf["corr_int_time"] = config["sampling_options"]["corr_int_time"]
     sim_conf["scan_start"] = datetime.strptime(

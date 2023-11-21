@@ -79,7 +79,7 @@ class Integrate(nn.Module):
         del int_f
         int_t = 0.5 * torch.sum(X_t, dim=0)
         del X_t
-        return int_t
+        return int_t.cpu()
 
 
 class RIME_uncorrupted(nn.Module):

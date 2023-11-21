@@ -146,6 +146,7 @@ def draw_sampling_opts(conf):
             conf["spectral_windows"],
             conf["bandwidths"],
             conf["corrupted"],
+            conf["device"],
         ],
         dtype="object",
     )
@@ -165,6 +166,7 @@ def draw_sampling_opts(conf):
         "spectral_windows": opts[12],
         "bandwidths": opts[13],
         "corrupted": opts[14],
+        "device": opts[15],
     }
     return samp_ops
 
