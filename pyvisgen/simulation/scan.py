@@ -1,105 +1,114 @@
 from math import pi
 
 import torch
+from torch import nn
 
 
-def getK(bas, obs, spw, time):
-    """Calculates Fouriertransformation Kernel for every baseline and pixel in lm grid.
+class FourierKernel(nn.Module):
+    def __init__(self, bas, obs, spw):
+        super().__init__()
+        self.K = self.getK(bas, obs, spw)
 
-    Parameters
-    ----------
-    baselines : dataclass object
-        basline information
-    lm : 2d array
-        lm grid for FOV
-    wave : float
-        wavelength
+    def getK(self, bas, obs, spw):
+        """Calculates Fouriertransformation Kernel for every baseline and pixel in lm grid.
 
-    Returns
-    -------
-    3d array
-        Return Fourier Kernel for every pixel in lm grid and given baselines.
-        Shape is given by lm axes and baseline axis
-    """
-    u_cmplt = torch.cat((bas.u_start, bas.u_stop)) / 3e8 / spw
-    v_cmplt = torch.cat((bas.v_start, bas.v_stop)) / 3e8 / spw
-    w_cmplt = torch.cat((bas.w_start, bas.w_stop)) / 3e8 / spw
+        Parameters
+        ----------
+        baselines : dataclass object
+            basline information
+        lm : 2d array
+            lm grid for FOV
+        wave : float
+            wavelength
 
-    l = obs.lm[:, :, 0]
-    m = obs.lm[:, :, 1]
-    n = torch.sqrt(1 - l**2 - m**2)
+        Returns
+        -------
+        3d array
+            Return Fourier Kernel for every pixel in lm grid and given baselines.
+            Shape is given by lm axes and baseline axis
+        """
+        u_cmplt = torch.cat((bas.u_start, bas.u_stop)) / 3e8 / spw
+        v_cmplt = torch.cat((bas.v_start, bas.v_stop)) / 3e8 / spw
+        w_cmplt = torch.cat((bas.w_start, bas.w_stop)) / 3e8 / spw
 
-    ul = torch.einsum("b,ij->ijb", u_cmplt, l)
-    vm = torch.einsum("b,ij->ijb", v_cmplt, m)
-    wn = torch.einsum("b,ij->ijb", w_cmplt, (n - 1))
-    del l, m, n, u_cmplt, v_cmplt, w_cmplt
+        l = obs.lm[:, :, 0]
+        m = obs.lm[:, :, 1]
+        n = torch.sqrt(1 - l**2 - m**2)
 
-    K = torch.exp(-2 * pi * 1j * (ul + vm + wn))
-    del ul, vm, wn
-    return K
+        ul = torch.einsum("b,ij->ijb", u_cmplt, l)
+        vm = torch.einsum("b,ij->ijb", v_cmplt, m)
+        wn = torch.einsum("b,ij->ijb", w_cmplt, (n - 1))
+        del l, m, n, u_cmplt, v_cmplt, w_cmplt
+
+        K = torch.exp(-2 * pi * 1j * (ul + vm + wn))
+        del ul, vm, wn
+        return K
+
+    def forward(self, img):
+        return torch.einsum("lmi,lmb->lmbi", img, self.K)
 
 
-def integrate(X1, X2):
-    """Summation over l and m and avering over time and freq
+class Integrate(nn.Module):
+    def __init__(self):
+        """Summation over l and m and avering over time and freq
 
-    Parameters
-    ----------
-    X1 : 4d array
-        visibility for every l,m and baseline for freq1
-    X2 : 4d array
-        visibility for every l,m and baseline for freq2
+        Parameters
+        ----------
+        X1 : 4d tensor
+            visibility for every l,m and baseline for freq1
+        X2 : 4d tensor
+            visibility for every l,m and baseline for freq2
 
-    Returns
-    -------
-    2d array
+        Returns
+        -------
+        1d tensor
         Returns visibility for every baseline
-    """
-    X_f = torch.stack((X1, X2))
+        """
+        super().__init__()
 
-    int_m = torch.sum(X_f, dim=2)
-    del X_f
-    int_l = torch.sum(int_m, dim=1)
-    del int_m
-    int_f = 0.5 * torch.sum(int_l, dim=0)
-    del int_l
+    def forward(self, X1, X2):
+        X_f = torch.stack((X1, X2))
+        int_m = torch.sum(X_f, dim=2)
+        del X_f
+        int_l = torch.sum(int_m, dim=1)
+        del int_m
+        int_f = 0.5 * torch.sum(int_l, dim=0)
+        del int_l
+        X_t = torch.stack(torch.split(int_f, int(int_f.shape[0] / 2), dim=0))
+        del int_f
+        int_t = 0.5 * torch.sum(X_t, dim=0)
+        del X_t
+        return int_t
 
-    X_t = torch.stack(torch.split(int_f, int(int_f.shape[0] / 2), dim=0))
-    del int_f
-    int_t = 0.5 * torch.sum(X_t, dim=0)
-    del X_t
 
-    return int_t
+class RIME_uncorrupted(nn.Module):
+    def __init__(self, bas, obs, spw, device, grad):
+        """Calculates uncorrupted visibility
 
+        Parameters
+        ----------
+        bas : dataclass
+            baselines dataclass
+        obs : class
+            observation class
+        spw : float
+            spectral window
 
-def uncorrupted(bas, obs, spw, time, SI):
-    """Calculates uncorrupted visibility
+        Returns
+        -------
+        4d array
+            Returns visibility for every lm and baseline
+        """
+        super().__init__()
+        self.bas = bas
+        self.obs = obs
+        self.fourier = FourierKernel(bas, obs, spw)
+        self.integrate = Integrate()
 
-    Parameters
-    ----------
-    bas : dataclass
-        baselines dataclass
-    obs : class
-        observation class
-    spw : float
-        spectral window
-    time : float
-        time steps in mjd
-    SI : 2d tensor
-        source brightness distribution / input img
-
-    Returns
-    -------
-    4d array
-        Returns visibility for every lm and baseline
-    """
-    K = getK(bas, obs, spw, time)
-    B = torch.zeros((obs.lm.shape[0], obs.lm.shape[1], 1))
-
-    B[:, :, 0] = torch.tensor(SI) + torch.tensor(SI)
-
-    X = torch.einsum("lmi,lmb->lmbi", B, K)
-    del K, B
-    return X
+    def forward(self, img):
+        K = self.fourier(img)
+        vis = self.integrate(K, K)
+        return vis
 
 
 '''
