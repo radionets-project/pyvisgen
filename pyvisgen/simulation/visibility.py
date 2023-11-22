@@ -107,53 +107,56 @@ def vis_loop(rc, SI, num_threads=10, noisy=True):
     for i in range(rc["num_scans"]):
         end_idx = int((rc["scan_duration"] / rc["corr_int_time"]) + 1)
         t = obs.times_mjd[i * end_idx : (i + 1) * end_idx]
+        for j in range(len(t) - 1):
+            t_start = t[j]
+            t_stop = t[j + 1]
 
-        # get baseline subset
-        bas_t = obs.baselines[
-            (obs.baselines.time >= t[0]) & (obs.baselines.time <= t[-1])
-        ]
-        bas_t.calc_valid_baselines(obs.num_baselines)
-        if bas_t.valid.numel() == 0:
-            continue
-
-        int_values = torch.cat(
-            [
-                calc_vis(
-                    bas_t,
-                    obs,
-                    spw,
-                    SI,
-                    corrupted=rc["corrupted"],
-                    device=rc["device"],
-                )[None]
-                for spw in rc["spectral_windows"]
+            # get baseline subset
+            bas_t = obs.baselines[
+                (obs.baselines.time >= t_start) & (obs.baselines.time <= t_stop)
             ]
-        )
+            bas_t.calc_valid_baselines(obs.num_baselines)
+            if bas_t.valid.numel() == 0:
+                continue
 
-        int_values = torch.swapaxes(int_values, 0, 1)
+            int_values = torch.cat(
+                [
+                    calc_vis(
+                        bas_t,
+                        obs,
+                        torch.tensor(spw),
+                        SI,
+                        corrupted=rc["corrupted"],
+                        device=rc["device"],
+                    )[None]
+                    for spw in rc["spectral_windows"]
+                ]
+            )
 
-        if noisy:
-            noise = generate_noise(int_values.shape, rc)
-            int_values += noise
+            int_values = torch.swapaxes(int_values, 0, 1)
 
-        vis_num = torch.arange(int_values.shape[0]) + 1 + vis_num.max()
+            if noisy:
+                noise = generate_noise(int_values.shape, rc)
+                int_values += noise
 
-        vis = Visibilities(
-            int_values[:, :, 0],
-            torch.zeros(int_values[:, :, 0].shape, dtype=torch.complex128),
-            torch.zeros(int_values[:, :, 0].shape, dtype=torch.complex128),
-            torch.zeros(int_values[:, :, 0].shape, dtype=torch.complex128),
-            vis_num,
-            torch.repeat_interleave(torch.tensor(i) + 1, len(vis_num)),
-            bas_t.baseline_nums,
-            bas_t.u_valid,
-            bas_t.v_valid,
-            bas_t.w_valid,
-            bas_t.date,
-        )
+            vis_num = torch.arange(int_values.shape[0]) + 1 + vis_num.max()
 
-        visibilities.add(vis)
-        del int_values
+            vis = Visibilities(
+                int_values[:, :, 0],
+                torch.zeros(int_values[:, :, 0].shape, dtype=torch.complex128),
+                torch.zeros(int_values[:, :, 0].shape, dtype=torch.complex128),
+                torch.zeros(int_values[:, :, 0].shape, dtype=torch.complex128),
+                vis_num,
+                torch.repeat_interleave(torch.tensor(i) + 1, len(vis_num)),
+                bas_t.baseline_nums,
+                bas_t.u_valid,
+                bas_t.v_valid,
+                bas_t.w_valid,
+                bas_t.date,
+            )
+
+            visibilities.add(vis)
+            del int_values
     return visibilities
 
 

@@ -7,9 +7,31 @@ from torch import nn
 class FourierKernel(nn.Module):
     def __init__(self, bas, obs, spw, device):
         super().__init__()
-        self.K = self.getK(bas, obs, spw, device)
+        self.K = self.getK(
+            bas.u_start,
+            bas.u_stop,
+            bas.v_start,
+            bas.v_stop,
+            bas.w_start,
+            bas.w_stop,
+            obs.lm,
+            spw,
+            device,
+        )
 
-    def getK(self, bas, obs, spw, device):
+    def getK(
+        self,
+        u_start,
+        u_stop,
+        v_start,
+        v_stop,
+        w_start,
+        w_stop,
+        lm,
+        spw,
+        device: str,
+        pi=torch.tensor(pi),
+    ):
         """Calculates Fouriertransformation Kernel for every baseline and pixel in lm grid.
 
         Parameters
@@ -28,12 +50,12 @@ class FourierKernel(nn.Module):
             Shape is given by lm axes and baseline axis
         """
         device = torch.device(device)
-        u_cmplt = torch.cat((bas.u_start, bas.u_stop)).to(device) / 3e8 / spw
-        v_cmplt = torch.cat((bas.v_start, bas.v_stop)).to(device) / 3e8 / spw
-        w_cmplt = torch.cat((bas.w_start, bas.w_stop)).to(device) / 3e8 / spw
+        u_cmplt = torch.cat((u_start, u_stop)).to(device) / 3e8 / spw
+        v_cmplt = torch.cat((v_start, v_stop)).to(device) / 3e8 / spw
+        w_cmplt = torch.cat((w_start, w_stop)).to(device) / 3e8 / spw
 
-        l = obs.lm[:, :, 0].to(device)
-        m = obs.lm[:, :, 1].to(device)
+        l = lm[:, :, 0].to(device)
+        m = lm[:, :, 1].to(device)
         n = torch.sqrt(1 - l**2 - m**2)
 
         ul = torch.einsum("b,ij->ijb", u_cmplt, l)
@@ -107,9 +129,10 @@ class RIME_uncorrupted(nn.Module):
         self.integrate = Integrate()
 
     def forward(self, img):
-        K = self.fourier(img)
-        vis = self.integrate(K, K)
-        return vis
+        with torch.no_grad():
+            K = self.fourier(img)
+            vis = self.integrate(K, K)
+            return vis
 
 
 '''
