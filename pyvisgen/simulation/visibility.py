@@ -116,7 +116,7 @@ def vis_loop(rc, SI, num_threads=10, noisy=True):
                 (obs.baselines.time >= t_start) & (obs.baselines.time <= t_stop)
             ]
             bas_t.calc_valid_baselines(obs.num_baselines)
-            if bas_t.valid.numel() == 0:
+            if len(bas_t.valid_t[bas_t.valid_t is not False]) == 0:
                 continue
 
             int_values = torch.cat(
