@@ -1,10 +1,9 @@
-from pathlib import Path
-import pandas as pd
 from dataclasses import dataclass
-import numpy as np
-from astropy.coordinates import EarthLocation
-import torch
+from pathlib import Path
 
+import pandas as pd
+import torch
+from astropy.coordinates import EarthLocation
 
 file_dir = Path(__file__).parent.resolve()
 
@@ -23,8 +22,6 @@ class Stations:
 
     def __getitem__(self, i):
         if torch.is_tensor(i):
-            print(self)
-            print(i)
             return torch.stack([self.__getitem__(int(_i)) for _i in i])
         else:
             station = Station(
