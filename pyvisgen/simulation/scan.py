@@ -105,7 +105,7 @@ class Integrate(nn.Module):
 
 
 class RIME_uncorrupted(nn.Module):
-    def __init__(self, bas, obs, spw, device, grad):
+    def __init__(self, bas, obs, spw_low, spw_high, device, grad):
         """Calculates uncorrupted visibility
 
         Parameters
@@ -125,13 +125,15 @@ class RIME_uncorrupted(nn.Module):
         super().__init__()
         self.bas = bas
         self.obs = obs
-        self.fourier = FourierKernel(bas, obs, spw, device)
+        self.fourier_low = FourierKernel(bas, obs, spw_low, device)
+        self.fourier_high = FourierKernel(bas, obs, spw_high, device)
         self.integrate = Integrate()
 
     def forward(self, img):
         with torch.no_grad():
-            K = self.fourier(img)
-            vis = self.integrate(K, K)
+            K1 = self.fourier_low(img)
+            K2 = self.fourier_high(img)
+            vis = self.integrate(K1, K2)
             return vis
 
 

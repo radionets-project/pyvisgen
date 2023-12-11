@@ -72,6 +72,7 @@ class Vis:
 
 def vis_loop(rc, SI, num_threads=10, noisy=True):
     torch.set_num_threads(num_threads)
+    IFs = get_IFs(rc)
 
     obs = Observation(
         src_ra=rc["fov_center_ra"],
@@ -82,7 +83,7 @@ def vis_loop(rc, SI, num_threads=10, noisy=True):
         scan_separation=rc["scan_separation"],
         integration_time=rc["corr_int_time"],
         ref_frequency=rc["ref_frequency"],
-        spectral_windows=rc["spectral_windows"],
+        spectral_windows=IFs,
         bandwidths=rc["bandwidths"],
         fov=rc["fov_size"],
         image_size=rc["img_size"],
@@ -119,17 +120,23 @@ def vis_loop(rc, SI, num_threads=10, noisy=True):
             if len(bas_t.valid_t[bas_t.valid_t != 0]) == 0:
                 continue
 
+            spws = [
+                calc_windows(torch.tensor(IF), torch.tensor(bandwidth))
+                for IF, bandwidth in zip(IFs, rc["bandwidths"])
+            ]
+
             int_values = torch.cat(
                 [
                     calc_vis(
                         bas_t,
                         obs,
-                        torch.tensor(spw),
+                        spw[0],
+                        spw[1],
                         SI,
                         corrupted=rc["corrupted"],
                         device=rc["device"],
                     )[None]
-                    for spw in rc["spectral_windows"]
+                    for spw in spws
                 ]
             )
 
@@ -160,12 +167,14 @@ def vis_loop(rc, SI, num_threads=10, noisy=True):
     return visibilities
 
 
-def calc_vis(bas, obs, spw, SI, corrupted=False, device="cpu"):
+def calc_vis(bas, obs, spw_low, spw_high, SI, corrupted=False, device="cpu"):
     if corrupted:
         print("Currently not supported!")
         return -1
     else:
-        rime = scan.RIME_uncorrupted(bas, obs, spw, device=device, grad=False)
+        rime = scan.RIME_uncorrupted(
+            bas, obs, spw_low, spw_high, device=device, grad=False
+        )
         int_values = rime(SI.permute(dims=(1, 2, 0)).to(torch.device(device)))
     return int_values
 
@@ -193,3 +202,12 @@ def generate_noise(shape, rc):
     noise = noise + 1.0j * torch.normal(mean=0, std=std, size=shape)
 
     return noise
+
+
+def get_IFs(rc):
+    IFs = [rc["ref_frequency"] + float(freq) for freq in rc["spectral_windows"]]
+    return IFs
+
+
+def calc_windows(spw, bandwidth):
+    return spw - bandwidth * 0.5, spw + bandwidth * 0.5
