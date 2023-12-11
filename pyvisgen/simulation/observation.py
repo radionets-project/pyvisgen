@@ -103,7 +103,7 @@ class Baseline:
         self.v_valid = (self.v_start + self.v_stop) / 2
         self.w_valid = (self.w_start + self.w_stop) / 2
         t = Time(self.time / (60 * 60 * 24), format="mjd").jd.reshape(-1, num_baselines)
-        self.date = ((t[:-1] + t[1:]) / 2).ravel()
+        self.date = ((t[:-1][mask] + t[1:][mask]) / 2).ravel()
         self.valid_t = valid
 
 
