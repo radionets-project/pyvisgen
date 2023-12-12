@@ -50,9 +50,9 @@ class FourierKernel(nn.Module):
             Shape is given by lm axes and baseline axis
         """
         device = torch.device(device)
-        u_cmplt = torch.cat((u_start, u_stop)).to(device) / 3e8 / spw
-        v_cmplt = torch.cat((v_start, v_stop)).to(device) / 3e8 / spw
-        w_cmplt = torch.cat((w_start, w_stop)).to(device) / 3e8 / spw
+        u_cmplt = torch.cat((u_start, u_stop)).to(device) / 3e8 * spw
+        v_cmplt = torch.cat((v_start, v_stop)).to(device) / 3e8 * spw
+        w_cmplt = torch.cat((w_start, w_stop)).to(device) / 3e8 * spw
 
         l = lm[:, :, 0].to(device)
         m = lm[:, :, 1].to(device)
