@@ -146,6 +146,9 @@ def vis_loop(rc, SI, num_threads=10, noisy=True):
                 noise = generate_noise(int_values.shape, rc)
                 int_values += noise
 
+            if torch.is_tensor(vis_num):
+                if vis_num.nelement() == 0:
+                    vis_num = np.zeros(1)
             vis_num = torch.arange(int_values.shape[0]) + 1 + vis_num.max()
 
             vis = Visibilities(
