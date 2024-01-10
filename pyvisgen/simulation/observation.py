@@ -64,13 +64,6 @@ class Baselines:
         date = torch.from_numpy(t[:-1][mask] + t[1:][mask]) / 2
 
         return ValidBaselineSubset(
-            # bas_reshaped.st1,
-            # bas_reshaped.st2,
-            # bas_reshaped.u,
-            # bas_reshaped.v,
-            # bas_reshaped.w,
-            # bas_reshaped.valid,
-            # bas_reshaped.time,
             baseline_nums,
             u_start,
             u_stop,
