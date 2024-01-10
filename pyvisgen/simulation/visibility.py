@@ -83,7 +83,7 @@ def vis_loop(rc, SI, num_threads=10, noisy=True):
         scan_separation=rc["scan_separation"],
         integration_time=rc["corr_int_time"],
         ref_frequency=rc["ref_frequency"],
-        spectral_windows=IFs,
+        spectral_windows=rc["spectral_windows"],
         bandwidths=rc["bandwidths"],
         fov=rc["fov_size"],
         image_size=rc["img_size"],
@@ -104,7 +104,7 @@ def vis_loop(rc, SI, num_threads=10, noisy=True):
         [],
         [],
     )
-    vis_num = torch.zeros(1)
+    vis_num = np.zeros(1)
     for i in range(rc["num_scans"]):
         end_idx = int((rc["scan_duration"] / rc["corr_int_time"]) + 1)
         t = obs.times_mjd[i * end_idx : (i + 1) * end_idx]
@@ -113,11 +113,13 @@ def vis_loop(rc, SI, num_threads=10, noisy=True):
             t_stop = t[j + 1]
 
             # get baseline subset
-            bas_t = obs.baselines[
-                (obs.baselines.time >= t_start) & (obs.baselines.time <= t_stop)
-            ]
-            bas_t.calc_valid_baselines(obs.num_baselines)
-            if len(bas_t.valid_t[bas_t.valid_t != 0]) == 0:
+            time_mask = (obs.baselines.time[: -obs.num_baselines] >= t_start) & (
+                obs.baselines.time[obs.num_baselines :] <= t_stop
+            )
+            bas_t = obs.baselines.get_valid_subset(obs.num_baselines)[time_mask]
+
+            # bas_t.calc_valid_baselines(obs.num_baselines)
+            if bas_t.u_valid.numel() == 0:
                 continue
 
             spws = [
@@ -125,47 +127,50 @@ def vis_loop(rc, SI, num_threads=10, noisy=True):
                 for IF, bandwidth in zip(IFs, rc["bandwidths"])
             ]
 
-            int_values = torch.cat(
-                [
-                    calc_vis(
-                        bas_t,
-                        obs,
-                        spw[0],
-                        spw[1],
-                        SI,
-                        corrupted=rc["corrupted"],
-                        device=rc["device"],
-                    )[None]
-                    for spw in spws
-                ]
-            )
-            if int_values.numel() == 0:
-                continue
+            for p in torch.arange(obs.num_baselines).split(obs.num_baselines // 6):
+                bas_p = bas_t[p]
 
-            int_values = torch.swapaxes(int_values, 0, 1)
+                int_values = torch.cat(
+                    [
+                        calc_vis(
+                            bas_p,
+                            obs,
+                            spw[0],
+                            spw[1],
+                            SI,
+                            corrupted=rc["corrupted"],
+                            device=rc["device"],
+                        )[None]
+                        for spw in spws
+                    ]
+                )
+                if int_values.numel() == 0:
+                    continue
 
-            if noisy:
-                noise = generate_noise(int_values.shape, rc)
-                int_values += noise
+                int_values = torch.swapaxes(int_values, 0, 1)
 
-            vis_num = torch.arange(int_values.shape[0]) + 1 + vis_num.max()
+                if noisy:
+                    noise = generate_noise(int_values.shape, rc)
+                    int_values += noise
 
-            vis = Visibilities(
-                int_values[:, :, 0],
-                torch.zeros(int_values[:, :, 0].shape, dtype=torch.complex128),
-                torch.zeros(int_values[:, :, 0].shape, dtype=torch.complex128),
-                torch.zeros(int_values[:, :, 0].shape, dtype=torch.complex128),
-                vis_num,
-                torch.repeat_interleave(torch.tensor(i) + 1, len(vis_num)),
-                bas_t.baseline_nums,
-                bas_t.u_valid,
-                bas_t.v_valid,
-                bas_t.w_valid,
-                bas_t.date,
-            )
+                vis_num = torch.arange(int_values.shape[0]) + 1 + vis_num.max()
 
-            visibilities.add(vis)
-            del int_values
+                vis = Visibilities(
+                    int_values[:, :, 0],
+                    torch.zeros(int_values[:, :, 0].shape, dtype=torch.complex128),
+                    torch.zeros(int_values[:, :, 0].shape, dtype=torch.complex128),
+                    torch.zeros(int_values[:, :, 0].shape, dtype=torch.complex128),
+                    vis_num,
+                    torch.repeat_interleave(torch.tensor(i) + 1, len(vis_num)),
+                    bas_t.baseline_nums,
+                    bas_t.u_valid,
+                    bas_t.v_valid,
+                    bas_t.w_valid,
+                    bas_t.date,
+                )
+
+                visibilities.add(vis)
+                del int_values
     return visibilities
 
 

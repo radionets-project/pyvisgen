@@ -1,4 +1,4 @@
-from dataclasses import dataclass
+from dataclasses import dataclass, fields
 from math import pi
 
 import astropy.constants as const
@@ -14,97 +14,95 @@ from pyvisgen.simulation.array import Array
 
 @dataclass
 class Baselines:
-    st1: [object]
-    st2: [object]
-    u: [float]
-    v: [float]
-    w: [float]
-    valid: [bool]
-    time: [float]
+    st1: torch.tensor
+    st2: torch.tensor
+    u: torch.tensor
+    v: torch.tensor
+    w: torch.tensor
+    valid: torch.tensor
+    time: torch.tensor
 
     def __getitem__(self, i):
-        baseline = Baseline(
-            self.st1[i],
-            self.st2[i],
-            self.u[i],
-            self.v[i],
-            self.w[i],
-            self.valid[i],
-            self.time[i],
+        return Baselines(*[getattr(self, f.name)[i] for f in fields(self)])
+
+    def add_baseline(self, baselines):
+        [
+            setattr(
+                self,
+                f.name,
+                torch.cat([getattr(self, f.name), getattr(baselines, f.name)]),
+            )
+            for f in fields(self)
+        ]
+
+    def get_valid_subset(self, num_baselines):
+        bas_reshaped = Baselines(
+            *[getattr(self, f.name).reshape(-1, num_baselines) for f in fields(self)]
         )
-        return baseline
 
-    def add(self, baselines):
-        self.st1 = torch.cat([self.st1, baselines.st1])
-        self.st2 = torch.cat([self.st2, baselines.st2])
-        self.u = torch.cat([self.u, baselines.u])
-        self.v = torch.cat([self.v, baselines.v])
-        self.w = torch.cat([self.w, baselines.w])
-        self.valid = torch.cat([self.valid, baselines.valid])
-        self.time = torch.cat([self.time, baselines.time])
+        mask = (bas_reshaped.valid[:-1].bool()) & (bas_reshaped.valid[1:].bool())
 
-    def baseline_nums(self):
-        return 256 * (self.st1 + 1) + self.st2 + 1
-
-    def calc_valid_baselines(self, num_baselines):
-        valid = self.valid.reshape(-1, num_baselines)
-        mask = (valid[:-1].bool()) & (valid[1:]).bool()
-        st1 = self.st1.reshape(-1, num_baselines)
-        st2 = self.st2.reshape(-1, num_baselines)
-        self.baseline_nums = (
-            256 * (st1[:-1][mask].ravel() + 1) + st2[:-1][mask].ravel() + 1
+        baseline_nums = (
+            256 * (bas_reshaped.st1[:-1][mask].ravel() + 1)
+            + bas_reshaped.st2[:-1][mask].ravel()
+            + 1
         )
-        u = self.u.reshape(-1, num_baselines)
-        v = self.v.reshape(-1, num_baselines)
-        w = self.w.reshape(-1, num_baselines)
-        self.u_start = u[:-1][mask]
-        self.u_stop = u[1:][mask]
-        self.v_start = v[:-1][mask]
-        self.v_stop = v[1:][mask]
-        self.w_start = w[:-1][mask]
-        self.w_stop = w[1:][mask]
-        self.u_valid = (self.u_start + self.u_stop) / 2
-        self.v_valid = (self.v_start + self.v_stop) / 2
-        self.w_valid = (self.w_start + self.w_stop) / 2
-        self.date = torch.from_numpy(Time(self.time / (60 * 60 * 24), format="mjd").jd)
+
+        u_start = bas_reshaped.u[:-1][mask]
+        v_start = bas_reshaped.v[:-1][mask]
+        w_start = bas_reshaped.w[:-1][mask]
+
+        u_stop = bas_reshaped.u[1:][mask]
+        v_stop = bas_reshaped.v[1:][mask]
+        w_stop = bas_reshaped.w[1:][mask]
+
+        u_valid = (u_start + u_stop) / 2
+        v_valid = (v_start + v_stop) / 2
+        w_valid = (w_start + w_stop) / 2
+
+        t = Time(bas_reshaped.time / (60 * 60 * 24), format="mjd").jd
+        date = torch.from_numpy(t[:-1][mask] + t[1:][mask]) / 2
+
+        return ValidBaselineSubset(
+            # bas_reshaped.st1,
+            # bas_reshaped.st2,
+            # bas_reshaped.u,
+            # bas_reshaped.v,
+            # bas_reshaped.w,
+            # bas_reshaped.valid,
+            # bas_reshaped.time,
+            baseline_nums,
+            u_start,
+            u_stop,
+            u_valid,
+            v_start,
+            v_stop,
+            v_valid,
+            w_start,
+            w_stop,
+            w_valid,
+            date,
+        )
 
 
 @dataclass
-class Baseline:
-    st1: object
-    st2: object
-    u: float
-    v: float
-    w: float
-    valid: bool
-    time: float
+class ValidBaselineSubset:
+    baseline_nums: torch.tensor
+    u_start: torch.tensor
+    u_stop: torch.tensor
+    u_valid: torch.tensor
+    v_start: torch.tensor
+    v_stop: torch.tensor
+    v_valid: torch.tensor
+    w_start: torch.tensor
+    w_stop: torch.tensor
+    w_valid: torch.tensor
+    date: torch.tensor
 
-    def baseline_nums(self):
-        return 256 * (self.st1 + 1) + self.st2 + 1
-
-    def calc_valid_baselines(self, num_baselines):
-        valid = self.valid.reshape(-1, num_baselines)
-        mask = (valid[:-1].bool()) & (valid[1:]).bool()
-        st1 = self.st1.reshape(-1, num_baselines)
-        st2 = self.st2.reshape(-1, num_baselines)
-        self.baseline_nums = (
-            256 * (st1[:-1][mask].ravel() + 1) + st2[:-1][mask].ravel() + 1
+    def __getitem__(self, i):
+        return ValidBaselineSubset(
+            *[getattr(self, f.name).ravel()[i] for f in fields(self)]
         )
-        u = self.u.reshape(-1, num_baselines)
-        v = self.v.reshape(-1, num_baselines)
-        w = self.w.reshape(-1, num_baselines)
-        self.u_start = u[:-1][mask]
-        self.u_stop = u[1:][mask]
-        self.v_start = v[:-1][mask]
-        self.v_stop = v[1:][mask]
-        self.w_start = w[:-1][mask]
-        self.w_stop = w[1:][mask]
-        self.u_valid = (self.u_start + self.u_stop) / 2
-        self.v_valid = (self.v_start + self.v_stop) / 2
-        self.w_valid = (self.w_start + self.w_stop) / 2
-        t = Time(self.time / (60 * 60 * 24), format="mjd").jd.reshape(-1, num_baselines)
-        self.date = ((t[:-1][mask] + t[1:][mask]) / 2).ravel()
-        self.valid_t = valid
 
 
 class Observation:
@@ -191,7 +189,7 @@ class Observation:
         )
         for scan in self.scans:
             bas = self.get_baselines(self.times[scan])
-            self.baselines.add(bas)
+            self.baselines.add_baseline(bas)
 
     def calc_time_steps(self):
         time_lst = [
@@ -375,7 +373,7 @@ class Observation:
                 valid,
                 time_mjd,
             )
-            baselines.add(base)
+            baselines.add_baseline(base)
         return baselines
 
     def delete(self, arr: torch.Tensor, ind: int, dim: int) -> torch.Tensor:
