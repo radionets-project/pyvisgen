@@ -148,8 +148,6 @@ def vis_loop(rc, SI, num_threads=10, noisy=True):
                     continue
 
                 int_values = torch.swapaxes(int_values, 0, 1)
-                print(int_values.shape)
-                print(bas_p.u_valid.shape)
 
                 if noisy:
                     noise = generate_noise(int_values.shape, rc)
