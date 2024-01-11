@@ -148,6 +148,8 @@ def vis_loop(rc, SI, num_threads=10, noisy=True):
                     continue
 
                 int_values = torch.swapaxes(int_values, 0, 1)
+                print(int_values.shape)
+                print(bas_p.u_valid.shape)
 
                 if noisy:
                     noise = generate_noise(int_values.shape, rc)
@@ -162,11 +164,11 @@ def vis_loop(rc, SI, num_threads=10, noisy=True):
                     torch.zeros(int_values[:, :, 0].shape, dtype=torch.complex128),
                     vis_num,
                     torch.repeat_interleave(torch.tensor(i) + 1, len(vis_num)),
-                    bas_t.baseline_nums,
-                    bas_t.u_valid,
-                    bas_t.v_valid,
-                    bas_t.w_valid,
-                    bas_t.date,
+                    bas_p.baseline_nums,
+                    bas_p.u_valid,
+                    bas_p.v_valid,
+                    bas_p.w_valid,
+                    bas_p.date,
                 )
 
                 visibilities.add(vis)
