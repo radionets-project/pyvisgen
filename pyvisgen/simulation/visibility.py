@@ -1,5 +1,6 @@
 from dataclasses import dataclass
 
+import astropy.constants as const
 import numpy as np
 import torch
 from astropy import units as un
@@ -116,6 +117,33 @@ def vis_loop(rc, SI, num_threads=10, noisy=True):
             bas_t = obs.baselines.get_valid_subset(obs.num_baselines).get_timerange(
                 t_start, t_stop
             )
+            print("full", bas_t.u_valid.shape)
+            uv = torch.cat([bas_t.u_valid[None], bas_t.v_valid[None]], dim=0)
+            fov = rc["fov_size"] * np.pi / (3600 * 180)
+            delta = 1 / fov * const.c.value.item() / rc["ref_frequency"]
+            bins = torch.arange(
+                start=-(rc["img_size"] / 2) * delta,
+                end=(rc["img_size"] / 2 + 1) * delta,
+                step=delta,
+            )
+            if len(bins) - 1 > rc["img_size"]:
+                bins = bins[:-1]  # np.delete(bins, -1)
+            indices_bucket = torch.bucketize(uv, bins)
+            indices_bucket_sort, indices_bucket_inv = torch_lexsort(indices_bucket)
+            indices_unique, indices_unique_inv, counts = torch.unique_consecutive(
+                indices_bucket[:, indices_bucket_sort],
+                dim=1,
+                return_inverse=True,
+                return_counts=True,
+            )
+
+            _, ind_sorted = torch.sort(indices_unique_inv, stable=True)
+            cum_sum = counts.cumsum(0)
+            cum_sum = torch.cat((torch.tensor([0]), cum_sum[:-1]))
+            first_indicies = ind_sorted[cum_sum]
+
+            bas_t = bas_t[indices_bucket_sort[first_indicies]]
+            print("sorted", bas_t.u_valid.shape)
 
             # bas_t.calc_valid_baselines(obs.num_baselines)
             if bas_t.u_valid.numel() == 0:
@@ -126,7 +154,7 @@ def vis_loop(rc, SI, num_threads=10, noisy=True):
                 for IF, bandwidth in zip(IFs, rc["bandwidths"])
             ]
 
-            for p in torch.arange(len(bas_t.u_valid)).split(len(bas_t.u_valid) // 1):
+            for p in torch.arange(len(bas_t.u_valid)).split(len(bas_t.u_valid) // 1000):
                 bas_p = bas_t[p]
 
                 int_values = torch.cat(
@@ -217,3 +245,11 @@ def get_IFs(rc):
 
 def calc_windows(spw, bandwidth):
     return spw - bandwidth * 0.5, spw + bandwidth * 0.5
+
+
+def torch_lexsort(a, dim=-1):
+    assert dim == -1  # Transpose if you want differently
+    assert a.ndim == 2  # Not sure what is numpy behaviour with > 2 dim
+    # To be consistent with numpy, we flip the keys (sort by last row first)
+    a_unq, inv = torch.unique(a.flip(0), dim=dim, sorted=True, return_inverse=True)
+    return torch.argsort(inv), inv
