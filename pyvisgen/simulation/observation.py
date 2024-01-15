@@ -101,6 +101,39 @@ class ValidBaselineSubset:
             *[getattr(self, f.name).ravel() for f in fields(self)]
         )[(self.date >= t_start) & (self.date <= t_stop)]
 
+    def get_unique_grid(self, fov_size, ref_frequency, img_size):
+        uv = torch.cat([self.u_valid[None], self.v_valid[None]], dim=0)
+        fov = fov_size * pi / (3600 * 180)
+        delta = 1 / fov * const.c.value.item() / ref_frequency
+        bins = torch.arange(
+            start=-(img_size / 2) * delta,
+            end=(img_size / 2 + 1) * delta,
+            step=delta,
+        )
+        if len(bins) - 1 > img_size:
+            bins = bins[:-1]  # np.delete(bins, -1)
+        indices_bucket = torch.bucketize(uv, bins)
+        indices_bucket_sort, indices_bucket_inv = self._lexsort(indices_bucket)
+        indices_unique, indices_unique_inv, counts = torch.unique_consecutive(
+            indices_bucket[:, indices_bucket_sort],
+            dim=1,
+            return_inverse=True,
+            return_counts=True,
+        )
+
+        _, ind_sorted = torch.sort(indices_unique_inv, stable=True)
+        cum_sum = counts.cumsum(0)
+        cum_sum = torch.cat((torch.tensor([0]), cum_sum[:-1]))
+        first_indicies = ind_sorted[cum_sum]
+        return self[indices_bucket_sort[first_indicies]]
+
+    def _lexsort(self, a, dim=-1):
+        assert dim == -1  # Transpose if you want differently
+        assert a.ndim == 2  # Not sure what is numpy behaviour with > 2 dim
+        # To be consistent with numpy, we flip the keys (sort by last row first)
+        a_unq, inv = torch.unique(a.flip(0), dim=dim, sorted=True, return_inverse=True)
+        return torch.argsort(inv), inv
+
 
 class Observation:
     def __init__(
