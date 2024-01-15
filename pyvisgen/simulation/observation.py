@@ -41,7 +41,6 @@ class Baselines:
         )
 
         mask = (bas_reshaped.valid[:-1].bool()) & (bas_reshaped.valid[1:].bool())
-
         baseline_nums = (
             256 * (bas_reshaped.st1[:-1][mask].ravel() + 1)
             + bas_reshaped.st2[:-1][mask].ravel()
@@ -96,6 +95,11 @@ class ValidBaselineSubset:
         return ValidBaselineSubset(
             *[getattr(self, f.name).ravel()[i] for f in fields(self)]
         )
+
+    def get_timerange(self, t_start, t_stop):
+        return ValidBaselineSubset(
+            *[getattr(self, f.name).ravel() for f in fields(self)]
+        )[(self.date >= t_start) & (self.date <= t_stop)]
 
 
 class Observation:
