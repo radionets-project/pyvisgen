@@ -3,6 +3,7 @@ from dataclasses import dataclass
 import numpy as np
 import torch
 from astropy import units as un
+from astropy.time import Time
 
 import pyvisgen.simulation.scan as scan
 from pyvisgen.simulation.observation import Observation
@@ -109,22 +110,12 @@ def vis_loop(rc, SI, num_threads=10, noisy=True):
         end_idx = int((rc["scan_duration"] / rc["corr_int_time"]) + 1)
         t = obs.times_mjd[i * end_idx : (i + 1) * end_idx]
         for j in range(len(t) - 1):
-            t_start = t[j]
-            t_stop = t[j + 1]
+            t_start = Time(t[j] / (60 * 60 * 24), format="mjd").jd
+            t_stop = Time(t[j + 1] / (60 * 60 * 24), format="mjd").jd
 
-            # get baseline subset
-            time_mask = (
-                obs.baselines.time[: -obs.num_baselines][
-                    obs.baselines.valid[: -obs.num_baselines].long()
-                ]
-                >= t_start
-            ) & (
-                obs.baselines.time[obs.num_baselines :][
-                    obs.baselines.valid[obs.num_baselines :].long()
-                ]
-                <= t_stop
+            bas_t = obs.baselines.get_valid_subset(obs.num_baselines).get_timerange(
+                t_start, t_stop
             )
-            bas_t = obs.baselines.get_valid_subset(obs.num_baselines)[time_mask]
 
             # bas_t.calc_valid_baselines(obs.num_baselines)
             if bas_t.u_valid.numel() == 0:
