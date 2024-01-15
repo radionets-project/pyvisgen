@@ -115,6 +115,11 @@ def vis_loop(rc, SI, num_threads=10, noisy=True):
             rc["fov_size"], rc["ref_frequency"], rc["img_size"]
         )
 
+    spws = [
+        calc_windows(torch.tensor(IF), torch.tensor(bandwidth))
+        for IF, bandwidth in zip(IFs, rc["bandwidths"])
+    ]
+
     for i in range(rc["num_scans"]):
         end_idx = int((rc["scan_duration"] / rc["corr_int_time"]) + 1)
         t = obs.times_mjd[i * end_idx : (i + 1) * end_idx]
@@ -127,11 +132,6 @@ def vis_loop(rc, SI, num_threads=10, noisy=True):
             # bas_t.calc_valid_baselines(obs.num_baselines)
             if bas_t.u_valid.numel() == 0:
                 continue
-
-            spws = [
-                calc_windows(torch.tensor(IF), torch.tensor(bandwidth))
-                for IF, bandwidth in zip(IFs, rc["bandwidths"])
-            ]
 
             for p in torch.arange(len(bas_t.u_valid)).split(len(bas_t.u_valid) // 100):
                 bas_p = bas_t[p]
