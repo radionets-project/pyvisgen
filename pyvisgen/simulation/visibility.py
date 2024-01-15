@@ -127,7 +127,7 @@ def vis_loop(rc, SI, num_threads=10, noisy=True):
                 for IF, bandwidth in zip(IFs, rc["bandwidths"])
             ]
 
-            for p in torch.arange(obs.num_baselines).split(obs.num_baselines // 6):
+            for p in torch.arange(obs.num_baselines).split(obs.num_baselines // 100):
                 bas_p = bas_t[p]
 
                 int_values = torch.cat(
