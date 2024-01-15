@@ -113,8 +113,16 @@ def vis_loop(rc, SI, num_threads=10, noisy=True):
             t_stop = t[j + 1]
 
             # get baseline subset
-            time_mask = (obs.baselines.time[: -obs.num_baselines] >= t_start) & (
-                obs.baselines.time[obs.num_baselines :] <= t_stop
+            time_mask = (
+                obs.baselines.time[: -obs.num_baselines][
+                    obs.baselines.valid[: -obs.num_baselines].long()
+                ]
+                >= t_start
+            ) & (
+                obs.baselines.time[obs.num_baselines :][
+                    obs.baselines.valid[obs.num_baselines :].long()
+                ]
+                <= t_stop
             )
             bas_t = obs.baselines.get_valid_subset(obs.num_baselines)[time_mask]
 
