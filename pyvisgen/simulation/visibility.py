@@ -1,6 +1,5 @@
-from dataclasses import dataclass
+from dataclasses import dataclass, fields
 
-import numpy as np
 import torch
 from astropy import units as un
 from astropy.time import Time
@@ -24,51 +23,22 @@ class Visibilities:
     date: [float]
 
     def __getitem__(self, i):
-        baseline = Vis(
-            self.SI[i],
-            self.SQ[i],
-            self.SU[i],
-            self.SV[i],
-            self.num[i],
-            self.scan[i],
-            self.base_num[i],
-            self.u[i],
-            self.v[i],
-            self.w[i],
-            self.date[i],
-        )
-        return baseline
+        return Visibilities(*[getattr(self, f.name)[i] for f in fields(self)])
 
     def get_values(self):
-        return np.array([self.SI, self.SQ, self.SU, self.SV])
+        return torch.cat(
+            [self.SI[None], self.SQ[None], self.SU[None], self.SV[None]], dim=0
+        )
 
     def add(self, visibilities):
-        self.SI = np.concatenate([self.SI, visibilities.SI])
-        self.SQ = np.concatenate([self.SQ, visibilities.SQ])
-        self.SU = np.concatenate([self.SU, visibilities.SU])
-        self.SV = np.concatenate([self.SV, visibilities.SV])
-        self.num = np.concatenate([self.num, visibilities.num])
-        self.scan = np.concatenate([self.scan, visibilities.scan])
-        self.base_num = np.concatenate([self.base_num, visibilities.base_num])
-        self.u = np.concatenate([self.u, visibilities.u])
-        self.v = np.concatenate([self.v, visibilities.v])
-        self.w = np.concatenate([self.w, visibilities.w])
-        self.date = np.concatenate([self.date, visibilities.date])
-
-
-@dataclass
-class Vis:
-    SI: complex
-    SQ: complex
-    SU: complex
-    SV: complex
-    num: float
-    scan: float
-    base_num: float
-    u: un
-    v: un
-    w: un
-    date: float
+        [
+            setattr(
+                self,
+                f.name,
+                torch.cat([getattr(self, f.name), getattr(visibilities, f.name)]),
+            )
+            for f in fields(self)
+        ]
 
 
 def vis_loop(rc, SI, num_threads=10, noisy=True, full=False):
@@ -93,17 +63,17 @@ def vis_loop(rc, SI, num_threads=10, noisy=True, full=False):
 
     # calculate vis
     visibilities = Visibilities(
-        np.empty(shape=[0] + [len(obs.spectral_windows)]),
-        np.empty(shape=[0] + [len(obs.spectral_windows)]),
-        np.empty(shape=[0] + [len(obs.spectral_windows)]),
-        np.empty(shape=[0] + [len(obs.spectral_windows)]),
-        [],
-        [],
-        [],
-        [],
-        [],
-        [],
-        [],
+        torch.empty(size=[0] + [len(obs.spectral_windows)]),
+        torch.empty(size=[0] + [len(obs.spectral_windows)]),
+        torch.empty(size=[0] + [len(obs.spectral_windows)]),
+        torch.empty(size=[0] + [len(obs.spectral_windows)]),
+        torch.tensor([]),
+        torch.tensor([]),
+        torch.tensor([]),
+        torch.tensor([]),
+        torch.tensor([]),
+        torch.tensor([]),
+        torch.tensor([]),
     )
     vis_num = torch.zeros(1)
     if full:
