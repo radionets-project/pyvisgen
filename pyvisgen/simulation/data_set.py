@@ -66,7 +66,9 @@ def simulate_data_set(config, slurm=False, job_id=None, n=None):
                 vis_data = vis_loop(samp_ops, SI, noisy=conf["noisy"])
                 while vis_data == 0:
                     samp_ops = create_sampling_rc(conf)
-                    vis_data = vis_loop(samp_ops, SI, noisy=conf["noisy"])
+                    vis_data = vis_loop(
+                        samp_ops, SI, noisy=conf["noisy"], full=conf["full"]
+                    )
                 hdu_list = writer.create_hdu_list(vis_data, samp_ops)
                 hdu_list.writeto(out, overwrite=True)
 

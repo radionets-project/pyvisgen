@@ -71,7 +71,7 @@ class Vis:
     date: float
 
 
-def vis_loop(rc, SI, num_threads=10, noisy=True):
+def vis_loop(rc, SI, num_threads=10, noisy=True, full=False):
     torch.set_num_threads(num_threads)
     IFs = get_IFs(rc)
 
@@ -106,11 +106,9 @@ def vis_loop(rc, SI, num_threads=10, noisy=True):
         [],
     )
     vis_num = torch.zeros(1)
-    full = False
     if full:
         bas = obs.baselines.get_valid_subset(obs.num_baselines)
-    grid = True
-    if grid:
+    else:
         bas = obs.baselines.get_valid_subset(obs.num_baselines).get_unique_grid(
             rc["fov_size"], rc["ref_frequency"], rc["img_size"]
         )
@@ -129,7 +127,6 @@ def vis_loop(rc, SI, num_threads=10, noisy=True):
 
             bas_t = bas.get_timerange(t_start, t_stop)
 
-            # bas_t.calc_valid_baselines(obs.num_baselines)
             if bas_t.u_valid.numel() == 0:
                 continue
 
