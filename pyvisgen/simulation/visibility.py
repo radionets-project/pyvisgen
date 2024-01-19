@@ -100,7 +100,7 @@ def vis_loop(rc, SI, num_threads=10, noisy=True, full=False):
             if bas_t.u_valid.numel() == 0:
                 continue
 
-            for p in torch.arange(len(bas_t.u_valid)).split(len(bas_t.u_valid) // 100):
+            for p in torch.arange(len(bas_t.u_valid)).split(1):
                 bas_p = bas_t[p]
 
                 int_values = torch.cat(
