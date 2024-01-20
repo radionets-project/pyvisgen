@@ -11,6 +11,7 @@ from tqdm import tqdm
 
 import pyvisgen.fits.writer as writer
 import pyvisgen.layouts.layouts as layouts
+from pyvisgen.simulation.observation import Observation
 from pyvisgen.simulation.visibility import vis_loop
 from pyvisgen.utils.config import read_data_set_conf
 from pyvisgen.utils.data import load_bundles, open_bundles
@@ -36,10 +37,10 @@ def simulate_data_set(config, slurm=False, job_id=None, n=None):
     conf = read_data_set_conf(config)
     out_path = Path(conf["out_path_fits"])
     out_path.mkdir(parents=True, exist_ok=True)
+    data = load_bundles(conf["in_path"])
 
     if slurm:
         job_id = int(job_id + n * 500)
-        data = load_bundles(conf["in_path"])
         out = out_path / Path("vis_" + str(job_id) + ".fits")
         imgs_bundle = len(open_bundles(data[0]))
         bundle = torch.div(job_id, imgs_bundle, rounding_mode="floor")
@@ -55,22 +56,51 @@ def simulate_data_set(config, slurm=False, job_id=None, n=None):
         hdu_list.writeto(out, overwrite=True)
 
     else:
-        data = load_bundles(conf["in_path"])
         for i in range(len(data)):
-            SIs = torch.tensor(open_bundles(data[i]))
-            if len(SIs.shape) == 3:
-                SIs = SIs.unsqueeze(1)
+            SIs = get_images(data, i)
+
             for j, SI in enumerate(tqdm(SIs)):
+                obs, samp_obs = create_observation(conf)
+                vis_data = vis_loop(
+                    samp_ops, SI, noisy=conf["noisy"], full=conf["full"]
+                )
+
+                # while vis_data == 0:
+                #    samp_ops = create_sampling_rc(conf)
+                #    vis_data = vis_loop(
+                #        samp_ops, SI, noisy=conf["noisy"], full=conf["full"]
+                #    )
+
                 out = out_path / Path("vis_" + str(j) + ".fits")
-                samp_ops = create_sampling_rc(conf)
-                vis_data = vis_loop(samp_ops, SI, noisy=conf["noisy"])
-                while vis_data == 0:
-                    samp_ops = create_sampling_rc(conf)
-                    vis_data = vis_loop(
-                        samp_ops, SI, noisy=conf["noisy"], full=conf["full"]
-                    )
                 hdu_list = writer.create_hdu_list(vis_data, samp_ops)
                 hdu_list.writeto(out, overwrite=True)
+
+
+def get_images(bundles, i):
+    SIs = torch.tensor(open_bundles(bundles[i]))
+    if len(SIs.shape) == 3:
+        SIs = SIs.unsqueeze(1)
+    return SIs
+
+
+def create_observation(conf):
+    rc = create_sampling_rc(conf)
+    obs = Observation(
+        src_ra=rc["fov_center_ra"],
+        src_dec=rc["fov_center_dec"],
+        start_time=rc["scan_start"],
+        scan_duration=rc["scan_duration"],
+        num_scans=rc["num_scans"],
+        scan_separation=rc["scan_separation"],
+        integration_time=rc["corr_int_time"],
+        ref_frequency=rc["ref_frequency"],
+        spectral_windows=rc["spectral_windows"],
+        bandwidths=rc["bandwidths"],
+        fov=rc["fov_size"],
+        image_size=rc["img_size"],
+        array_layout=rc["layout"],
+    )
+    return obs, rc
 
 
 def create_sampling_rc(conf):

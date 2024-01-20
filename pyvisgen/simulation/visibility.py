@@ -5,7 +5,6 @@ from astropy import units as un
 from astropy.time import Time
 
 import pyvisgen.simulation.scan as scan
-from pyvisgen.simulation.observation import Observation
 
 
 @dataclass
@@ -41,25 +40,9 @@ class Visibilities:
         ]
 
 
-def vis_loop(rc, SI, num_threads=10, noisy=True, full=False):
+def vis_loop(obs, rc, SI, num_threads=10, noisy=True, full=False):
     torch.set_num_threads(num_threads)
     IFs = get_IFs(rc)
-
-    obs = Observation(
-        src_ra=rc["fov_center_ra"],
-        src_dec=rc["fov_center_dec"],
-        start_time=rc["scan_start"],
-        scan_duration=rc["scan_duration"],
-        num_scans=rc["num_scans"],
-        scan_separation=rc["scan_separation"],
-        integration_time=rc["corr_int_time"],
-        ref_frequency=rc["ref_frequency"],
-        spectral_windows=rc["spectral_windows"],
-        bandwidths=rc["bandwidths"],
-        fov=rc["fov_size"],
-        image_size=rc["img_size"],
-        array_layout=rc["layout"],
-    )
 
     # calculate vis
     visibilities = Visibilities(
