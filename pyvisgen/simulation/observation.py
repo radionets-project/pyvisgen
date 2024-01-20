@@ -151,6 +151,8 @@ class Observation:
         fov,
         image_size,
         array_layout,
+        corrupted,
+        device,
     ):
         self.ra = torch.tensor(src_ra).float()
         self.dec = torch.tensor(src_dec).float()
@@ -193,6 +195,9 @@ class Observation:
         self.img_size = image_size
         self.pix_size = fov / image_size
 
+        self.corrupted = corrupted
+        self.device = device
+
         self.array = layouts.get_array_layout(array_layout)
         self.num_baselines = int(
             len(self.array.st_num) * (len(self.array.st_num) - 1) / 2
@@ -201,7 +206,11 @@ class Observation:
         self.rd = self.create_rd_grid()
         self.lm = self.create_lm_grid()
 
-        self.calc_baselines()
+        dense = False
+        if dense:
+            self.calc_dense_baselines()
+        else:
+            self.calc_baselines()
         self.baselines.num = int(
             len(self.array.st_num) * (len(self.array.st_num) - 1) / 2
         )

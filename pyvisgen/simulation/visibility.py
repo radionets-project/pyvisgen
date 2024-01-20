@@ -40,9 +40,9 @@ class Visibilities:
         ]
 
 
-def vis_loop(obs, rc, SI, num_threads=10, noisy=True, full=False):
+def vis_loop(obs, SI, num_threads=10, noisy=True, full=False):
     torch.set_num_threads(num_threads)
-    IFs = get_IFs(rc)
+    IFs = get_IFs(obs)
 
     # calculate vis
     visibilities = Visibilities(
@@ -63,16 +63,16 @@ def vis_loop(obs, rc, SI, num_threads=10, noisy=True, full=False):
         bas = obs.baselines.get_valid_subset(obs.num_baselines)
     else:
         bas = obs.baselines.get_valid_subset(obs.num_baselines).get_unique_grid(
-            rc["fov_size"], rc["ref_frequency"], rc["img_size"]
+            obs.fov, obs.ref_frequency, obs.img_size
         )
 
     spws = [
         calc_windows(torch.tensor(IF), torch.tensor(bandwidth))
-        for IF, bandwidth in zip(IFs, rc["bandwidths"])
+        for IF, bandwidth in zip(IFs, obs.bandwidths)
     ]
 
-    for i in range(rc["num_scans"]):
-        end_idx = int((rc["scan_duration"] / rc["corr_int_time"]) + 1)
+    for i in range(obs.num_scans):
+        end_idx = int((obs.scan_duration / obs.int_time) + 1)
         t = obs.times_mjd[i * end_idx : (i + 1) * end_idx]
         for j in range(len(t) - 1):
             t_start = Time(t[j] / (60 * 60 * 24), format="mjd").jd
@@ -94,8 +94,8 @@ def vis_loop(obs, rc, SI, num_threads=10, noisy=True, full=False):
                             spw[0],
                             spw[1],
                             SI,
-                            corrupted=rc["corrupted"],
-                            device=rc["device"],
+                            corrupted=obs.corrupted,
+                            device=obs.device,
                         )[None]
                         for spw in spws
                     ]
@@ -106,7 +106,7 @@ def vis_loop(obs, rc, SI, num_threads=10, noisy=True, full=False):
                 int_values = torch.swapaxes(int_values, 0, 1)
 
                 if noisy:
-                    noise = generate_noise(int_values.shape, rc)
+                    noise = generate_noise(int_values.shape, obs)
                     int_values += noise
 
                 vis_num = torch.arange(int_values.shape[0]) + 1 + vis_num.max()
@@ -142,7 +142,7 @@ def calc_vis(bas, obs, spw_low, spw_high, SI, corrupted=False, device="cpu"):
     return int_values
 
 
-def generate_noise(shape, rc):
+def generate_noise(shape, obs):
     # scaling factor for the noise
     factor = 1
 
@@ -150,10 +150,10 @@ def generate_noise(shape, rc):
     eta = 0.93
 
     # taken from simulations
-    chan_width = rc["bandwidths"][0] * len(rc["bandwidths"])
+    chan_width = obs.bandwidths[0] * len(obs.bandwidths)
 
     # corr_int_time
-    exposure = rc["corr_int_time"]
+    exposure = obs.int_time
 
     # taken from:
     # https://science.nrao.edu/facilities/vla/docs/manuals/oss/performance/sensitivity
@@ -167,8 +167,8 @@ def generate_noise(shape, rc):
     return noise
 
 
-def get_IFs(rc):
-    IFs = [rc["ref_frequency"] + float(freq) for freq in rc["spectral_windows"]]
+def get_IFs(obs):
+    IFs = [obs.ref_frequency + float(freq) for freq in obs.spectral_windows]
     return IFs
 
 
