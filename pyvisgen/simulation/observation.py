@@ -216,6 +216,46 @@ class Observation:
         )
         self.baselines.times_unique = torch.unique(self.baselines.time)
 
+    def calc_dense_baselines(self):
+        N = 8  # self.image_size
+        px = int(N * N)
+        fov = (
+            self.fov * np.pi / (3600 * 180)
+        )  # hard code #default 0.00018382, FoV from VLBA 163.7 <- wrong!
+        # depends on setting of simulations
+        delta = 1 / fov * const.c.value / self.ref_frequency
+        u_dense = (
+            torch.arange(
+                start=-(N / 2) * delta, end=(N / 2 + 1) * delta, step=delta
+            ).double()[:-1]
+            + delta / 2
+        )
+        v_dense = (
+            torch.arange(
+                start=-(N / 2) * delta, end=(N / 2 + 1) * delta, step=delta
+            ).double()[:-1]
+            + delta / 2
+        )
+        U, V = torch.meshgrid(u_dense, v_dense)
+        U_start = U.ravel() - delta / 2
+        U_stop = U.ravel() + delta / 2
+        V_start = V.ravel() - delta / 2
+        V_stop = V.ravel() + delta / 2
+        dense_baselines = ValidBaselineSubset(
+            baseline_nums=torch.zeros((px)),
+            u_start=U_start,
+            u_stop=U_stop,
+            u_valid=U.flatten(),
+            v_start=V_start,
+            v_stop=V_stop,
+            v_valid=V.flatten(),
+            w_start=torch.zeros((px)),
+            w_stop=torch.zeros((px)),
+            w_valid=torch.ones((px)),
+            date=torch.ones((px)),
+        )
+        self.dense_baselines = dense_baselines
+
     def calc_baselines(self):
         self.baselines = Baselines(
             torch.tensor([]),
