@@ -2,7 +2,6 @@ from dataclasses import dataclass, fields
 
 import torch
 from astropy import units as un
-from astropy.time import Time
 
 import pyvisgen.simulation.scan as scan
 
@@ -14,7 +13,7 @@ class Visibilities:
     SU: [complex]
     SV: [complex]
     num: [float]
-    scan: [float]
+    # scan: [float]
     base_num: [float]
     u: [un]
     v: [un]
@@ -71,62 +70,62 @@ def vis_loop(obs, SI, num_threads=10, noisy=True, full=False):
         for IF, bandwidth in zip(IFs, obs.bandwidths)
     ]
 
-    for i in range(obs.num_scans):
-        end_idx = int((obs.scan_duration / obs.int_time) + 1)
-        t = obs.times_mjd[i * end_idx : (i + 1) * end_idx]
-        for j in range(len(t) - 1):
-            t_start = Time(t[j] / (60 * 60 * 24), format="mjd").jd
-            t_stop = Time(t[j + 1] / (60 * 60 * 24), format="mjd").jd
+    # for i in range(obs.num_scans):
+    #    end_idx = int((obs.scan_duration / obs.int_time) + 1)
+    #    t = obs.times_mjd[i * end_idx : (i + 1) * end_idx]
+    #    for j in range(len(t) - 1):
+    #        t_start = Time(t[j] / (60 * 60 * 24), format="mjd").jd
+    #        t_stop = Time(t[j + 1] / (60 * 60 * 24), format="mjd").jd
 
-            bas_t = bas.get_timerange(t_start, t_stop)
+    #        bas_t = bas.get_timerange(t_start, t_stop)
 
-            if bas_t.u_valid.numel() == 0:
-                continue
+    # if bas_t.u_valid.numel() == 0:
+    #    continue
 
-            for p in torch.arange(len(bas_t.u_valid)).split(1):
-                bas_p = bas_t[p]
+    for p in torch.arange(len(bas.u_valid)).split(2):
+        bas_p = bas[p]
 
-                int_values = torch.cat(
-                    [
-                        calc_vis(
-                            bas_p,
-                            obs,
-                            spw[0],
-                            spw[1],
-                            SI,
-                            corrupted=obs.corrupted,
-                            device=obs.device,
-                        )[None]
-                        for spw in spws
-                    ]
-                )
-                if int_values.numel() == 0:
-                    continue
+        int_values = torch.cat(
+            [
+                calc_vis(
+                    bas_p,
+                    obs,
+                    spw[0],
+                    spw[1],
+                    SI,
+                    corrupted=obs.corrupted,
+                    device=obs.device,
+                )[None]
+                for spw in spws
+            ]
+        )
+        if int_values.numel() == 0:
+            continue
 
-                int_values = torch.swapaxes(int_values, 0, 1)
+        int_values = torch.swapaxes(int_values, 0, 1)
 
-                if noisy:
-                    noise = generate_noise(int_values.shape, obs)
-                    int_values += noise
+        if noisy:
+            noise = generate_noise(int_values.shape, obs)
+            int_values += noise
 
-                vis_num = torch.arange(int_values.shape[0]) + 1 + vis_num.max()
+        vis_num = torch.arange(int_values.shape[0]) + 1 + vis_num.max()
 
-                vis = Visibilities(
-                    int_values[:, :, 0],
-                    torch.zeros(int_values[:, :, 0].shape, dtype=torch.complex128),
-                    torch.zeros(int_values[:, :, 0].shape, dtype=torch.complex128),
-                    torch.zeros(int_values[:, :, 0].shape, dtype=torch.complex128),
-                    vis_num,
-                    torch.repeat_interleave(torch.tensor(i) + 1, len(vis_num)),
-                    bas_p.baseline_nums,
-                    bas_p.u_valid,
-                    bas_p.v_valid,
-                    bas_p.w_valid,
-                    bas_p.date,
-                )
+        vis = Visibilities(
+            int_values[:, :, 0],
+            torch.zeros(int_values[:, :, 0].shape, dtype=torch.complex128),
+            torch.zeros(int_values[:, :, 0].shape, dtype=torch.complex128),
+            torch.zeros(int_values[:, :, 0].shape, dtype=torch.complex128),
+            vis_num,
+            # torch.repeat_interleave(torch.tensor(i) + 1, len(vis_num)),
+            bas_p.baseline_nums,
+            bas_p.u_valid,
+            bas_p.v_valid,
+            bas_p.w_valid,
+            bas_p.date,
+        )
 
-                visibilities.add(vis)
-                del int_values
+        visibilities.add(vis)
+        del int_values
     return visibilities
 
 
