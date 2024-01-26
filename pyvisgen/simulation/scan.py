@@ -8,12 +8,12 @@ class FourierKernel(nn.Module):
     def __init__(self, bas, obs, spw, device):
         super().__init__()
         self.K = self.getK(
-            bas.u_start,
-            bas.u_stop,
-            bas.v_start,
-            bas.v_stop,
-            bas.w_start,
-            bas.w_stop,
+            bas[0],  # .u_start,
+            bas[1],  # .u_stop,
+            bas[3],  # .v_start,
+            bas[4],  # .v_stop,
+            bas[6],  # .w_start,
+            bas[7],  # .w_stop,
             obs.lm,
             spw,
             device,
@@ -49,13 +49,12 @@ class FourierKernel(nn.Module):
             Return Fourier Kernel for every pixel in lm grid and given baselines.
             Shape is given by lm axes and baseline axis
         """
-        device = torch.device(device)
-        u_cmplt = torch.cat((u_start, u_stop)).to(device) / 3e8 * spw
-        v_cmplt = torch.cat((v_start, v_stop)).to(device) / 3e8 * spw
-        w_cmplt = torch.cat((w_start, w_stop)).to(device) / 3e8 * spw
+        u_cmplt = torch.cat((u_start, u_stop)) / 3e8 * spw
+        v_cmplt = torch.cat((v_start, v_stop)) / 3e8 * spw
+        w_cmplt = torch.cat((w_start, w_stop)) / 3e8 * spw
 
-        l = lm[:, :, 0].to(device)
-        m = lm[:, :, 1].to(device)
+        l = lm[:, :, 0]
+        m = lm[:, :, 1]
         n = torch.sqrt(1 - l**2 - m**2)
 
         ul = torch.einsum("b,ij->ijb", u_cmplt, l)
@@ -101,7 +100,7 @@ class Integrate(nn.Module):
         del int_f
         int_t = 0.5 * torch.sum(X_t, dim=0)
         del X_t
-        return int_t.cpu()
+        return int_t
 
 
 class RIME_uncorrupted(nn.Module):
@@ -137,7 +136,65 @@ class RIME_uncorrupted(nn.Module):
             return vis
 
 
+@torch.compile
+def rime(img, bas, lm, spw_low, spw_high):
+    with torch.no_grad():
+        K1, K2 = calc_fourier(img, bas, lm, spw_low, spw_high)
+        vis = integrate(K1, K2)
+    return vis
+
+
+@torch.compile
+def calc_fourier(img, bas, lm, spw_low, spw_high):
+    u_cmplt = torch.cat((bas[0], bas[1]))
+    v_cmplt = torch.cat((bas[3], bas[4]))
+    w_cmplt = torch.cat((bas[6], bas[7]))
+
+    l = lm[:, 0]
+    m = lm[:, 1]
+    n = torch.sqrt(1 - l**2 - m**2)
+
+    ul = torch.einsum("b,i->ib", u_cmplt, l)
+    vm = torch.einsum("b,i->ib", v_cmplt, m)
+    wn = torch.einsum("b,i->ib", w_cmplt, (n - 1))
+    del l, m, n, u_cmplt, v_cmplt, w_cmplt
+
+    K1 = torch.exp(
+        -2 * pi * 1j * (ul / 3e8 * spw_low + vm / 3e8 * spw_low + wn / 3e8 * spw_low)
+    )
+    K2 = torch.exp(
+        -2 * pi * 1j * (ul / 3e8 * spw_high + vm / 3e8 * spw_high + wn / 3e8 * spw_high)
+    )
+    del ul, vm, wn
+    return torch.einsum("li,lb->lbi", img, K1), torch.einsum("li,lb->lbi", img, K2)
+
+
+@torch.compile
+def integrate(X1, X2):
+    X_f = torch.stack((X1, X2))
+    int_m = torch.sum(X_f, dim=1)
+    del X_f
+    # int_l = torch.sum(int_m, dim=1)
+    # del int_m
+    int_f = 0.5 * torch.sum(int_m, dim=0)
+    del int_m
+    X_t = torch.stack(torch.split(int_f, int(int_f.shape[0] / 2), dim=0))
+    del int_f
+    int_t = 0.5 * torch.sum(X_t, dim=0)
+    del X_t
+    return int_t
+
+
 '''
+        W = torch.zeros(U.shape, device="cuda:0")
+        src_crd = SkyCoord(ra=self.ra, dec=self.dec, unit=(un.deg, un.deg))
+        ha = Angle(self.start.sidereal_time("apparent", "greenwich") - src_crd.ra)
+        dec = torch.deg2rad(self.dec)  # self.rd[:, :int(N/2), 1]
+        ha = torch.deg2rad(torch.tensor(ha.deg))  #self.rd[:, :int(N/2), 0]
+        w = torch.cos(dec) * torch.cos(ha) * U - torch.cos(dec) *
+        torch.sin(ha) * V + torch.sin(dec) * W
+        w_start = w.flatten() - delta / 2
+        w_stop = w.flatten() + delta / 2
 def corrupted(lm, baselines, wave, time, src_crd, array_layout, SI, rd):
     """Calculates corrupted visibility
 

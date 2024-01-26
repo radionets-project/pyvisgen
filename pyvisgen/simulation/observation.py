@@ -47,13 +47,13 @@ class Baselines:
             + 1
         )
 
-        u_start = bas_reshaped.u[:-1][mask]
-        v_start = bas_reshaped.v[:-1][mask]
-        w_start = bas_reshaped.w[:-1][mask]
+        u_start = bas_reshaped.u[:-1][mask].to("cuda:0")
+        v_start = bas_reshaped.v[:-1][mask].to("cuda:0")
+        w_start = bas_reshaped.w[:-1][mask].to("cuda:0")
 
-        u_stop = bas_reshaped.u[1:][mask]
-        v_stop = bas_reshaped.v[1:][mask]
-        w_stop = bas_reshaped.w[1:][mask]
+        u_stop = bas_reshaped.u[1:][mask].to("cuda:0")
+        v_stop = bas_reshaped.v[1:][mask].to("cuda:0")
+        w_stop = bas_reshaped.w[1:][mask].to("cuda:0")
 
         u_valid = (u_start + u_stop) / 2
         v_valid = (v_start + v_stop) / 2
@@ -77,7 +77,7 @@ class Baselines:
         )
 
 
-@dataclass
+@dataclass()
 class ValidBaselineSubset:
     baseline_nums: torch.tensor
     u_start: torch.tensor
@@ -93,7 +93,7 @@ class ValidBaselineSubset:
 
     def __getitem__(self, i):
         return ValidBaselineSubset(
-            *[getattr(self, f.name).ravel()[i] for f in fields(self)]
+            *[getattr(self, f.name).flatten()[i] for f in fields(self)]
         )
 
     def get_timerange(self, t_start, t_stop):
@@ -153,6 +153,7 @@ class Observation:
         array_layout,
         corrupted,
         device,
+        dense=False,
     ):
         self.ra = torch.tensor(src_ra).float()
         self.dec = torch.tensor(src_dec).float()
@@ -196,7 +197,7 @@ class Observation:
         self.pix_size = fov / image_size
 
         self.corrupted = corrupted
-        self.device = device
+        self.device = torch.device(device)
 
         self.array = layouts.get_array_layout(array_layout)
         self.num_baselines = int(
@@ -206,55 +207,100 @@ class Observation:
         self.rd = self.create_rd_grid()
         self.lm = self.create_lm_grid()
 
-        dense = False
         if dense:
             self.calc_dense_baselines()
         else:
             self.calc_baselines()
-        self.baselines.num = int(
-            len(self.array.st_num) * (len(self.array.st_num) - 1) / 2
-        )
-        self.baselines.times_unique = torch.unique(self.baselines.time)
+            self.baselines.num = int(
+                len(self.array.st_num) * (len(self.array.st_num) - 1) / 2
+            )
+            self.baselines.times_unique = torch.unique(self.baselines.time)
 
     def calc_dense_baselines(self):
-        N = 8  # self.image_size
-        px = int(N * N)
+        N = 2999  # self.image_size
+        px = int(N * (N // 2 + 1))
         fov = (
-            self.fov * np.pi / (3600 * 180)
+            self.fov * pi / (3600 * 180)
         )  # hard code #default 0.00018382, FoV from VLBA 163.7 <- wrong!
         # depends on setting of simulations
         delta = 1 / fov * const.c.value / self.ref_frequency
         u_dense = (
             torch.arange(
-                start=-(N / 2) * delta, end=(N / 2 + 1) * delta, step=delta
+                start=-(N / 2) * delta,
+                end=(N / 2 + 1) * delta,
+                step=delta,
+                device="cuda:0",
             ).double()[:-1]
             + delta / 2
         )
         v_dense = (
             torch.arange(
-                start=-(N / 2) * delta, end=(N / 2 + 1) * delta, step=delta
+                start=0 * delta, end=(N / 2 + 1) * delta, step=delta, device="cuda:0"
             ).double()[:-1]
-            + delta / 2
+            # + delta / 2
         )
         U, V = torch.meshgrid(u_dense, v_dense)
+        print(U)
         U_start = U.ravel() - delta / 2
         U_stop = U.ravel() + delta / 2
         V_start = V.ravel() - delta / 2
         V_stop = V.ravel() + delta / 2
-        dense_baselines = ValidBaselineSubset(
-            baseline_nums=torch.zeros((px)),
-            u_start=U_start,
-            u_stop=U_stop,
-            u_valid=U.flatten(),
-            v_start=V_start,
-            v_stop=V_stop,
-            v_valid=V.flatten(),
-            w_start=torch.zeros((px)),
-            w_stop=torch.zeros((px)),
-            w_valid=torch.ones((px)),
-            date=torch.ones((px)),
+
+        # W = torch.zeros(U.shape, device="cuda:0")
+        # dec = torch.deg2rad(self.dec)  # self.rd[:, :int(N/2), 1]
+        # src_crd = SkyCoord(ra=self.ra, dec=self.dec, unit=(un.deg, un.deg))
+        # ha = torch.deg2rad(
+        #    torch.tensor(
+        #        [
+        #            Angle(
+        #                self.start.sidereal_time("apparent", "greenwich") - src_crd.ra
+        #            ).deg
+        #        ],
+        #        device="cuda:0",
+        #    )
+        # )
+        # ha = torch.deg2rad(torch.tensor([21 + 26 / 60 + 35 / 3600],
+        # device="cuda:0"))  #self.rd[:, :int(N/2), 0]
+        # w = (
+        #    torch.cos(dec) * torch.cos(ha) * U
+        #    - torch.cos(dec) * torch.sin(ha) * V
+        #    + torch.sin(dec) * W
+        # )
+        # w_start = w.flatten() - delta / 2
+        # w_stop = w.flatten() + delta / 2
+
+        # dense_baselines = ValidBaselineSubset(
+        #    baseline_nums=torch.zeros((px)),
+        #    u_start=U_start,
+        #    u_stop=U_stop,
+        #    u_valid=U.flatten(),
+        #    v_start=V_start,
+        #    v_stop=V_stop,
+        #    v_valid=V.flatten(),
+        #    w_start=w_start,
+        #    w_stop=w_stop,
+        #    w_valid=w,
+        #    date=torch.ones((px)),
+        # )
+        self.dense_baselines_gpu = torch.stack(
+            [
+                U_start,
+                U_stop,
+                U.flatten(),
+                V_start,
+                V_stop,
+                V.flatten(),
+                torch.zeros(U_start.shape, device="cuda:0"),  # w_start,
+                torch.zeros(U_stop.shape, device="cuda:0"),  # w_stop,
+                torch.zeros(U.flatten().shape, device="cuda:0"),  # w.flatten(),
+            ]
         )
-        self.dense_baselines = dense_baselines
+        self.dense_baselines_cpu = torch.stack(
+            [
+                torch.ones((px)),
+                torch.ones((px)),
+            ]
+        )
 
     def calc_baselines(self):
         self.baselines = Baselines(
@@ -340,15 +386,20 @@ class Observation:
             Returns a 3d array with every pixel containing a RA and Dec value
         """
         # transform to rad
-        fov = self.fov * pi / (3600 * 180)
+        fov = self.fov / 3600 * (pi / 180)
 
         # define resolution
         res = fov / self.img_size
 
         ra = torch.deg2rad(self.ra)
         dec = torch.deg2rad(self.dec)
-        r = (torch.arange(self.img_size) - self.img_size / 2) * res + ra
-        d = -(torch.arange(self.img_size) - self.img_size / 2) * res + dec
+        r = (
+            torch.arange(self.img_size, device="cuda:0") - self.img_size / 2
+        ) * res + ra
+        d = (
+            -(torch.arange(self.img_size, device="cuda:0") - self.img_size / 2) * res
+            + dec
+        )
         _, R = torch.meshgrid((r, r), indexing="ij")
         D, _ = torch.meshgrid((d, d), indexing="ij")
         rd_grid = torch.cat([R[..., None], D[..., None]], dim=2)
@@ -369,14 +420,14 @@ class Observation:
         3d array
             Returns a 3d array with every pixel containing a l and m value
         """
-        lm_grid = torch.zeros(self.rd.shape)
+        lm_grid = torch.zeros(self.rd.shape, device="cuda:0")
         lm_grid[:, :, 0] = torch.cos(self.rd[:, :, 1]) * torch.sin(
             self.rd[:, :, 0] - torch.deg2rad(self.ra)
         )
         lm_grid[:, :, 1] = torch.sin(self.rd[:, :, 1]) * torch.cos(
             torch.deg2rad(self.dec)
         ) - torch.cos(torch.deg2rad(self.dec)) * torch.sin(
-            np.deg2rad(self.dec)
+            torch.deg2rad(self.dec)
         ) * torch.cos(
             self.rd[:, :, 0] - torch.deg2rad(self.ra)
         )
@@ -474,5 +525,6 @@ class Observation:
             - torch.cos(src_dec) * torch.sin(ha) * delta_y
             + torch.sin(src_dec) * delta_z
         ).reshape(-1)
+        print(u)
         assert u.shape == v.shape == w.shape
         return u, v, w

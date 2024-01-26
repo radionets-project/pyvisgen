@@ -99,6 +99,8 @@ def create_observation(conf):
         fov=rc["fov_size"],
         image_size=rc["img_size"],
         array_layout=rc["layout"],
+        corrupted=rc["corrupted"],
+        device=rc["device"],
     )
     return obs, rc
 
