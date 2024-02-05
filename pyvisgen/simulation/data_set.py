@@ -48,10 +48,10 @@ def simulate_data_set(config, slurm=False, job_id=None, n=None):
         SI = torch.tensor(open_bundles(data[bundle])[image], dtype=torch.cdouble)
 
         samp_ops = create_sampling_rc(conf)
-        vis_data = vis_loop(samp_ops, SI, noisy=conf["noisy"])
-        while vis_data == 0:
-            samp_ops = create_sampling_rc(conf)
-            vis_data = vis_loop(samp_ops, SI, noisy=conf["noisy"])
+        vis_data = vis_loop(samp_ops, SI, noisy=conf["noisy"], mode=conf["mode"])
+        # while vis_data == 0:
+        #    samp_ops = create_sampling_rc(conf)
+        #    vis_data = vis_loop(samp_ops, SI, noisy=conf["noisy"])
         hdu_list = writer.create_hdu_list(vis_data, samp_ops)
         hdu_list.writeto(out, overwrite=True)
 
@@ -62,7 +62,7 @@ def simulate_data_set(config, slurm=False, job_id=None, n=None):
             for j, SI in enumerate(tqdm(SIs)):
                 obs, samp_obs = create_observation(conf)
                 vis_data = vis_loop(
-                    samp_ops, SI, noisy=conf["noisy"], full=conf["full"]
+                    samp_ops, SI, noisy=conf["noisy"], mode=conf["mode"]
                 )
 
                 # while vis_data == 0:
@@ -94,7 +94,7 @@ def create_observation(conf):
         scan_separation=rc["scan_separation"],
         integration_time=rc["corr_int_time"],
         ref_frequency=rc["ref_frequency"],
-        spectral_windows=rc["spectral_windows"],
+        frequency_offsets=rc["frequency_offsets"],
         bandwidths=rc["bandwidths"],
         fov=rc["fov_size"],
         image_size=rc["img_size"],
@@ -179,7 +179,7 @@ def draw_sampling_opts(conf):
             num_scans,
             conf["scan_separation"],
             conf["ref_frequency"],
-            conf["spectral_windows"],
+            conf["frequency_offsets"],
             conf["bandwidths"],
             conf["corrupted"],
             conf["device"],
@@ -199,7 +199,7 @@ def draw_sampling_opts(conf):
         "num_scans": opts[9],
         "scan_separation": opts[10],
         "ref_frequency": opts[11],
-        "spectral_windows": opts[12],
+        "frequency_offsets": opts[12],
         "bandwidths": opts[13],
         "corrupted": opts[14],
         "device": opts[15],

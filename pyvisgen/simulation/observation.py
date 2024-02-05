@@ -35,7 +35,7 @@ class Baselines:
             for f in fields(self)
         ]
 
-    def get_valid_subset(self, num_baselines):
+    def get_valid_subset(self, num_baselines, device):
         bas_reshaped = Baselines(
             *[getattr(self, f.name).reshape(-1, num_baselines) for f in fields(self)]
         )
@@ -45,22 +45,22 @@ class Baselines:
             256 * (bas_reshaped.st1[:-1][mask].ravel() + 1)
             + bas_reshaped.st2[:-1][mask].ravel()
             + 1
-        )
+        ).to(device)
 
-        u_start = bas_reshaped.u[:-1][mask].to("cuda:0")
-        v_start = bas_reshaped.v[:-1][mask].to("cuda:0")
-        w_start = bas_reshaped.w[:-1][mask].to("cuda:0")
+        u_start = bas_reshaped.u[:-1][mask].to(device)
+        v_start = bas_reshaped.v[:-1][mask].to(device)
+        w_start = bas_reshaped.w[:-1][mask].to(device)
 
-        u_stop = bas_reshaped.u[1:][mask].to("cuda:0")
-        v_stop = bas_reshaped.v[1:][mask].to("cuda:0")
-        w_stop = bas_reshaped.w[1:][mask].to("cuda:0")
+        u_stop = bas_reshaped.u[1:][mask].to(device)
+        v_stop = bas_reshaped.v[1:][mask].to(device)
+        w_stop = bas_reshaped.w[1:][mask].to(device)
 
         u_valid = (u_start + u_stop) / 2
         v_valid = (v_start + v_stop) / 2
         w_valid = (w_start + w_stop) / 2
 
         t = Time(bas_reshaped.time / (60 * 60 * 24), format="mjd").jd
-        date = torch.from_numpy(t[:-1][mask] + t[1:][mask]) / 2
+        date = (torch.from_numpy(t[:-1][mask] + t[1:][mask]) / 2).to(device)
 
         return ValidBaselineSubset(
             baseline_nums,
@@ -92,16 +92,31 @@ class ValidBaselineSubset:
     date: torch.tensor
 
     def __getitem__(self, i):
-        return ValidBaselineSubset(
-            *[getattr(self, f.name).flatten()[i] for f in fields(self)]
+        return torch.stack(
+            [
+                self.u_start,
+                self.u_stop,
+                self.u_valid,
+                self.v_start,
+                self.v_stop,
+                self.v_valid,
+                self.w_start,
+                self.w_stop,
+                self.w_valid,
+                self.baseline_nums,
+                self.date,
+            ]
         )
+        # ValidBaselineSubset(
+        #    *[getattr(self, f.name).flatten()[i] for f in fields(self)]
+        # )
 
     def get_timerange(self, t_start, t_stop):
         return ValidBaselineSubset(
             *[getattr(self, f.name).ravel() for f in fields(self)]
         )[(self.date >= t_start) & (self.date <= t_stop)]
 
-    def get_unique_grid(self, fov_size, ref_frequency, img_size):
+    def get_unique_grid(self, fov_size, ref_frequency, img_size, device):
         uv = torch.cat([self.u_valid[None], self.v_valid[None]], dim=0)
         fov = fov_size * pi / (3600 * 180)
         delta = 1 / fov * const.c.value.item() / ref_frequency
@@ -109,6 +124,7 @@ class ValidBaselineSubset:
             start=-(img_size / 2) * delta,
             end=(img_size / 2 + 1) * delta,
             step=delta,
+            device=device,
         )
         if len(bins) - 1 > img_size:
             bins = bins[:-1]  # np.delete(bins, -1)
@@ -123,7 +139,7 @@ class ValidBaselineSubset:
 
         _, ind_sorted = torch.sort(indices_unique_inv, stable=True)
         cum_sum = counts.cumsum(0)
-        cum_sum = torch.cat((torch.tensor([0]), cum_sum[:-1]))
+        cum_sum = torch.cat((torch.tensor([0], device=device), cum_sum[:-1]))
         first_indicies = ind_sorted[cum_sum]
         return self[indices_bucket_sort[first_indicies]]
 
@@ -146,7 +162,7 @@ class Observation:
         scan_separation,
         integration_time,
         ref_frequency,
-        spectral_windows,
+        frequency_offsets,
         bandwidths,
         fov,
         image_size,
@@ -154,6 +170,7 @@ class Observation:
         corrupted,
         device,
         dense=False,
+        sensitivity_cut=True,
     ):
         self.ra = torch.tensor(src_ra).float()
         self.dec = torch.tensor(src_dec).float()
@@ -172,31 +189,21 @@ class Observation:
         )
 
         self.ref_frequency = torch.tensor(ref_frequency)
-        # self.frequsel = torch.tensor(frequency_bands)
         self.bandwidths = torch.tensor(bandwidths)
-        self.spectral_windows = torch.tensor(spectral_windows)
-        self.waves_low = torch.from_numpy(
-            (
-                const.c
-                / (self.spectral_windows - self.bandwidths)
-                * un.second
-                / un.meter
-            ).value
-        )
-        self.waves_high = torch.from_numpy(
-            (
-                const.c
-                / (self.spectral_windows + self.bandwidths)
-                * un.second
-                / un.meter
-            ).value
-        )
+        self.frequency_offsets = torch.tensor(frequency_offsets)
+        self.waves_low = (
+            self.ref_frequency + self.frequency_offsets
+        ) - self.bandwidths / 2
+        self.waves_high = (
+            self.ref_frequency + self.frequency_offsets
+        ) + self.bandwidths / 2
 
         self.fov = fov
         self.img_size = image_size
         self.pix_size = fov / image_size
 
         self.corrupted = corrupted
+        self.sensitivity_cut = sensitivity_cut
         self.device = torch.device(device)
 
         self.array = layouts.get_array_layout(array_layout)
@@ -217,71 +224,29 @@ class Observation:
             self.baselines.times_unique = torch.unique(self.baselines.time)
 
     def calc_dense_baselines(self):
-        N = 2999  # self.image_size
+        N = self.img_size - 1
         px = int(N * (N // 2 + 1))
-        fov = (
-            self.fov * pi / (3600 * 180)
-        )  # hard code #default 0.00018382, FoV from VLBA 163.7 <- wrong!
-        # depends on setting of simulations
+        fov = self.fov * pi / (3600 * 180)
+
         delta = 1 / fov * const.c.value / self.ref_frequency
         u_dense = (
             torch.arange(
                 start=-(N / 2) * delta,
                 end=(N / 2 + 1) * delta,
                 step=delta,
-                device="cuda:0",
+                device=self.device,
             ).double()[:-1]
             + delta / 2
         )
-        v_dense = (
-            torch.arange(
-                start=0 * delta, end=(N / 2 + 1) * delta, step=delta, device="cuda:0"
-            ).double()[:-1]
-            # + delta / 2
-        )
+        v_dense = torch.arange(
+            start=0 * delta, end=(N / 2 + 1) * delta, step=delta, device=self.device
+        ).double()[:-1]
         U, V = torch.meshgrid(u_dense, v_dense)
-        print(U)
         U_start = U.ravel() - delta / 2
         U_stop = U.ravel() + delta / 2
         V_start = V.ravel() - delta / 2
         V_stop = V.ravel() + delta / 2
 
-        # W = torch.zeros(U.shape, device="cuda:0")
-        # dec = torch.deg2rad(self.dec)  # self.rd[:, :int(N/2), 1]
-        # src_crd = SkyCoord(ra=self.ra, dec=self.dec, unit=(un.deg, un.deg))
-        # ha = torch.deg2rad(
-        #    torch.tensor(
-        #        [
-        #            Angle(
-        #                self.start.sidereal_time("apparent", "greenwich") - src_crd.ra
-        #            ).deg
-        #        ],
-        #        device="cuda:0",
-        #    )
-        # )
-        # ha = torch.deg2rad(torch.tensor([21 + 26 / 60 + 35 / 3600],
-        # device="cuda:0"))  #self.rd[:, :int(N/2), 0]
-        # w = (
-        #    torch.cos(dec) * torch.cos(ha) * U
-        #    - torch.cos(dec) * torch.sin(ha) * V
-        #    + torch.sin(dec) * W
-        # )
-        # w_start = w.flatten() - delta / 2
-        # w_stop = w.flatten() + delta / 2
-
-        # dense_baselines = ValidBaselineSubset(
-        #    baseline_nums=torch.zeros((px)),
-        #    u_start=U_start,
-        #    u_stop=U_stop,
-        #    u_valid=U.flatten(),
-        #    v_start=V_start,
-        #    v_stop=V_stop,
-        #    v_valid=V.flatten(),
-        #    w_start=w_start,
-        #    w_stop=w_stop,
-        #    w_valid=w,
-        #    date=torch.ones((px)),
-        # )
         self.dense_baselines_gpu = torch.stack(
             [
                 U_start,
@@ -290,15 +255,11 @@ class Observation:
                 V_start,
                 V_stop,
                 V.flatten(),
-                torch.zeros(U_start.shape, device="cuda:0"),  # w_start,
-                torch.zeros(U_stop.shape, device="cuda:0"),  # w_stop,
-                torch.zeros(U.flatten().shape, device="cuda:0"),  # w.flatten(),
-            ]
-        )
-        self.dense_baselines_cpu = torch.stack(
-            [
-                torch.ones((px)),
-                torch.ones((px)),
+                torch.zeros(U_start.shape, device=self.device),  # w_start,
+                torch.zeros(U_stop.shape, device=self.device),  # w_stop,
+                torch.zeros(U.flatten().shape, device=self.device),  # w.flatten(),
+                torch.ones((px), device=self.device),
+                torch.ones((px), device=self.device),
             ]
         )
 
@@ -394,10 +355,10 @@ class Observation:
         ra = torch.deg2rad(self.ra)
         dec = torch.deg2rad(self.dec)
         r = (
-            torch.arange(self.img_size, device="cuda:0") - self.img_size / 2
+            torch.arange(self.img_size, device=self.device) - self.img_size / 2
         ) * res + ra
         d = (
-            -(torch.arange(self.img_size, device="cuda:0") - self.img_size / 2) * res
+            -(torch.arange(self.img_size, device=self.device) - self.img_size / 2) * res
             + dec
         )
         _, R = torch.meshgrid((r, r), indexing="ij")
@@ -420,7 +381,7 @@ class Observation:
         3d array
             Returns a 3d array with every pixel containing a l and m value
         """
-        lm_grid = torch.zeros(self.rd.shape, device="cuda:0")
+        lm_grid = torch.zeros(self.rd.shape, device=self.device)
         lm_grid[:, :, 0] = torch.cos(self.rd[:, :, 1]) * torch.sin(
             self.rd[:, :, 0] - torch.deg2rad(self.ra)
         )
@@ -525,6 +486,5 @@ class Observation:
             - torch.cos(src_dec) * torch.sin(ha) * delta_y
             + torch.sin(src_dec) * delta_z
         ).reshape(-1)
-        print(u)
         assert u.shape == v.shape == w.shape
         return u, v, w

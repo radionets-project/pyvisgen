@@ -43,19 +43,21 @@ def vis_loop(obs, SI, num_threads=10, noisy=True, mode="full"):
     torch.set_num_threads(num_threads)
     IFs = get_IFs(obs)
 
-    SI = SI.permute(dims=(1, 2, 0)).to(torch.device("cuda:0"))
-    mask = SI > 1e-6
-    SI = SI[mask].unsqueeze(-1)
-    # .permute(dims=(1, 2, 0)).to(torch.device("cuda:0"))
+    SI = SI.permute(dims=(1, 2, 0)).to(torch.device(obs.device))
+    if obs.sensitivity_cut:
+        mask = SI > 1e-6
+        SI = SI[mask].unsqueeze(-1)
+        lm = obs.lm[torch.repeat_interleave(mask, 2, dim=-1)].reshape(-1, 2)
+    else:
+        lm = obs.lm
 
     # calculate vis
     visibilities = Visibilities(
-        torch.empty(size=[0] + [len(obs.spectral_windows)]),
-        torch.empty(size=[0] + [len(obs.spectral_windows)]),
-        torch.empty(size=[0] + [len(obs.spectral_windows)]),
-        torch.empty(size=[0] + [len(obs.spectral_windows)]),
+        torch.empty(size=[0] + [len(obs.frequency_offsets)]),
+        torch.empty(size=[0] + [len(obs.frequency_offsets)]),
+        torch.empty(size=[0] + [len(obs.frequency_offsets)]),
+        torch.empty(size=[0] + [len(obs.frequency_offsets)]),
         torch.tensor([]),
-        # torch.tensor([]),
         torch.tensor([]),
         torch.tensor([]),
         torch.tensor([]),
@@ -64,51 +66,44 @@ def vis_loop(obs, SI, num_threads=10, noisy=True, mode="full"):
     )
     vis_num = torch.zeros(1)
     if mode == "full":
-        bas = obs.baselines.get_valid_subset(obs.num_baselines)
+        bas = obs.baselines.get_valid_subset(obs.num_baselines, obs.device)
     if mode == "grid":
-        bas = obs.baselines.get_valid_subset(obs.num_baselines).get_unique_grid(
-            obs.fov, obs.ref_frequency, obs.img_size
-        )
+        bas = obs.baselines.get_valid_subset(
+            obs.num_baselines, obs.device
+        ).get_unique_grid(obs.fov, obs.ref_frequency, obs.img_size, obs.device)
     if mode == "dense":
-        bas_gpu = obs.dense_baselines_gpu
-        bas_cpu = obs.dense_baselines_cpu
+        if obs.device == torch.device("cpu"):
+            raise "Only available for GPU calculations!"
+        bas = obs.dense_baselines_gpu
+        # bas_cpu = obs.dense_baselines_cpu
 
     spws = [
         calc_windows(torch.tensor(IF), torch.tensor(bandwidth))
         for IF, bandwidth in zip(IFs, obs.bandwidths)
     ]
-    print(bas)
-    # for i in range(obs.num_scans):
-    #    end_idx = int((obs.scan_duration / obs.int_time) + 1)
-    #    t = obs.times_mjd[i * end_idx : (i + 1) * end_idx]
-    #    for j in range(len(t) - 1):
-    #        t_start = Time(t[j] / (60 * 60 * 24), format="mjd").jd
-    #        t_stop = Time(t[j + 1] / (60 * 60 * 24), format="mjd").jd
-
-    #        bas_t = bas.get_timerange(t_start, t_stop)
-
-    # if bas_t.u_valid.numel() == 0:
-    #    continue
+    print(spws)
+    print(obs.waves_low)
+    print(obs.waves_high)
 
     from tqdm import tqdm
 
-    print(bas_gpu.shape[1])
-    for p in tqdm(torch.arange(bas_gpu.shape[1]).split(500)):
-        bas_p = bas_gpu[:, p]
-        bas_p_cpu = bas_cpu[:, p]
+    for p in tqdm(torch.arange(bas[:].shape[1]).split(500)):
+        bas_p = bas[:][:, p]
 
-        int_values = calc_vis(
-            bas_p,
-            obs.lm[torch.repeat_interleave(mask, 2, dim=-1)].reshape(-1, 2),
-            spws[0][0],
-            spws[0][1],
-            SI,
-            corrupted=obs.corrupted,
-            device=obs.device,
-        )[None]
-        #        for spw in spws
-        #    ]
-        # )
+        int_values = torch.cat(
+            [
+                calc_vis(
+                    bas_p,
+                    lm,
+                    wave_low,
+                    wave_high,
+                    SI,
+                    corrupted=obs.corrupted,
+                    device=obs.device,
+                )[None]
+                for wave_low, wave_high in zip(obs.waves_low, obs.waves_high)
+            ]
+        )
         if int_values.numel() == 0:
             continue
 
@@ -120,22 +115,17 @@ def vis_loop(obs, SI, num_threads=10, noisy=True, mode="full"):
 
         vis_num = torch.arange(int_values.shape[0]) + 1 + vis_num.max()
 
-        # gpu_vals = torch.cat([int_values.flatten()[None],
-        # bas_p[2][None], bas_p[5][None]])
-        # gpu_vals = gpu_vals.to(device="cpu", non_blocking=True)
-
         vis = Visibilities(
             int_values[:, :, 0].cpu(),
             torch.zeros(int_values[:, :, 0].shape, dtype=torch.complex128),
             torch.zeros(int_values[:, :, 0].shape, dtype=torch.complex128),
             torch.zeros(int_values[:, :, 0].shape, dtype=torch.complex128),
             vis_num,
-            # torch.repeat_interleave(torch.tensor(i) + 1, len(vis_num)),
-            bas_p_cpu[0],
+            bas_p[9].cpu(),
             bas_p[2].cpu(),
             bas_p[5].cpu(),
             bas_p[8].cpu(),
-            bas_p_cpu[1],
+            bas_p[10].cpu(),
         )
 
         visibilities.add(vis)
@@ -182,7 +172,7 @@ def generate_noise(shape, obs):
 
 
 def get_IFs(obs):
-    IFs = [obs.ref_frequency + float(freq) for freq in obs.spectral_windows]
+    IFs = [obs.ref_frequency + float(freq) for freq in obs.frequency_offsets]
     return IFs
 
 
