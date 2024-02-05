@@ -41,7 +41,6 @@ class Visibilities:
 
 def vis_loop(obs, SI, num_threads=10, noisy=True, mode="full"):
     torch.set_num_threads(num_threads)
-    IFs = get_IFs(obs)
 
     SI = SI.permute(dims=(1, 2, 0)).to(torch.device(obs.device))
     if obs.sensitivity_cut:
@@ -75,15 +74,6 @@ def vis_loop(obs, SI, num_threads=10, noisy=True, mode="full"):
         if obs.device == torch.device("cpu"):
             raise "Only available for GPU calculations!"
         bas = obs.dense_baselines_gpu
-        # bas_cpu = obs.dense_baselines_cpu
-
-    spws = [
-        calc_windows(torch.tensor(IF), torch.tensor(bandwidth))
-        for IF, bandwidth in zip(IFs, obs.bandwidths)
-    ]
-    print(spws)
-    print(obs.waves_low)
-    print(obs.waves_high)
 
     from tqdm import tqdm
 
@@ -169,12 +159,3 @@ def generate_noise(shape, obs):
     noise = noise + 1.0j * torch.normal(mean=0, std=std, size=shape)
 
     return noise
-
-
-def get_IFs(obs):
-    IFs = [obs.ref_frequency + float(freq) for freq in obs.frequency_offsets]
-    return IFs
-
-
-def calc_windows(spw, bandwidth):
-    return spw - bandwidth * 0.5, spw + bandwidth * 0.5
