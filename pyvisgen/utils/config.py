@@ -30,11 +30,11 @@ def read_data_set_conf(conf_toml):
     conf["num_scans"] = config["sampling_options"]["num_scans"]
     conf["scan_separation"] = config["sampling_options"]["scan_separation"]
     conf["ref_frequency"] = config["sampling_options"]["ref_frequency"]
-    conf["spectral_windows"] = config["sampling_options"]["spectral_windows"]
+    conf["frequency_offsets"] = config["sampling_options"]["frequency_offsets"]
     conf["bandwidths"] = config["sampling_options"]["bandwidths"]
     conf["corrupted"] = config["sampling_options"]["corrupted"]
     conf["noisy"] = config["sampling_options"]["noisy"]
-    conf["full"] = config["sampling_options"]["full"]
+    conf["sensitivty_cut"] = config["sampling_options"]["sensitivity_cut"]
 
     conf["num_test_images"] = config["bundle_options"]["num_test_images"]
     conf["bundle_size"] = config["bundle_options"]["bundle_size"]
