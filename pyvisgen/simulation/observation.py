@@ -117,11 +117,14 @@ class ValidBaselineSubset:
         uv = torch.cat([self.u_valid[None], self.v_valid[None]], dim=0)
         fov = fov_size * pi / (3600 * 180)
         delta = 1 / fov * const.c.value.item() / ref_frequency
-        bins = torch.arange(
-            start=-(img_size / 2) * delta,
-            end=(img_size / 2 + 1) * delta,
-            step=delta,
-            device=device,
+        bins = (
+            torch.arange(
+                start=-(img_size / 2) * delta,
+                end=(img_size / 2 + 1) * delta,
+                step=delta,
+                device=device,
+            )
+            + delta / 2
         )
         if len(bins) - 1 > img_size:
             bins = bins[:-1]
@@ -137,8 +140,8 @@ class ValidBaselineSubset:
         _, ind_sorted = torch.sort(indices_unique_inv, stable=True)
         cum_sum = counts.cumsum(0)
         cum_sum = torch.cat((torch.tensor([0], device=device), cum_sum[:-1]))
-        first_indicies = ind_sorted[cum_sum]
-        return self[indices_bucket_sort[first_indicies]]
+        first_indices = ind_sorted[cum_sum]
+        return self[:][:, indices_bucket_sort[first_indices]]
 
     def _lexsort(self, a, dim=-1):
         assert dim == -1  # Transpose if you want differently
