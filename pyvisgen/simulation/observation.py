@@ -107,9 +107,6 @@ class ValidBaselineSubset:
                 self.date,
             ]
         )
-        # ValidBaselineSubset(
-        #    *[getattr(self, f.name).flatten()[i] for f in fields(self)]
-        # )
 
     def get_timerange(self, t_start, t_stop):
         return ValidBaselineSubset(
@@ -127,7 +124,7 @@ class ValidBaselineSubset:
             device=device,
         )
         if len(bins) - 1 > img_size:
-            bins = bins[:-1]  # np.delete(bins, -1)
+            bins = bins[:-1]
         indices_bucket = torch.bucketize(uv, bins)
         indices_bucket_sort, indices_bucket_inv = self._lexsort(indices_bucket)
         indices_unique, indices_unique_inv, counts = torch.unique_consecutive(
@@ -257,9 +254,9 @@ class Observation:
                 V_start,
                 V_stop,
                 V.flatten(),
-                torch.zeros(U_start.shape, device=self.device),  # w_start,
-                torch.zeros(U_stop.shape, device=self.device),  # w_stop,
-                torch.zeros(U.flatten().shape, device=self.device),  # w.flatten(),
+                torch.zeros(U_start.shape, device=self.device),
+                torch.zeros(U_stop.shape, device=self.device),
+                torch.zeros(U.flatten().shape, device=self.device),
                 torch.ones((px), device=self.device),
                 torch.ones((px), device=self.device),
             ]
