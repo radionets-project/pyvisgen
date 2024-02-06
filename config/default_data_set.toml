@@ -16,8 +16,7 @@ frequency_offsets = [0e8, 0.8e8, 1.44e8, 2.08e8]
 bandwidths = [6.4e7, 6.4e7, 6.4e7, 6.4e7]
 noisy = false
 corrupted = false
-sensitivity_cut = false
-cut_value = 1e-6
+sensitivity_cut = 1e-6
 
 [bundle_options]
 in_path = "skies/"
