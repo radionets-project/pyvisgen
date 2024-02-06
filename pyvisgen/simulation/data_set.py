@@ -45,11 +45,12 @@ def simulate_data_set(config, slurm=False, job_id=None, n=None):
         imgs_bundle = len(open_bundles(data[0]))
         bundle = torch.div(job_id, imgs_bundle, rounding_mode="floor")
         image = job_id - bundle * imgs_bundle
-        SI = torch.tensor(open_bundles(data[bundle])[image], dtype=torch.cdouble)
+        SI = torch.tensor(open_bundles(data[bundle])[image])
+        if len(SI.shape) == 2:
+            SI = SI.unsqueeze(0)
 
-        samp_ops = create_sampling_rc(conf)
-        vis_data = vis_loop(samp_ops, SI, noisy=conf["noisy"], mode=conf["mode"])
-
+        obs, samp_ops = create_observation(conf)
+        vis_data = vis_loop(obs, SI, noisy=conf["noisy"], mode=conf["mode"])
         hdu_list = writer.create_hdu_list(vis_data, samp_ops)
         hdu_list.writeto(out, overwrite=True)
 
@@ -59,9 +60,7 @@ def simulate_data_set(config, slurm=False, job_id=None, n=None):
 
             for j, SI in enumerate(tqdm(SIs)):
                 obs, samp_obs = create_observation(conf)
-                vis_data = vis_loop(
-                    samp_ops, SI, noisy=conf["noisy"], mode=conf["mode"]
-                )
+                vis_data = vis_loop(obs, SI, noisy=conf["noisy"], mode=conf["mode"])
 
                 out = out_path / Path("vis_" + str(j) + ".fits")
                 hdu_list = writer.create_hdu_list(vis_data, samp_ops)
