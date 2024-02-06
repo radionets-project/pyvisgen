@@ -1,24 +1,22 @@
 from dataclasses import dataclass, fields
 
 import torch
-from astropy import units as un
 
 import pyvisgen.simulation.scan as scan
 
 
 @dataclass
 class Visibilities:
-    SI: [complex]
-    SQ: [complex]
-    SU: [complex]
-    SV: [complex]
-    num: [float]
-    # scan: [float]
-    base_num: [float]
-    u: [un]
-    v: [un]
-    w: [un]
-    date: [float]
+    SI: torch.tensor
+    SQ: torch.tensor
+    SU: torch.tensor
+    SV: torch.tensor
+    num: torch.tensor
+    base_num: torch.tensor
+    u: torch.tensor
+    v: torch.tensor
+    w: torch.tensor
+    date: torch.tensor
 
     def __getitem__(self, i):
         return Visibilities(*[getattr(self, f.name)[i] for f in fields(self)])
