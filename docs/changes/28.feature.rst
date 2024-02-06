@@ -1,0 +1,11 @@
+- implement GPU support for visibility calculations
+- new grid mode:
+  - when more than one visibility falls into the same pixel, only the first is calculated
+  - define grid before calculation
+- new dense mode:
+  - calculate visibilities for a dense uv grid
+  - simulate ideal interferometer response
+- add sensitivity cut in image space:
+  - avoid calculation of pixel values below detection threshold
+  - significantly speed-up simulations
+- add torch compile to RIME functions
