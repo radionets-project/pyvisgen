@@ -119,44 +119,36 @@ def create_vis_hdu(data, conf, layout="vlba", source_name="sim-source-0"):
 
 def create_time_hdu(data):
     TIME = np.array(
-        [
-            data[data.scan == i].date.mean() - int(data.date.min())
-            for i in np.unique(data.scan)
-        ],
+        [data.date.mean() - int(data.date.min())],
         dtype=">f4",
     )
     col1 = fits.Column(name="TIME", format="1E", unit="days", array=TIME)
 
     TIME_INTERVAL = np.array(
-        [
-            (data[data.scan == i].date.max() - data[data.scan == i].date.min())
-            for i in np.unique(data.scan)
-        ],
+        [data.date.max() - data.date.min()],
         dtype=">f4",
     )
     col2 = fits.Column(
         name="TIME INTERVAL", format="1E", unit="days", array=TIME_INTERVAL
     )
 
-    SOURCE_ID = np.ones(
-        len(np.unique(data.scan)), dtype=">i4"
-    )  # always the same source
+    SOURCE_ID = np.ones((1), dtype=">i4")  # always the same source
     col3 = fits.Column(name="SOURCE ID", format="1J", unit=" ", array=SOURCE_ID)
 
-    SUBARRAY = np.ones(len(np.unique(data.scan)), dtype=">i4")  # always same array
+    SUBARRAY = np.ones((1), dtype=">i4")  # always same array
     col4 = fits.Column(name="SUBARRAY", format="1J", unit=" ", array=SUBARRAY)
 
-    FREQ_ID = np.ones(len(np.unique(data.scan)), dtype=">i4")  # always same frequencies
+    FREQ_ID = np.ones((1), dtype=">i4")  # always same frequencies
     col5 = fits.Column(name="FREQ ID", format="1J", unit=" ", array=FREQ_ID)
 
     START_VIS = np.array(
-        [data[data.scan == i].num.min() for i in np.unique(data.scan)],
+        [data.num.min()],
         dtype=">i4",
     )
     col6 = fits.Column(name="START VIS", format="1J", unit=" ", array=START_VIS)
 
     END_VIS = np.array(
-        [data[data.scan == i].num.max() for i in np.unique(data.scan)],
+        [data.num.max()],
         dtype=">i4",
     )
     col7 = fits.Column(name="END VIS", format="1J", unit=" ", array=END_VIS)
