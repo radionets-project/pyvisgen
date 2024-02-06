@@ -44,7 +44,7 @@ def vis_loop(obs, SI, num_threads=10, noisy=True, mode="full"):
 
     SI = SI.permute(dims=(1, 2, 0)).to(torch.device(obs.device))
     if obs.sensitivity_cut:
-        mask = SI > 1e-6
+        mask = SI > obs.cut_value
         SI = SI[mask].unsqueeze(-1)
         lm = obs.lm[torch.repeat_interleave(mask, 2, dim=-1)].reshape(-1, 2)
     else:

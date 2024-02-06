@@ -101,6 +101,8 @@ def create_observation(conf):
         array_layout=rc["layout"],
         corrupted=rc["corrupted"],
         device=rc["device"],
+        sensitivity_cut=rc["sensitivity_cut"],
+        cut_value=rc["cut_value"],
     )
     return obs, rc
 
@@ -183,6 +185,8 @@ def draw_sampling_opts(conf):
             conf["bandwidths"],
             conf["corrupted"],
             conf["device"],
+            conf["sensitivty_cut"],
+            conf["cut_value"],
         ],
         dtype="object",
     )
@@ -203,6 +207,8 @@ def draw_sampling_opts(conf):
         "bandwidths": opts[13],
         "corrupted": opts[14],
         "device": opts[15],
+        "sensitivity_cut": opts[16],
+        "cut_value": opts[17],
     }
     return samp_ops
 

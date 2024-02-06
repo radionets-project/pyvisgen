@@ -171,6 +171,7 @@ class Observation:
         device,
         dense=False,
         sensitivity_cut=True,
+        cut_value=1e-6,
     ):
         self.ra = torch.tensor(src_ra).float()
         self.dec = torch.tensor(src_dec).float()
@@ -204,6 +205,7 @@ class Observation:
 
         self.corrupted = corrupted
         self.sensitivity_cut = sensitivity_cut
+        self.cut_value = cut_value
         self.device = torch.device(device)
 
         self.array = layouts.get_array_layout(array_layout)
