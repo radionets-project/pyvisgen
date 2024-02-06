@@ -38,6 +38,9 @@ class Visibilities:
 
 
 def vis_loop(obs, SI, num_threads=10, noisy=True, mode="full"):
+    import torch._dynamo
+
+    torch._dynamo.config.suppress_errors = True
     torch.set_num_threads(num_threads)
 
     SI = SI.permute(dims=(1, 2, 0)).to(torch.device(obs.device))
@@ -61,18 +64,18 @@ def vis_loop(obs, SI, num_threads=10, noisy=True, mode="full"):
     vis_num = torch.zeros(1)
     if mode == "full":
         bas = obs.baselines.get_valid_subset(obs.num_baselines, obs.device)
-    if mode == "grid":
+    elif mode == "grid":
         bas = obs.baselines.get_valid_subset(
             obs.num_baselines, obs.device
         ).get_unique_grid(obs.fov, obs.ref_frequency, obs.img_size, obs.device)
-    if mode == "dense":
+    elif mode == "dense":
         if obs.device == torch.device("cpu"):
-            raise "Only available for GPU calculations!"
+            raise ValueError("Only available for GPU calculations!")
         bas = obs.dense_baselines_gpu
+    else:
+        raise ValueError("Unsupported mode!")
 
-    from tqdm import tqdm
-
-    for p in tqdm(torch.arange(bas[:].shape[1]).split(500)):
+    for p in torch.arange(bas[:].shape[1]).split(500):
         bas_p = bas[:][:, p]
 
         int_values = torch.cat(
