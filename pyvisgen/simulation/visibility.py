@@ -1,6 +1,7 @@
 from dataclasses import dataclass, fields
 
 import torch
+import torch._dynamo
 
 import pyvisgen.simulation.scan as scan
 
@@ -38,10 +39,9 @@ class Visibilities:
 
 
 def vis_loop(obs, SI, num_threads=10, noisy=True, mode="full"):
-    import torch._dynamo
-
-    torch._dynamo.config.suppress_errors = True
     torch.set_num_threads(num_threads)
+    if obs.device == "cpu":
+        torch._dynamo.config.suppress_errors = True
 
     SI = SI.permute(dims=(1, 2, 0)).to(torch.device(obs.device))
     mask = SI > obs.sensitivity_cut
