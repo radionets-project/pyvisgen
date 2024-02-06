@@ -17,7 +17,7 @@ def read_data_set_conf(conf_toml):
     config = toml.load(conf_toml)
     conf = {}
 
-    conf["mode"] = (config["sampling_options"]["mode"],)
+    conf["mode"] = config["sampling_options"]["mode"]
     conf["device"] = config["sampling_options"]["device"]
     conf["layout"] = (config["sampling_options"]["layout"],)
     conf["img_size"] = (config["sampling_options"]["img_size"],)
