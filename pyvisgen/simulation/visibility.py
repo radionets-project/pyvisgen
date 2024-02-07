@@ -125,10 +125,6 @@ def calc_vis(bas, lm, spw_low, spw_high, SI, corrupted=False, device="cpu"):
         print("Currently not supported!")
         return -1
     else:
-        # rime = scan.RIME_uncorrupted(
-        #    bas, obs, spw_low, spw_high, device=device, grad=False
-        # )
-        # int_values = rime(SI)
         int_values = scan.rime(SI, bas, lm, spw_low, spw_high)
     return int_values
 
