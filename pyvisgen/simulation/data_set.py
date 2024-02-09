@@ -159,7 +159,7 @@ def draw_sampling_opts(conf):
     num_scans = np.random.randint(conf["num_scans"][0], conf["num_scans"][1])
     opts = np.array(
         [
-            conf["mode"][0],
+            conf["mode"],
             conf["layout"][0],
             conf["img_size"][0],
             fov_center_ra,
