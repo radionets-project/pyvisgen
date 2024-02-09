@@ -70,6 +70,7 @@ def vis_loop(obs, SI, num_threads=10, noisy=True, mode="full"):
     elif mode == "dense":
         if obs.device == torch.device("cpu"):
             raise ValueError("Only available for GPU calculations!")
+        obs.calc_dense_baselines()
         bas = obs.dense_baselines_gpu
     else:
         raise ValueError("Unsupported mode!")
