@@ -256,20 +256,20 @@ def grid_data(uv_data, freq_data, conf):
         conf["fov_size"] * np.pi / (3600 * 180)
     )  # hard code #default 0.00018382, FoV from VLBA 163.7 <- wrong!
     # depends on setting of simulations
-    delta = 1 / fov
+    delta = 1 / fov * const.c.value / conf["ref_frequency"]
 
     bins = np.arange(start=-(N / 2) * delta, stop=(N / 2 + 1) * delta, step=delta)
     if len(bins) - 1 > N:
         bins = np.delete(bins, -1)
 
-    mask, *_ = np.histogram2d(samps[0], samps[1], bins=[bins, bins], normed=False)
+    mask, *_ = np.histogram2d(samps[0], samps[1], bins=[bins, bins], density=False)
     mask[mask == 0] = 1
 
     mask_real, x_edges, y_edges = np.histogram2d(
-        samps[0], samps[1], bins=[bins, bins], weights=samps[2], normed=False
+        samps[0], samps[1], bins=[bins, bins], weights=samps[2], density=False
     )
     mask_imag, x_edges, y_edges = np.histogram2d(
-        samps[0], samps[1], bins=[bins, bins], weights=samps[3], normed=False
+        samps[0], samps[1], bins=[bins, bins], weights=samps[3], density=False
     )
 
     mask_real /= mask
