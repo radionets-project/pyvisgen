@@ -59,7 +59,7 @@ def simulate_data_set(config, slurm=False, job_id=None, n=None):
             SIs = get_images(data, i)
 
             for j, SI in enumerate(tqdm(SIs)):
-                obs, samp_obs = create_observation(conf)
+                obs, samp_ops = create_observation(conf)
                 vis_data = vis_loop(obs, SI, noisy=conf["noisy"], mode=conf["mode"])
 
                 out = out_path / Path("vis_" + str(j) + ".fits")
