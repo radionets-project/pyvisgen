@@ -252,11 +252,11 @@ def grid_data(uv_data, freq_data, conf):
     )
     # Generate Mask
     N = conf["grid_size"]  # image size
-    fov = (
-        conf["fov_size"] * np.pi / (3600 * 180)
-    )  # hard code #default 0.00018382, FoV from VLBA 163.7 <- wrong!
-    # depends on setting of simulations
-    delta = 1 / fov * const.c.value / conf["ref_frequency"]
+    fov = conf["fov_size"] * np.pi / (3600 * 180)
+
+    delta_l = fov / N
+    # print("delta l: ", delta_l*3600*180/np.pi)
+    delta = (N * delta_l) ** (-1)
 
     bins = np.arange(start=-(N / 2) * delta, stop=(N / 2 + 1) * delta, step=delta)
     if len(bins) - 1 > N:

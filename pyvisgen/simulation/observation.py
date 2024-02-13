@@ -227,8 +227,9 @@ class Observation:
         N = self.img_size - 1
         px = int(N * (N // 2 + 1))
         fov = self.fov * pi / (3600 * 180)
+        delta_l = fov / N
+        delta = (N * delta_l) ** (-1)
 
-        delta = 1 / fov * const.c.value / self.ref_frequency
         u_dense = (
             torch.arange(
                 start=-(N / 2) * delta,
