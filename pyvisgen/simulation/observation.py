@@ -225,10 +225,9 @@ class Observation:
 
     def calc_dense_baselines(self):
         N = self.img_size - 1
-        px = int(N * (N // 2 + 1))
         fov = self.fov * pi / (3600 * 180)
         delta_l = fov / N
-        delta = (N * delta_l) ** (-1)
+        delta = (N * delta_l) ** (-1)  # * 3e8 / self.ref_frequency
 
         u_dense = (
             torch.arange(
@@ -238,10 +237,12 @@ class Observation:
                 device=self.device,
             ).double()[:-1]
             + delta / 2
-        )
+        )  # * 3e8 / self.ref_frequency
         v_dense = torch.arange(
             start=0 * delta, end=(N / 2 + 1) * delta, step=delta, device=self.device
-        ).double()[:-1]
+        ).double()[
+            :-1
+        ]  # * 3e8 / self.ref_frequency
         U, V = torch.meshgrid(u_dense, v_dense)
         U_start = U.ravel() - delta / 2
         U_stop = U.ravel() + delta / 2
@@ -259,8 +260,8 @@ class Observation:
                 torch.zeros(U_start.shape, device=self.device),
                 torch.zeros(U_stop.shape, device=self.device),
                 torch.zeros(U.flatten().shape, device=self.device),
-                torch.ones((px), device=self.device),
-                torch.ones((px), device=self.device),
+                torch.ones(U_start.shape, device=self.device),
+                torch.ones(U_start.shape, device=self.device),
             ]
         )
 
