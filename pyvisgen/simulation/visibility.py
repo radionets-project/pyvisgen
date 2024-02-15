@@ -103,8 +103,8 @@ def vis_loop(obs, SI, num_threads=10, noisy=True, mode="full"):
 
         int_values = torch.swapaxes(int_values, 0, 1)
 
-        if noisy:
-            noise = generate_noise(int_values.shape, obs)
+        if noisy != 0:
+            noise = generate_noise(int_values.shape, obs, noisy)
             int_values += noise
 
         vis_num = torch.arange(int_values.shape[0]) + 1 + vis_num.max()
@@ -137,7 +137,7 @@ def calc_vis(bas, lm, rd, ra, dec, ant_diam, spw_low, spw_high, SI, corrupted=Fa
     return int_values
 
 
-def generate_noise(shape, obs):
+def generate_noise(shape, obs, SEFD):
     # scaling factor for the noise
     factor = 1
 
@@ -152,11 +152,10 @@ def generate_noise(shape, obs):
 
     # taken from:
     # https://science.nrao.edu/facilities/vla/docs/manuals/oss/performance/sensitivity
-    SEFD = 420
 
     std = factor * 1 / eta * SEFD
     std /= torch.sqrt(2 * exposure * chan_width)
-    noise = torch.normal(mean=0, std=std, size=shape)
-    noise = noise + 1.0j * torch.normal(mean=0, std=std, size=shape)
+    noise = torch.normal(mean=0, std=std, size=shape, device=obs.device)
+    noise = noise + 1.0j * torch.normal(mean=0, std=std, size=shape, device=obs.device)
 
     return noise
