@@ -1,10 +1,11 @@
 from math import pi
 
 import torch
+from torch.special import bessel_j1
 
 
 @torch.compile
-def rime(img, bas, lm, spw_low, spw_high):
+def rime(img, bas, lm, rd, ra, dec, ant_diam, spw_low, spw_high, corrupted=False):
     """Calculates visibilities using RIME
 
     Parameters
@@ -26,8 +27,10 @@ def rime(img, bas, lm, spw_low, spw_high):
         Returns visibility for every baseline
     """
     with torch.no_grad():
-        K1, K2 = calc_fourier(img, bas, lm, spw_low, spw_high)
-        vis = integrate(K1, K2)
+        X1, X2 = calc_fourier(img, bas, lm, spw_low, spw_high)
+        if corrupted:
+            X1, X2 = calc_beam(X1, X2, rd, ra, dec, ant_diam, spw_low, spw_high)
+        vis = integrate(X1, X2)
     return vis
 
 
@@ -75,6 +78,71 @@ def calc_fourier(img, bas, lm, spw_low, spw_high):
     )
     del ul, vm, wn
     return torch.einsum("li,lb->lbi", img, K1), torch.einsum("li,lb->lbi", img, K2)
+
+
+@torch.compile
+def calc_beam(X1, X2, rd, ra, dec, ant_diam, spw_low, spw_high):
+    diameters = ant_diam.to(rd.device)
+    theta = angularDistance(rd, ra, dec)
+    rds = torch.einsum("s,r->rs", diameters, theta)
+
+    E1 = jinc(2 * pi / 3e8 * spw_low * rds)
+    E2 = jinc(2 * pi / 3e8 * spw_high * rds)
+
+    assert E1.shape == E2.shape
+    EX1 = torch.einsum("lb,lbi->lbi", E1, X1)
+    del X1
+    EXE1 = torch.einsum("lbi,lb->lbi", EX1, E1)
+    del EX1, E1
+    EX2 = torch.einsum("lb,lbi->lbi", E2, X2)
+    del X2
+    EXE2 = torch.einsum("lbi,lb->lbi", EX2, E2)
+    del EX2, E2
+    return EXE1, EXE2
+
+
+@torch.compile
+def angularDistance(rd, ra, dec):
+    """Calculates angular distance from source position
+
+    Parameters
+    ----------
+    rd : 3d tensor
+        every pixel containing ra and dec
+    ra : float
+        right ascension of source position
+    dec : float
+        declination of source position
+
+    Returns
+    -------
+    2d array
+        Returns angular Distance for every pixel in rd grid with respect
+        to source position
+    """
+    r = rd[:, 0] - torch.deg2rad(ra.to(rd.device))
+    d = rd[:, 1] - torch.deg2rad(dec.to(rd.device))
+    theta = torch.arcsin(torch.sqrt(r**2 + d**2))
+    return theta
+
+
+@torch.compile
+def jinc(x):
+    """Create jinc function.
+
+    Parameters
+    ----------
+    x : array
+        value of (?)
+
+    Returns
+    -------
+    array
+        value of jinc function at x
+    """
+    jinc = torch.ones(x.shape, device=x.device).double()
+    jinc[x != 0] = 2 * bessel_j1(x[x != 0]) / x[x != 0]
+    return jinc
 
 
 @torch.compile
