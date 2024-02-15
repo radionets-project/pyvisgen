@@ -252,7 +252,7 @@ def grid_data(uv_data, freq_data, conf):
     )
     # Generate Mask
     N = conf["grid_size"]  # image size
-    fov = conf["fov_size"] * np.pi / (3600 * 180)
+    fov = conf["grid_fov"] * np.pi / (3600 * 180)
 
     delta_l = fov / N
     # print("delta l: ", delta_l*3600*180/np.pi)
