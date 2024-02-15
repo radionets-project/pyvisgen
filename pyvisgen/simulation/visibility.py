@@ -39,13 +39,14 @@ class Visibilities:
 
 def vis_loop(obs, SI, num_threads=10, noisy=True, mode="full"):
     torch.set_num_threads(num_threads)
-    if obs.device == torch.device("cpu"):
-        torch._dynamo.config.suppress_errors = True
+    # if obs.device == torch.device("cpu"):
+    torch._dynamo.config.suppress_errors = True
 
     SI = SI.permute(dims=(1, 2, 0)).to(torch.device(obs.device))
-    mask = SI > obs.sensitivity_cut
+    mask = SI >= obs.sensitivity_cut
     SI = SI[mask].unsqueeze(-1)
     lm = obs.lm[torch.repeat_interleave(mask, 2, dim=-1)].reshape(-1, 2)
+    rd = obs.rd[torch.repeat_interleave(mask, 2, dim=-1)].reshape(-1, 2)
 
     # calculate vis
     visibilities = Visibilities(
@@ -75,7 +76,9 @@ def vis_loop(obs, SI, num_threads=10, noisy=True, mode="full"):
     else:
         raise ValueError("Unsupported mode!")
 
-    for p in torch.arange(bas[:].shape[1]).split(500):
+    from tqdm import tqdm
+
+    for p in tqdm(torch.arange(bas[:].shape[1]).split(500)):
         bas_p = bas[:][:, p]
 
         int_values = torch.cat(
@@ -83,11 +86,14 @@ def vis_loop(obs, SI, num_threads=10, noisy=True, mode="full"):
                 calc_vis(
                     bas_p,
                     lm,
+                    rd,
+                    obs.ra,
+                    obs.dec,
+                    torch.unique(obs.array.diam),
                     wave_low,
                     wave_high,
                     SI,
                     corrupted=obs.corrupted,
-                    device=obs.device,
                 )[None]
                 for wave_low, wave_high in zip(obs.waves_low, obs.waves_high)
             ]
@@ -121,12 +127,13 @@ def vis_loop(obs, SI, num_threads=10, noisy=True, mode="full"):
     return visibilities
 
 
-def calc_vis(bas, lm, spw_low, spw_high, SI, corrupted=False, device="cpu"):
+def calc_vis(bas, lm, rd, ra, dec, ant_diam, spw_low, spw_high, SI, corrupted=False):
     if corrupted:
-        print("Currently not supported!")
-        return -1
+        int_values = scan.rime(
+            SI, bas, lm, rd, ra, dec, ant_diam, spw_low, spw_high, corrupted=corrupted
+        )
     else:
-        int_values = scan.rime(SI, bas, lm, spw_low, spw_high)
+        int_values = scan.rime(SI, bas, lm, rd, ra, dec, ant_diam, spw_low, spw_high)
     return int_values
 
 
