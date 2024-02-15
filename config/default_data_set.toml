@@ -14,7 +14,7 @@ scan_separation = 360
 ref_frequency = 15.21e9
 frequency_offsets = [0e8, 0.8e8, 1.44e8, 2.08e8]
 bandwidths = [6.4e7, 6.4e7, 6.4e7, 6.4e7]
-noisy = false
+noisy = 0
 corrupted = false
 sensitivity_cut = 1e-6
 
@@ -26,4 +26,5 @@ num_test_images = 500
 bundle_size = 100
 train_valid_split = 0.2
 grid_size = 128
+grid_fov = 100
 amp_phase = false
