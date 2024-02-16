@@ -76,9 +76,7 @@ def vis_loop(obs, SI, num_threads=10, noisy=True, mode="full"):
     else:
         raise ValueError("Unsupported mode!")
 
-    from tqdm import tqdm
-
-    for p in tqdm(torch.arange(bas[:].shape[1]).split(500)):
+    for p in torch.arange(bas[:].shape[1]).split(500):
         bas_p = bas[:][:, p]
 
         int_values = torch.cat(
