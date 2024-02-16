@@ -55,14 +55,14 @@ def simulate_data_set(config, slurm=False, job_id=None, n=None):
         hdu_list.writeto(out, overwrite=True)
 
     else:
-        for i in range(len(data)):
+        for i in tqdm(range(len(data))):
             SIs = get_images(data, i)
 
-            for j, SI in enumerate(tqdm(SIs)):
+            for j, SI in enumerate(SIs):
                 obs, samp_ops = create_observation(conf)
                 vis_data = vis_loop(obs, SI, noisy=conf["noisy"], mode=conf["mode"])
 
-                out = out_path / Path("vis_" + str(j) + ".fits")
+                out = out_path / Path("vis_" + str(j + len(SIs) * i) + ".fits")
                 hdu_list = writer.create_hdu_list(vis_data, samp_ops)
                 hdu_list.writeto(out, overwrite=True)
 
