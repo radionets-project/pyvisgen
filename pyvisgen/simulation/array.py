@@ -20,8 +20,11 @@ class Array:
         delta_x = (
             torch.stack(
                 [
-                    val - self.array_layout.x[val - self.array_layout.x != 0]
-                    for val in self.array_layout.x
+                    val
+                    - self.array_layout.x[
+                        ~(torch.arange(len(self.array_layout.x)) == i)
+                    ]
+                    for i, val in enumerate(self.array_layout.x)
                 ]
             )
             .ravel()
@@ -30,8 +33,11 @@ class Array:
         delta_y = (
             torch.stack(
                 [
-                    val - self.array_layout.y[val - self.array_layout.y != 0]
-                    for val in self.array_layout.y
+                    val
+                    - self.array_layout.y[
+                        ~(torch.arange(len(self.array_layout.y)) == i)
+                    ]
+                    for i, val in enumerate(self.array_layout.y)
                 ]
             )
             .ravel()
@@ -40,8 +46,11 @@ class Array:
         delta_z = (
             torch.stack(
                 [
-                    val - self.array_layout.z[val - self.array_layout.z != 0]
-                    for val in self.array_layout.z
+                    val
+                    - self.array_layout.z[
+                        ~(torch.arange(len(self.array_layout.z)) == i)
+                    ]
+                    for i, val in enumerate(self.array_layout.z)
                 ]
             )
             .ravel()
