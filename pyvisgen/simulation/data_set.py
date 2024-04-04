@@ -16,6 +16,9 @@ from pyvisgen.simulation.visibility import vis_loop
 from pyvisgen.utils.config import read_data_set_conf
 from pyvisgen.utils.data import load_bundles, open_bundles
 
+np.random.seed(1337)
+torch.manual_seed(1337)
+
 
 def simulate_data_set(config, slurm=False, job_id=None, n=None):
     """
