@@ -1,15 +1,14 @@
-import h5py
-import numpy as np
 import re
 from pathlib import Path
+
+import h5py
+import numpy as np
 from natsort import natsorted
 
 
 def load_bundles(data_path):
     bundle_paths = get_bundles(data_path)
-    bundles = natsorted(
-        [path for path in bundle_paths if re.findall("skies_", path.name)]
-    )
+    bundles = natsorted([path for path in bundle_paths if re.findall(".h5", path.name)])
     return bundles
 
 
