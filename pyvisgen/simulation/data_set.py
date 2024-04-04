@@ -61,7 +61,7 @@ def simulate_data_set(config, slurm=False, job_id=None, n=None):
         for i in tqdm(range(len(data))):
             SIs = get_images(data, i)
 
-            for j, SI in enumerate(SIs):
+            for j, SI in enumerate(tqdm(SIs)):
                 obs, samp_ops = create_observation(conf)
                 vis_data = vis_loop(obs, SI, noisy=conf["noisy"], mode=conf["mode"])
 
