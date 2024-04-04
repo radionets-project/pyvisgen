@@ -224,10 +224,10 @@ class Observation:
             self.baselines.times_unique = torch.unique(self.baselines.time)
 
     def calc_dense_baselines(self):
-        N = self.img_size - 1
+        N = self.img_size
         fov = self.fov * pi / (3600 * 180)
         delta_l = fov / N
-        delta = (N * delta_l) ** (-1)  # * 3e8 / self.ref_frequency
+        delta = (N * delta_l) ** (-1) * 3e8 / self.ref_frequency
 
         u_dense = (
             torch.arange(
@@ -237,31 +237,35 @@ class Observation:
                 device=self.device,
             ).double()[:-1]
             + delta / 2
-        )  # * 3e8 / self.ref_frequency
-        v_dense = torch.arange(
-            start=0 * delta, end=(N / 2 + 1) * delta, step=delta, device=self.device
-        ).double()[
-            :-1
-        ]  # * 3e8 / self.ref_frequency
-        U, V = torch.meshgrid(u_dense, v_dense)
-        U_start = U.ravel() - delta / 2
-        U_stop = U.ravel() + delta / 2
-        V_start = V.ravel() - delta / 2
-        V_stop = V.ravel() + delta / 2
+        )
+
+        v_dense = (
+            torch.arange(
+                start=-(N / 2) * delta,
+                end=(N / 2 + 1) * delta,
+                step=delta,
+                device=self.device,
+            ).double()[:-1]
+            + delta / 2
+        )
+
+        uu, vv = torch.meshgrid(u_dense, v_dense)
+        u = uu.flatten()
+        v = vv.flatten()
 
         self.dense_baselines_gpu = torch.stack(
             [
-                U_start,
-                U_stop,
-                U.flatten(),
-                V_start,
-                V_stop,
-                V.flatten(),
-                torch.zeros(U_start.shape, device=self.device),
-                torch.zeros(U_stop.shape, device=self.device),
-                torch.zeros(U.flatten().shape, device=self.device),
-                torch.ones(U_start.shape, device=self.device),
-                torch.ones(U_start.shape, device=self.device),
+                u,
+                u,
+                u,
+                v,
+                v,
+                v,
+                torch.zeros(u.shape, device=self.device),
+                torch.zeros(u.shape, device=self.device),
+                torch.zeros(u.shape, device=self.device),
+                torch.ones(u.shape, device=self.device),
+                torch.ones(u.shape, device=self.device),
             ]
         )
 
@@ -355,14 +359,14 @@ class Observation:
         res = fov / self.img_size
 
         ra = torch.deg2rad(self.ra)
-        dec = torch.deg2rad(self.dec)
+        dec = torch.deg2rad(90 - self.dec)
+
         r = (
             torch.arange(self.img_size, device=self.device) - self.img_size / 2
         ) * res + ra
         d = (
-            -(torch.arange(self.img_size, device=self.device) - self.img_size / 2) * res
-            + dec
-        )
+            torch.arange(self.img_size, device=self.device) - self.img_size / 2
+        ) * res + dec
         _, R = torch.meshgrid((r, r), indexing="ij")
         D, _ = torch.meshgrid((d, d), indexing="ij")
         rd_grid = torch.cat([R[..., None], D[..., None]], dim=2)
@@ -383,17 +387,19 @@ class Observation:
         3d array
             Returns a 3d array with every pixel containing a l and m value
         """
+        ra = torch.deg2rad(self.ra)
+        dec = torch.deg2rad(90 - self.dec)
+
         lm_grid = torch.zeros(self.rd.shape, device=self.device)
-        lm_grid[:, :, 0] = torch.cos(self.rd[:, :, 1]) * torch.sin(
-            self.rd[:, :, 0] - torch.deg2rad(self.ra)
-        )
-        lm_grid[:, :, 1] = torch.sin(self.rd[:, :, 1]) * torch.cos(
-            torch.deg2rad(self.dec)
-        ) - torch.cos(torch.deg2rad(self.dec)) * torch.sin(
-            torch.deg2rad(self.dec)
-        ) * torch.cos(
-            self.rd[:, :, 0] - torch.deg2rad(self.ra)
-        )
+        lm_grid[:, :, 0] = (
+            torch.cos(self.rd[:, :, 1]) * torch.sin(self.rd[:, :, 0] - ra)
+        ).T
+        lm_grid[:, :, 1] = (
+            torch.sin(self.rd[:, :, 1]) * torch.cos(dec)
+            - torch.cos(self.rd[:, :, 1])
+            * torch.sin(dec)
+            * torch.cos(self.rd[:, :, 0] - ra)
+        ).T
 
         return lm_grid
 
