@@ -4,7 +4,7 @@ import torch
 from torch.special import bessel_j1
 
 
-@torch.compile
+# @torch.compile
 def rime(img, bas, lm, rd, ra, dec, ant_diam, spw_low, spw_high, corrupted=False):
     """Calculates visibilities using RIME
 
@@ -34,7 +34,7 @@ def rime(img, bas, lm, rd, ra, dec, ant_diam, spw_low, spw_high, corrupted=False
     return vis
 
 
-@torch.compile
+# @torch.compile
 def calc_fourier(img, bas, lm, spw_low, spw_high):
     """Calculates Fouriertransformation Kernel for every baseline and pixel in lm grid.
 
@@ -61,23 +61,26 @@ def calc_fourier(img, bas, lm, spw_low, spw_high):
     v_cmplt = torch.cat((bas[3], bas[4]))
     w_cmplt = torch.cat((bas[6], bas[7]))
 
-    l = lm[:, 0]
-    m = lm[:, 1]
+    l = lm[..., 0]
+    m = lm[..., 1]
     n = torch.sqrt(1 - l**2 - m**2)
 
-    ul = torch.einsum("b,i->ib", u_cmplt, l)
-    vm = torch.einsum("b,i->ib", v_cmplt, m)
-    wn = torch.einsum("b,i->ib", w_cmplt, (n - 1))
+    ul = torch.einsum("u,ij->uij", u_cmplt, l)
+    vm = torch.einsum("v,ij->vij", v_cmplt, m)
+    wn = torch.einsum("w,ij->wij", w_cmplt, (n - 1))
     del l, m, n, u_cmplt, v_cmplt, w_cmplt
 
     K1 = torch.exp(
         -2 * pi * 1j * (ul / 3e8 * spw_low + vm / 3e8 * spw_low + wn / 3e8 * spw_low)
-    )
+    )[..., None, None]
     K2 = torch.exp(
         -2 * pi * 1j * (ul / 3e8 * spw_high + vm / 3e8 * spw_high + wn / 3e8 * spw_high)
-    )
+    )[..., None, None]
     del ul, vm, wn
-    return torch.einsum("li,lb->lbi", img, K1), torch.einsum("li,lb->lbi", img, K2)
+    return img * K1, img * K2
+
+
+# return torch.einsum("li,lb->lbi", img, K1), torch.einsum("li,lb->lbi", img, K2)
 
 
 @torch.compile
@@ -162,14 +165,14 @@ def integrate(X1, X2):
     Returns visibility for every baseline
     """
     X_f = torch.stack((X1, X2))
-    int_m = torch.sum(X_f, dim=1)
+    int_m = torch.sum(X_f, dim=2)
     del X_f
     # only integrate for 1 sky dimension
     # 2d sky is reshaped to 1d by sensitivity mask
-    # int_l = torch.sum(int_m, dim=1)
-    # del int_m
-    int_f = 0.5 * torch.sum(int_m, dim=0)
+    int_l = torch.sum(int_m, dim=2)
     del int_m
+    int_f = 0.5 * torch.sum(int_l, dim=0)
+    del int_l
     X_t = torch.stack(torch.split(int_f, int(int_f.shape[0] / 2), dim=0))
     del int_f
     int_t = 0.5 * torch.sum(X_t, dim=0)
