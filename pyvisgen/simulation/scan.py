@@ -87,20 +87,23 @@ def calc_fourier(img, bas, lm, spw_low, spw_high):
 def calc_beam(X1, X2, rd, ra, dec, ant_diam, spw_low, spw_high):
     diameters = ant_diam.to(rd.device)
     theta = angularDistance(rd, ra, dec)
-    rds = torch.einsum("s,r->rs", diameters, theta)
+    rds = torch.einsum("s,rd->rds", diameters, theta)
 
     E1 = jinc(2 * pi / 3e8 * spw_low * rds)
     E2 = jinc(2 * pi / 3e8 * spw_high * rds)
 
     assert E1.shape == E2.shape
-    EX1 = torch.einsum("lb,lbi->lbi", E1, X1)
-    del X1
-    EXE1 = torch.einsum("lbi,lb->lbi", EX1, E1)
-    del EX1, E1
-    EX2 = torch.einsum("lb,lbi->lbi", E2, X2)
-    del X2
-    EXE2 = torch.einsum("lbi,lb->lbi", EX2, E2)
-    del EX2, E2
+    EXE1 = E1[..., None] * X1 * E1[..., None]
+    # torch.einsum("lmb,nlmbi->lbi", E1, X1)
+    # del X1
+    # EXE1 =
+    # torch.einsum("lbi,lb->lbi", EX1, E1)
+    del E1, X1
+    EXE2 = E2[..., None] * X2 * E2[..., None]
+    # torch.einsum("lb,lbi->lbi", E2, X2)
+    del E2, X2
+    # EXE2 = torch.einsum("lbi,lb->lbi", EX2, E2)
+    # del EX2, E2
     return EXE1, EXE2
 
 
@@ -123,8 +126,8 @@ def angularDistance(rd, ra, dec):
         Returns angular Distance for every pixel in rd grid with respect
         to source position
     """
-    r = rd[:, 0] - torch.deg2rad(ra.to(rd.device))
-    d = rd[:, 1] - torch.deg2rad(dec.to(rd.device))
+    r = rd[:, :, 0] - torch.deg2rad(ra.to(rd.device))
+    d = rd[:, :, 1] - torch.deg2rad(dec.to(rd.device))
     theta = torch.arcsin(torch.sqrt(r**2 + d**2))
     return theta
 
