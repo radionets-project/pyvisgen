@@ -79,6 +79,10 @@ def get_images(bundles, i):
 
 def create_observation(conf):
     rc = create_sampling_rc(conf)
+    dense = False
+    if rc["mode"] == "dense":
+        dense = True
+
     obs = Observation(
         src_ra=rc["fov_center_ra"],
         src_dec=rc["fov_center_dec"],
@@ -95,6 +99,7 @@ def create_observation(conf):
         array_layout=rc["layout"],
         corrupted=rc["corrupted"],
         device=rc["device"],
+        dense=dense,
         sensitivity_cut=rc["sensitivity_cut"],
     )
     return obs, rc
