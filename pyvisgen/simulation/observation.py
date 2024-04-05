@@ -211,11 +211,12 @@ class Observation:
             len(self.array.st_num) * (len(self.array.st_num) - 1) / 2
         )
 
-        self.rd = self.create_rd_grid()
-        self.lm = self.create_lm_grid()
-
         if dense:
+            self.waves_low = [self.ref_frequency]
+            self.waves_high = [self.ref_frequency]
             self.calc_dense_baselines()
+            self.ra = torch.tensor([0]).to(self.device)
+            self.dec = torch.tensor([90]).to(self.device)
         else:
             self.calc_baselines()
             self.baselines.num = int(
@@ -223,31 +224,28 @@ class Observation:
             )
             self.baselines.times_unique = torch.unique(self.baselines.time)
 
+        self.rd = self.create_rd_grid()
+        self.lm = self.create_lm_grid()
+
     def calc_dense_baselines(self):
         N = self.img_size
         fov = self.fov * pi / (3600 * 180)
         delta_l = fov / N
         delta = (N * delta_l) ** (-1) * 3e8 / self.ref_frequency
 
-        u_dense = (
-            torch.arange(
-                start=-(N / 2) * delta,
-                end=(N / 2 + 1) * delta,
-                step=delta,
-                device=self.device,
-            ).double()[:-1]
-            + delta / 2
-        )
+        u_dense = torch.arange(
+            start=-(N / 2) * delta,
+            end=(N / 2 + 1) * delta,
+            step=delta,
+            device=self.device,
+        ).double()[:-1]
 
-        v_dense = (
-            torch.arange(
-                start=-(N / 2) * delta,
-                end=(N / 2 + 1) * delta,
-                step=delta,
-                device=self.device,
-            ).double()[:-1]
-            + delta / 2
-        )
+        v_dense = torch.arange(
+            start=-(N / 2) * delta,
+            end=(N / 2 + 1) * delta,
+            step=delta,
+            device=self.device,
+        ).double()[:-1]
 
         uu, vv = torch.meshgrid(u_dense, v_dense)
         u = uu.flatten()
@@ -392,15 +390,14 @@ class Observation:
 
         lm_grid = torch.zeros(self.rd.shape, device=self.device)
         lm_grid[:, :, 0] = (
-            torch.cos(self.rd[:, :, 1]) * torch.sin(self.rd[:, :, 0] - ra)
-        ).T
+            torch.cos(self.rd[:, :, 1]) * torch.sin(self.rd[:, :, 0] - ra).T
+        )
         lm_grid[:, :, 1] = (
             torch.sin(self.rd[:, :, 1]) * torch.cos(dec)
             - torch.cos(self.rd[:, :, 1])
             * torch.sin(dec)
             * torch.cos(self.rd[:, :, 0] - ra)
         ).T
-
         return lm_grid
 
     def get_baselines(self, times):
