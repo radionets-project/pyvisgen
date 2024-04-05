@@ -4,7 +4,7 @@ import torch
 from torch.special import bessel_j1
 
 
-# @torch.compile
+@torch.compile
 def rime(img, bas, lm, rd, ra, dec, ant_diam, spw_low, spw_high, corrupted=False):
     """Calculates visibilities using RIME
 
@@ -34,7 +34,7 @@ def rime(img, bas, lm, rd, ra, dec, ant_diam, spw_low, spw_high, corrupted=False
     return vis
 
 
-# @torch.compile
+@torch.compile
 def calc_fourier(img, bas, lm, spw_low, spw_high):
     """Calculates Fouriertransformation Kernel for every baseline and pixel in lm grid.
 
