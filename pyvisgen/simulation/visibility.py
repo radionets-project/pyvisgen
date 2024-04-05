@@ -42,18 +42,28 @@ def vis_loop(obs, SI, num_threads=10, noisy=True, mode="full"):
     # if obs.device == torch.device("cpu"):
     torch._dynamo.config.suppress_errors = True
 
-    SI = SI.permute(dims=(1, 2, 0)).to(torch.device(obs.device))
-    mask = SI >= obs.sensitivity_cut
-    SI = SI[mask].unsqueeze(-1)
-    lm = obs.lm[torch.repeat_interleave(mask, 2, dim=-1)].reshape(-1, 2)
-    rd = obs.rd[torch.repeat_interleave(mask, 2, dim=-1)].reshape(-1, 2)
+    SI = SI.permute(dims=(1, 2, 0))
+    I = torch.zeros((SI.shape[0], SI.shape[1], 4), dtype=torch.cdouble)
+    I[..., 0] = SI[..., 0]
+
+    B = torch.zeros((SI.shape[0], SI.shape[1], 2, 2), dtype=torch.cdouble).to(
+        torch.device(obs.device)
+    )
+    B[:, :, 0, 0] = I[:, :, 0] + I[:, :, 1]
+    B[:, :, 0, 1] = I[:, :, 2] + 1j * I[:, :, 3]
+    B[:, :, 1, 0] = I[:, :, 2] - 1j * I[:, :, 3]
+    B[:, :, 1, 1] = I[:, :, 0] - I[:, :, 1]
+    # mask = SI >= obs.sensitivity_cut
+    # SI = SI[mask].unsqueeze(-1)
+    lm = obs.lm  # [torch.repeat_interleave(mask, 2, dim=-1)].reshape(-1, 2)
+    rd = obs.rd  # [torch.repeat_interleave(mask, 2, dim=-1)].reshape(-1, 2)
 
     # calculate vis
     visibilities = Visibilities(
-        torch.empty(size=[0] + [len(obs.frequency_offsets)]),
-        torch.empty(size=[0] + [len(obs.frequency_offsets)]),
-        torch.empty(size=[0] + [len(obs.frequency_offsets)]),
-        torch.empty(size=[0] + [len(obs.frequency_offsets)]),
+        torch.empty(size=[0] + [len(obs.waves_low)]),
+        torch.empty(size=[0] + [len(obs.waves_low)]),
+        torch.empty(size=[0] + [len(obs.waves_low)]),
+        torch.empty(size=[0] + [len(obs.waves_low)]),
         torch.tensor([]),
         torch.tensor([]),
         torch.tensor([]),
@@ -90,7 +100,7 @@ def vis_loop(obs, SI, num_threads=10, noisy=True, mode="full"):
                     torch.unique(obs.array.diam),
                     wave_low,
                     wave_high,
-                    SI,
+                    B,
                     corrupted=obs.corrupted,
                 )[None]
                 for wave_low, wave_high in zip(obs.waves_low, obs.waves_high)
@@ -108,10 +118,10 @@ def vis_loop(obs, SI, num_threads=10, noisy=True, mode="full"):
         vis_num = torch.arange(int_values.shape[0]) + 1 + vis_num.max()
 
         vis = Visibilities(
-            int_values[:, :, 0].cpu(),
-            torch.zeros(int_values[:, :, 0].shape, dtype=torch.complex128),
-            torch.zeros(int_values[:, :, 0].shape, dtype=torch.complex128),
-            torch.zeros(int_values[:, :, 0].shape, dtype=torch.complex128),
+            int_values[:, :, 0, 0].cpu(),
+            int_values[:, :, 0, 1].cpu(),
+            int_values[:, :, 1, 0].cpu(),
+            int_values[:, :, 1, 1].cpu(),
             vis_num,
             bas_p[9].cpu(),
             bas_p[2].cpu(),
