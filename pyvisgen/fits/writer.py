@@ -26,19 +26,14 @@ def create_vis_hdu(data, conf, layout="vlba", source_name="sim-source-0"):
     INTTIM = np.repeat(np.array(conf["corr_int_time"], dtype=">f4"), len(u))
 
     # visibility data
-    values = np.swapaxes(data.get_values(), 0, 1)
+    values = data.get_values()
 
-    num_ifs = values.shape[2]
+    num_ifs = values.shape[1]
 
-    vis = np.swapaxes(
-        np.swapaxes(
-            np.stack([values.real, values.imag, np.ones(values.shape)], axis=2),
-            1,
-            3,
-        ),
-        2,
-        3,
-    ).reshape(-1, 1, 1, num_ifs, 1, 4, 3)
+    vis = np.stack([values.real, values.imag, np.ones(values.shape)], axis=3).reshape(
+        -1, 1, 1, num_ifs, 1, 4, 3
+    )
+
     DATA = vis
     # in dim 4 = IFs , dim = 1, dim 4 = number of jones, 3 = real, imag, weight
 

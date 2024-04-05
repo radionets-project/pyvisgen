@@ -24,7 +24,7 @@ class Visibilities:
     def get_values(self):
         return torch.cat(
             [self.SI[None], self.SQ[None], self.SU[None], self.SV[None]], dim=0
-        )
+        ).permute(1, 2, 0)
 
     def add(self, visibilities):
         [
