@@ -216,7 +216,7 @@ class Observation:
             self.waves_high = [self.ref_frequency]
             self.calc_dense_baselines()
             self.ra = torch.tensor([0]).to(self.device)
-            self.dec = torch.tensor([90]).to(self.device)
+            self.dec = torch.tensor([0]).to(self.device)
         else:
             self.calc_baselines()
             self.baselines.num = int(
@@ -357,7 +357,7 @@ class Observation:
         res = fov / self.img_size
 
         ra = torch.deg2rad(self.ra)
-        dec = torch.deg2rad(90 - self.dec)
+        dec = torch.deg2rad(self.dec)
 
         r = (
             torch.arange(self.img_size, device=self.device) - self.img_size / 2
@@ -386,12 +386,12 @@ class Observation:
             Returns a 3d array with every pixel containing a l and m value
         """
         ra = torch.deg2rad(self.ra)
-        dec = torch.deg2rad(90 - self.dec)
+        dec = torch.deg2rad(self.dec)
 
         lm_grid = torch.zeros(self.rd.shape, device=self.device)
         lm_grid[:, :, 0] = (
-            torch.cos(self.rd[:, :, 1]) * torch.sin(self.rd[:, :, 0] - ra).T
-        )
+            torch.cos(self.rd[:, :, 1]) * torch.sin(self.rd[:, :, 0] - ra)
+        ).T
         lm_grid[:, :, 1] = (
             torch.sin(self.rd[:, :, 1]) * torch.cos(dec)
             - torch.cos(self.rd[:, :, 1])
