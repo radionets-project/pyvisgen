@@ -65,9 +65,9 @@ def calc_fourier(img, bas, lm, spw_low, spw_high):
     m = lm[..., 1]
     n = torch.sqrt(1 - l**2 - m**2)
 
-    ul = torch.einsum("u,ij->uij", u_cmplt, l)
-    vm = torch.einsum("v,ij->vij", v_cmplt, m)
-    wn = torch.einsum("w,ij->wij", w_cmplt, (n - 1))
+    ul = torch.einsum("u,i->ui", u_cmplt, l)
+    vm = torch.einsum("v,i->vi", v_cmplt, m)
+    wn = torch.einsum("w,i->wi", w_cmplt, (n - 1))
     del l, m, n, u_cmplt, v_cmplt, w_cmplt
 
     K1 = torch.exp(
@@ -87,10 +87,10 @@ def calc_fourier(img, bas, lm, spw_low, spw_high):
 def calc_beam(X1, X2, rd, ra, dec, ant_diam, spw_low, spw_high):
     diameters = ant_diam.to(rd.device)
     theta = angularDistance(rd, ra, dec)
-    rds = torch.einsum("s,rd->rds", diameters, theta)
+    tds = torch.einsum("d,t->td", diameters, theta)
 
-    E1 = jinc(2 * pi / 3e8 * spw_low * rds)
-    E2 = jinc(2 * pi / 3e8 * spw_high * rds)
+    E1 = jinc(2 * pi / 3e8 * spw_low * tds)
+    E2 = jinc(2 * pi / 3e8 * spw_high * tds)
 
     assert E1.shape == E2.shape
     EXE1 = E1[..., None] * X1 * E1[..., None]
@@ -126,8 +126,8 @@ def angularDistance(rd, ra, dec):
         Returns angular Distance for every pixel in rd grid with respect
         to source position
     """
-    r = rd[:, :, 0] - torch.deg2rad(ra.to(rd.device))
-    d = rd[:, :, 1] - torch.deg2rad(90 - dec.to(rd.device))
+    r = rd[..., 0] - torch.deg2rad(ra.to(rd.device))
+    d = rd[..., 1] - torch.deg2rad(dec.to(rd.device))
     theta = torch.arcsin(torch.sqrt(r**2 + d**2))
     return theta
 
@@ -172,10 +172,10 @@ def integrate(X1, X2):
     del X_f
     # only integrate for 1 sky dimension
     # 2d sky is reshaped to 1d by sensitivity mask
-    int_l = torch.sum(int_m, dim=2)
+    # int_l = torch.sum(int_m, dim=2)
+    # del int_m
+    int_f = 0.5 * torch.sum(int_m, dim=0)
     del int_m
-    int_f = 0.5 * torch.sum(int_l, dim=0)
-    del int_l
     X_t = torch.stack(torch.split(int_f, int(int_f.shape[0] / 2), dim=0))
     del int_f
     int_t = 0.5 * torch.sum(X_t, dim=0)
