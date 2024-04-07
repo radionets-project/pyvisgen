@@ -53,10 +53,10 @@ def vis_loop(obs, SI, num_threads=10, noisy=True, mode="full"):
     B[:, :, 0, 1] = I[:, :, 2] + 1j * I[:, :, 3]
     B[:, :, 1, 0] = I[:, :, 2] - 1j * I[:, :, 3]
     B[:, :, 1, 1] = I[:, :, 0] - I[:, :, 1]
-    # mask = SI >= obs.sensitivity_cut
-    # SI = SI[mask].unsqueeze(-1)
-    lm = obs.lm  # [torch.repeat_interleave(mask, 2, dim=-1)].reshape(-1, 2)
-    rd = obs.rd  # [torch.repeat_interleave(mask, 2, dim=-1)].reshape(-1, 2)
+    mask = (SI >= obs.sensitivity_cut)[..., 0]
+    B = B[mask] * 0.5
+    lm = obs.lm[mask]
+    rd = obs.rd[mask]
 
     # calculate vis
     visibilities = Visibilities(
