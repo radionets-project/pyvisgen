@@ -28,11 +28,9 @@ def create_vis_hdu(data, conf, layout="vlba", source_name="sim-source-0"):
     # visibility data
     values = data.get_values()
 
-    num_ifs = values.shape[1]
-
-    vis = np.stack([values.real, values.imag, np.ones(values.shape)], axis=3).reshape(
-        -1, 1, 1, num_ifs, 1, 4, 3
-    )
+    vis = np.stack([values.real, values.imag, np.ones(values.shape)], axis=3)[
+        :, None, None, :, None, ...
+    ]
 
     DATA = vis
     # in dim 4 = IFs , dim = 1, dim 4 = number of jones, 3 = real, imag, weight
