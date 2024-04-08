@@ -207,8 +207,10 @@ def ducc0_gridding(uv_data, freq_data):
 
 def grid_data(uv_data, freq_data, conf):
     cmplx = uv_data["DATA"]
-    real = np.squeeze(cmplx[..., 0, 0, 0])
-    imag = np.squeeze(cmplx[..., 0, 0, 1])
+    # real and imag for Stokes I, linear feed
+    real = np.squeeze(cmplx[..., 0, 0, 0]) + np.squeeze(cmplx[..., 0, 3, 0])
+    imag = np.squeeze(cmplx[..., 0, 0, 1]) + np.squeeze(cmplx[..., 0, 3, 1])
+
     # visibility weighting not yet implemented
     # weight = np.squeeze(cmplx[..., 0, 2])
 
