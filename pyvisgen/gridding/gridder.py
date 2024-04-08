@@ -51,8 +51,6 @@ def create_gridded_data_set(config):
 
             out = out_path / Path("samp_test" + str(i) + ".h5")
 
-            # rescaled to level Stokes I
-            gridded_data_test /= 2
             save_fft_pair(out, gridded_data_test, truth_amp_phase_test)
     #
     ###################
@@ -73,18 +71,6 @@ def create_gridded_data_set(config):
 
         truth_fft_train = calc_truth_fft(sky_dist_train)
 
-        # sim_real_imag_train = np.array(
-        #     (gridded_data_train[:, 0] + 1j * gridded_data_train[:, 1])
-        # )
-        # dirty_image_train = np.abs(
-        #     np.fft.fftshift(
-        #         np.fft.fft2(
-        #             np.fft.fftshift(sim_real_imag_train, axes=(1, 2)), axes=(1, 2)
-        #         ),
-        #         axes=(1, 2),
-        #     )
-        # )
-
         if conf["amp_phase"]:
             gridded_data_train = convert_amp_phase(gridded_data_train, sky_sim=False)
             truth_amp_phase_train = convert_amp_phase(truth_fft_train, sky_sim=True)
@@ -94,8 +80,6 @@ def create_gridded_data_set(config):
 
         out = out_path / Path("samp_train" + str(i - bundle_test) + ".h5")
 
-        # rescaled to level Stokes I
-        gridded_data_train /= 2
         save_fft_pair(out, gridded_data_train, truth_amp_phase_train)
         train_index_last = i
     #
@@ -120,8 +104,6 @@ def create_gridded_data_set(config):
 
         out = out_path / Path("samp_valid" + str(i - train_index_last) + ".h5")
 
-        # rescaled to level Stokes I
-        gridded_data_valid /= 2
         save_fft_pair(out, gridded_data_valid, truth_amp_phase_valid)
     #
     ###################
@@ -275,8 +257,8 @@ def grid_data(uv_data, freq_data, conf):
     mask_real /= mask
     mask_imag /= mask
 
-    mask_real = np.rot90(mask_real, 1)
-    mask_imag = np.rot90(mask_imag, 1)
+    # mask_real = np.rot90(mask_real, 1)
+    # mask_imag = np.rot90(mask_imag, 1)
 
     gridded_vis = np.zeros((2, N, N))
     gridded_vis[0] = mask_real
