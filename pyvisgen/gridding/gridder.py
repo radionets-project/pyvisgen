@@ -51,8 +51,6 @@ def create_gridded_data_set(config):
 
             out = out_path / Path("samp_test" + str(i) + ".h5")
 
-            # rescaled to level Stokes I
-            gridded_data_test /= 2
             save_fft_pair(out, gridded_data_test, truth_amp_phase_test)
     #
     ###################
@@ -73,18 +71,6 @@ def create_gridded_data_set(config):
 
         truth_fft_train = calc_truth_fft(sky_dist_train)
 
-        # sim_real_imag_train = np.array(
-        #     (gridded_data_train[:, 0] + 1j * gridded_data_train[:, 1])
-        # )
-        # dirty_image_train = np.abs(
-        #     np.fft.fftshift(
-        #         np.fft.fft2(
-        #             np.fft.fftshift(sim_real_imag_train, axes=(1, 2)), axes=(1, 2)
-        #         ),
-        #         axes=(1, 2),
-        #     )
-        # )
-
         if conf["amp_phase"]:
             gridded_data_train = convert_amp_phase(gridded_data_train, sky_sim=False)
             truth_amp_phase_train = convert_amp_phase(truth_fft_train, sky_sim=True)
@@ -94,8 +80,6 @@ def create_gridded_data_set(config):
 
         out = out_path / Path("samp_train" + str(i - bundle_test) + ".h5")
 
-        # rescaled to level Stokes I
-        gridded_data_train /= 2
         save_fft_pair(out, gridded_data_train, truth_amp_phase_train)
         train_index_last = i
     #
@@ -120,8 +104,6 @@ def create_gridded_data_set(config):
 
         out = out_path / Path("samp_valid" + str(i - train_index_last) + ".h5")
 
-        # rescaled to level Stokes I
-        gridded_data_valid /= 2
         save_fft_pair(out, gridded_data_valid, truth_amp_phase_valid)
     #
     ###################
@@ -163,8 +145,6 @@ def open_data(fits_files, sky_dist, conf, i):
 
 
 def calc_truth_fft(sky_dist):
-    # norm = np.sum(np.sum(sky_dist_test, keepdims=True, axis=1), axis=2)
-    # sky_dist_test = np.expand_dims(sky_dist_test, -1) / norm[:, None, None]
     truth_fft = np.fft.fftshift(
         np.fft.fft2(np.fft.fftshift(sky_dist, axes=(1, 2)), axes=(1, 2)), axes=(1, 2)
     )
@@ -227,8 +207,11 @@ def ducc0_gridding(uv_data, freq_data):
 
 def grid_data(uv_data, freq_data, conf):
     cmplx = uv_data["DATA"]
-    real = np.squeeze(cmplx[..., 0, 0, 0])  # .ravel()
-    imag = np.squeeze(cmplx[..., 0, 0, 1])  # .ravel()
+    # real and imag for Stokes I, linear feed
+    real = np.squeeze(cmplx[..., 0, 0, 0]) + np.squeeze(cmplx[..., 0, 3, 0])
+    imag = np.squeeze(cmplx[..., 0, 0, 1]) + np.squeeze(cmplx[..., 0, 3, 1])
+
+    # visibility weighting not yet implemented
     # weight = np.squeeze(cmplx[..., 0, 2])
 
     freq = freq_data[1]
@@ -255,7 +238,6 @@ def grid_data(uv_data, freq_data, conf):
     fov = conf["grid_fov"] * np.pi / (3600 * 180)
 
     delta_l = fov / N
-    # print("delta l: ", delta_l*3600*180/np.pi)
     delta = (N * delta_l) ** (-1)
 
     bins = np.arange(start=-(N / 2) * delta, stop=(N / 2 + 1) * delta, step=delta)
@@ -274,9 +256,6 @@ def grid_data(uv_data, freq_data, conf):
 
     mask_real /= mask
     mask_imag /= mask
-
-    mask_real = np.rot90(mask_real, 1)
-    mask_imag = np.rot90(mask_imag, 1)
 
     gridded_vis = np.zeros((2, N, N))
     gridded_vis[0] = mask_real
