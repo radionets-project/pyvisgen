@@ -235,7 +235,6 @@ def grid_data(uv_data, freq_data, conf):
     fov = conf["grid_fov"] * np.pi / (3600 * 180)
 
     delta_l = fov / N
-    # print("delta l: ", delta_l*3600*180/np.pi)
     delta = (N * delta_l) ** (-1)
 
     bins = np.arange(start=-(N / 2) * delta, stop=(N / 2 + 1) * delta, step=delta)
@@ -254,9 +253,6 @@ def grid_data(uv_data, freq_data, conf):
 
     mask_real /= mask
     mask_imag /= mask
-
-    # mask_real = np.rot90(mask_real, 1)
-    # mask_imag = np.rot90(mask_imag, 1)
 
     gridded_vis = np.zeros((2, N, N))
     gridded_vis[0] = mask_real
