@@ -39,13 +39,14 @@ class Visibilities:
 
 def vis_loop(obs, SI, num_threads=10, noisy=True, mode="full"):
     torch.set_num_threads(num_threads)
-    # if obs.device == torch.device("cpu"):
     torch._dynamo.config.suppress_errors = True
 
+    # define unpolarized sky distribution
     SI = SI.permute(dims=(1, 2, 0))
     I = torch.zeros((SI.shape[0], SI.shape[1], 4), dtype=torch.cdouble)
     I[..., 0] = SI[..., 0]
 
+    # define 2 x 2 Stokes matrix ((I + Q, iU + V), (iU -V, I - Q))
     B = torch.zeros((SI.shape[0], SI.shape[1], 2, 2), dtype=torch.cdouble).to(
         torch.device(obs.device)
     )
@@ -53,10 +54,16 @@ def vis_loop(obs, SI, num_threads=10, noisy=True, mode="full"):
     B[:, :, 0, 1] = I[:, :, 2] + 1j * I[:, :, 3]
     B[:, :, 1, 0] = I[:, :, 2] - 1j * I[:, :, 3]
     B[:, :, 1, 1] = I[:, :, 0] - I[:, :, 1]
+
+    # calculations only for px > sensitivity cut
     mask = (SI >= obs.sensitivity_cut)[..., 0]
-    B = B[mask] * 0.5
+    B = B[mask]
     lm = obs.lm[mask]
     rd = obs.rd[mask]
+
+    # normalize visibilities to factor 0.5,
+    # so that the Stokes I image is normalized to 1
+    B *= 0.5
 
     # calculate vis
     visibilities = Visibilities(
@@ -86,7 +93,7 @@ def vis_loop(obs, SI, num_threads=10, noisy=True, mode="full"):
     else:
         raise ValueError("Unsupported mode!")
 
-    for p in torch.arange(bas[:].shape[1]).split(250):
+    for p in torch.arange(bas[:].shape[1]).split(1000):
         bas_p = bas[:][:, p]
 
         int_values = torch.cat(
