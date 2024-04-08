@@ -145,8 +145,6 @@ def open_data(fits_files, sky_dist, conf, i):
 
 
 def calc_truth_fft(sky_dist):
-    # norm = np.sum(np.sum(sky_dist_test, keepdims=True, axis=1), axis=2)
-    # sky_dist_test = np.expand_dims(sky_dist_test, -1) / norm[:, None, None]
     truth_fft = np.fft.fftshift(
         np.fft.fft2(np.fft.fftshift(sky_dist, axes=(1, 2)), axes=(1, 2)), axes=(1, 2)
     )
