@@ -240,9 +240,14 @@ def grid_data(uv_data, freq_data, conf):
     delta_l = fov / N
     delta = (N * delta_l) ** (-1)
 
-    bins = np.arange(start=-(N / 2) * delta, stop=(N / 2 + 1) * delta, step=delta)
-    if len(bins) - 1 > N:
-        bins = np.delete(bins, -1)
+    # bins are shifted by delta/2 so that maximum in uv space matches maximum
+    # in numpy fft
+    bins = (
+        np.arange(start=-(N / 2) * delta, stop=(N / 2 + 1) * delta, step=delta)
+        - delta / 2
+    )
+    # if len(bins) - 1 > N:
+    #   bins = np.delete(bins, -1)
 
     mask, *_ = np.histogram2d(samps[0], samps[1], bins=[bins, bins], density=False)
     mask[mask == 0] = 1
@@ -257,6 +262,7 @@ def grid_data(uv_data, freq_data, conf):
     mask_real /= mask
     mask_imag /= mask
 
+    assert mask_real.shape == (conf["grid_size"], conf["grid_size"])
     gridded_vis = np.zeros((2, N, N))
     gridded_vis[0] = mask_real
     gridded_vis[1] = mask_imag
