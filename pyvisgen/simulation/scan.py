@@ -65,9 +65,9 @@ def calc_fourier(img, bas, lm, spw_low, spw_high):
     m = lm[..., 1]
     n = torch.sqrt(1 - l**2 - m**2)
 
-    ul = torch.einsum("u,i->ui", u_cmplt, l)
-    vm = torch.einsum("v,i->vi", v_cmplt, m)
-    wn = torch.einsum("w,i->wi", w_cmplt, (n - 1))
+    ul = u_cmplt[..., None] * l
+    vm = v_cmplt[..., None] * m
+    wn = w_cmplt[..., None] * (n - 1)
     del l, m, n, u_cmplt, v_cmplt, w_cmplt
 
     K1 = torch.exp(
@@ -84,7 +84,7 @@ def calc_fourier(img, bas, lm, spw_low, spw_high):
 def calc_beam(X1, X2, rd, ra, dec, ant_diam, spw_low, spw_high):
     diameters = ant_diam.to(rd.device)
     theta = angularDistance(rd, ra, dec)
-    tds = torch.einsum("d,t->td", diameters, theta)
+    tds = diameters * theta[..., None]
 
     E1 = jinc(2 * pi / 3e8 * spw_low * tds)
     E2 = jinc(2 * pi / 3e8 * spw_high * tds)
