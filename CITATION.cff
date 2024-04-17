@@ -1,0 +1,28 @@
+# Metadata for citation of this software according to the CFF format (https://citation-file-format.github.io/)
+cff-version: 1.2.0
+title: "pyvisgen: Simulate observations with radio interferometers and generate complex visibilities."
+# abstract: 
+type: software
+message: "If you use this software, please cite it as below."
+# url: 
+doi: 10.5281/zenodo.10091310
+keywords:
+- Astronomy
+- "Data analysis"
+version: "v0.1.4"
+date-released: 2023-11-09
+repository-code: "https://github.com/radionets-project/pyvisgen"
+license: "MIT License"
+authors:
+- family-names: Schmidt
+  given-names: Kevin
+  affiliation: "TU Dortmund University, Germany"
+  orcid: "https://orcid.org/0000-0002-9883-4454"
+- family-names: Fröse
+  given-names: Stefan 
+  affiliation: "TU Dortmund University, Germany"
+  orcid: "https://orcid.org/0000-0003-1832-4129"
+- family-names: Geyer
+  given-names: Felix
+  affiliation: "TU Dortmund University, Germany"
+  orcid: "https://orcid.org/0000-0002-5615-2498"
