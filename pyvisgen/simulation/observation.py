@@ -310,7 +310,7 @@ class Observation:
         # calculate elevations
         el_st_all = src_crd.transform_to(
             AltAz(
-                obstime=time.reshape(len(time), -1),
+                obstime=time[..., None],
                 location=EarthLocation.from_geocentric(
                     torch.repeat_interleave(self.array.x[None], len(time), dim=0),
                     torch.repeat_interleave(self.array.y[None], len(time), dim=0),
@@ -360,10 +360,10 @@ class Observation:
         dec = torch.deg2rad(self.dec)
 
         r = (
-            torch.arange(self.img_size, device=self.device) - self.img_size / 2
+            torch.arange(self.img_size) - self.img_size / 2
         ) * res + ra
         d = (
-            torch.arange(self.img_size, device=self.device) - self.img_size / 2
+            torch.arange(self.img_size) - self.img_size / 2
         ) * res + dec
         _, R = torch.meshgrid((r, r), indexing="ij")
         D, _ = torch.meshgrid((d, d), indexing="ij")
