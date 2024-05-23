@@ -77,6 +77,12 @@ def get_array_layout(array_name, writer=False):
         array["Y"] += loc.value[1]
         array["Z"] += loc.value[2]
 
+    if array_name == "test_layout":
+        loc = EarthLocation.of_address("dortmund")
+        array["X"] += loc.value[0]
+        array["Y"] += loc.value[1]
+        array["Z"] += loc.value[2]
+
     stations = Stations(
         torch.arange(len(array)),
         torch.tensor(array["X"].values),
