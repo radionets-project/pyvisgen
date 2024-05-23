@@ -246,8 +246,8 @@ def grid_data(uv_data, freq_data, conf):
         np.arange(start=-(N / 2) * delta, stop=(N / 2 + 1) * delta, step=delta)
         - delta / 2
     )
-    # if len(bins) - 1 > N:
-    #   bins = np.delete(bins, -1)
+    if len(bins) > N + 1:
+        bins = np.delete(bins, -1)
 
     mask, *_ = np.histogram2d(samps[0], samps[1], bins=[bins, bins], density=False)
     mask[mask == 0] = 1
