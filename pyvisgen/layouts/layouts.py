@@ -70,7 +70,7 @@ def get_array_layout(array_name, writer=False):
         Station infos combinde in dataclass
     """
     f = array_name + ".txt"
-    array = pd.read_csv(file_dir / f, sep=" ")
+    array = pd.read_csv(file_dir / f, sep="\s+")
     if array_name == "vla":
         loc = EarthLocation.of_site("VLA")
         array["X"] += loc.value[0]
@@ -98,3 +98,23 @@ def get_array_layout(array_name, writer=False):
         return array
     else:
         return stations
+
+
+def get_array_names() -> list[str]:
+    """Get list of names of arrays for use with
+    `~pyvisgen.simulation.Observation` and various
+    other methods.
+
+    Returns
+    -------
+    names : list[str]
+        Names of arrays available for use in pyvisgen.
+
+    See Also
+    --------
+    get_array_layout : Gets the locations of the telescopes
+        for one of the array names this returns.
+    """
+    return list(file.stem for file in file_dir.glob("*.txt"))
+
+    
