@@ -237,8 +237,7 @@ def grid_data(uv_data, freq_data, conf):
     N = conf["grid_size"]  # image size
     fov = conf["grid_fov"] * np.pi / (3600 * 180)
 
-    delta_l = fov / N
-    delta = (N * delta_l) ** (-1)
+    delta = 1 / fov
 
     # bins are shifted by delta/2 so that maximum in uv space matches maximum
     # in numpy fft
