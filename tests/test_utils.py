@@ -5,14 +5,33 @@ def test_read_config():
 
     assert type(conf) == dict
     assert list(conf.keys()) == [
-        "src_coord",
+        "mode",
+        "device",
+        "layout",
+        "img_size",
+        "fov_center_ra",
+        "fov_center_dec",
         "fov_size",
         "corr_int_time",
         "scan_start",
         "scan_duration",
-        "scans",
-        "channel",
-        "interval_length",
+        "num_scans",
+        "scan_separation",
+        "ref_frequency",
+        "frequency_offsets",
+        "bandwidths",
+        "corrupted",
+        "noisy",
+        "sensitivty_cut",
+        "num_test_images",
+        "bundle_size",
+        "train_valid_split",
+        "grid_size",
+        "grid_fov",
+        "amp_phase",
+        "in_path",
+        "out_path_fits",
+        "out_path_gridded",
     ]
 
 
