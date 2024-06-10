@@ -12,10 +12,10 @@ scan_duration = [0, 50]
 num_scans = [2, 3]
 scan_separation = 1200
 ref_frequency = 15.21e9
-spectral_windows = [0e8, 0.8e8, 1.44e8, 2.08e8]
+frequency_offsets = [0e8, 0.8e8, 1.44e8, 2.08e8]
 bandwidths = [6.4e7, 6.4e7, 6.4e7, 6.4e7]
-corrupted = true
 noisy = 380
+corrupted = true
 sensitivity_cut = 1e-6
 
 [bundle_options]
