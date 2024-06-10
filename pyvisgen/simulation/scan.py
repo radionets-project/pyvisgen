@@ -138,7 +138,7 @@ def jinc(x):
     array
         value of jinc function at x
     """
-    jinc = torch.ones(x.shape, device=x.device).double()
+    jinc = torch.ones(x.shape, device=x.device).float()
     jinc[x != 0] = 2 * bessel_j1(x[x != 0]) / x[x != 0]
     return jinc
 
