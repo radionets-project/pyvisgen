@@ -11,8 +11,8 @@ Bug Fixes
 
   - fix baseline num calculation
   - fix wavelength scaling
-  - fix lm grid calculaion
-  - fix gridding for so that it fits the numpy fft gridding [`#28 <https://github.com/radionets-project/pyvisgen/pull/28>`__]
+  - fix lm grid calculation
+  - fix gridding so that it fits the numpy fft gridding [`#28 <https://github.com/radionets-project/pyvisgen/pull/28>`__]
 
 
 New Features
