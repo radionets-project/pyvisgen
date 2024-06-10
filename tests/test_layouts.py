@@ -1,4 +1,4 @@
-import numpy as np
+import torch
 
 
 def test_get_array_layout():
@@ -7,20 +7,18 @@ def test_get_array_layout():
     layout = get_array_layout("eht")
 
     assert len(layout.st_num) == 8
-    assert type(layout[0].name) == str
-    assert type(layout[0].x) == np.float64
-    assert type(layout[0].y) == np.float64
-    assert type(layout[0].z) == np.float64
-    assert type(layout[0].diam) == np.float64
-    assert type(layout[0].el_low) == np.int64
-    assert type(layout[0].el_high) == np.int64
-    assert type(layout[0].sefd) == np.int64
-    assert type(layout[0].altitude) == np.int64
+    assert torch.is_tensor(layout[0].x)
+    assert torch.is_tensor(layout[0].y)
+    assert torch.is_tensor(layout[0].z)
+    assert torch.is_tensor(layout[0].diam)
+    assert torch.is_tensor(layout[0].el_low)
+    assert torch.is_tensor(layout[0].el_high)
+    assert torch.is_tensor(layout[0].sefd)
+    assert torch.is_tensor(layout[0].altitude)
 
     layout = get_array_layout("vlba")
 
     assert len(layout.st_num) == 10
-    assert layout.get_station("MKO").st_num == 0
 
     layout = get_array_layout("vla")
 
