@@ -1,4 +1,4 @@
-from dataclasses import dataclass
+from dataclasses import dataclass, fields
 from pathlib import Path
 
 import pandas as pd
@@ -21,34 +21,7 @@ class Stations:
     altitude: [float]
 
     def __getitem__(self, i):
-        if torch.is_tensor(i):
-            return torch.stack([self.__getitem__(int(_i)) for _i in i])
-        else:
-            station = Station(
-                self.st_num[i],
-                self.x[i],
-                self.y[i],
-                self.z[i],
-                self.diam[i],
-                self.el_low[i],
-                self.el_high[i],
-                self.sefd[i],
-                self.altitude[i],
-            )
-        return station
-
-
-@dataclass
-class Station:
-    st_num: int
-    x: float
-    y: float
-    z: float
-    diam: float
-    el_low: float
-    el_high: float
-    sefd: int
-    altitude: float
+        return Stations(*[getattr(self, f.name)[i] for f in fields(self)])
 
 
 def get_array_layout(array_name, writer=False):
