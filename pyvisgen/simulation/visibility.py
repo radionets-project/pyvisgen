@@ -98,7 +98,8 @@ def vis_loop(obs, SI, num_threads=10, noisy=True, mode="full"):
 
         int_values = torch.cat(
             [
-                calc_vis(
+                scan.rime(
+                    B,
                     bas_p,
                     lm,
                     rd,
@@ -107,7 +108,6 @@ def vis_loop(obs, SI, num_threads=10, noisy=True, mode="full"):
                     torch.unique(obs.array.diam),
                     wave_low,
                     wave_high,
-                    B,
                     corrupted=obs.corrupted,
                 )[None]
                 for wave_low, wave_high in zip(obs.waves_low, obs.waves_high)
@@ -140,16 +140,6 @@ def vis_loop(obs, SI, num_threads=10, noisy=True, mode="full"):
         visibilities.add(vis)
         del int_values
     return visibilities
-
-
-def calc_vis(bas, lm, rd, ra, dec, ant_diam, spw_low, spw_high, SI, corrupted=False):
-    if corrupted:
-        int_values = scan.rime(
-            SI, bas, lm, rd, ra, dec, ant_diam, spw_low, spw_high, corrupted=corrupted
-        )
-    else:
-        int_values = scan.rime(SI, bas, lm, rd, ra, dec, ant_diam, spw_low, spw_high)
-    return int_values
 
 
 def generate_noise(shape, obs, SEFD):
