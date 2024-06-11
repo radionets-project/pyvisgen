@@ -235,17 +235,19 @@ class Observation:
 
         u_dense = torch.arange(
             start=-(N / 2) * delta,
-            end=(N / 2 + 1) * delta,
+            end=(N / 2) * delta,
             step=delta,
             device=self.device,
-        ).double()[:-1]
+            dtype=torch.double,
+        )
 
         v_dense = torch.arange(
             start=-(N / 2) * delta,
-            end=(N / 2 + 1) * delta,
+            end=(N / 2) * delta,
             step=delta,
             device=self.device,
-        ).double()[:-1]
+            dtype=torch.double,
+        )
 
         uu, vv = torch.meshgrid(u_dense, v_dense)
         u = uu.flatten()
