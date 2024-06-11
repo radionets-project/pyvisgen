@@ -20,11 +20,11 @@ jobs:
       matrix:
         include:
           - os: ubuntu-latest
-            python-version: "3.9"
+            python-version: "3.10"
             install-method: mamba
 
           - os: ubuntu-latest
-            python-version: "3.10"
+            python-version: "3.11"
             install-method: mamba
             extra-args: ["codecov"]
 
@@ -44,7 +44,7 @@ jobs:
           PYTHON_VERSION: ${{ matrix.python-version }}
         run: |
           # setup correct python version
-          sed -i -e "s/- python=.*/- python=$PYTHON_VERSION/g" environment.yml
+          sed -i -e "s/- python.*/- python=$PYTHON_VERSION/g" environment.yml
 
       - name: mamba setup
         if: matrix.install-method == 'mamba'
