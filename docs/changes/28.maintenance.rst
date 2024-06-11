@@ -4,3 +4,4 @@
 - update default data_set.toml
 - delete old config examples
 - avoid torch einsum for better readability of the code
+- update `ci.yml` and `workflow.yml` for node20

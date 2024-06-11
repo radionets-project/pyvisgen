@@ -1,6 +1,7 @@
 import click
-from pyvisgen.simulation.data_set import simulate_data_set
+
 from pyvisgen.gridding.gridder import create_gridded_data_set
+from pyvisgen.simulation.data_set import simulate_data_set
 
 
 @click.command()
