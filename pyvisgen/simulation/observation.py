@@ -5,6 +5,7 @@ import astropy.constants as const
 import astropy.units as un
 import numpy as np
 import torch
+from astropy.constants import c
 from astropy.coordinates import AltAz, Angle, EarthLocation, SkyCoord
 from astropy.time import Time
 
@@ -230,8 +231,7 @@ class Observation:
     def calc_dense_baselines(self):
         N = self.img_size
         fov = self.fov * pi / (3600 * 180)
-        delta_l = fov / N
-        delta = (N * delta_l) ** (-1) * 3e8 / self.ref_frequency
+        delta = fov ** (-1) * c.value / self.ref_frequency
 
         u_dense = torch.arange(
             start=-(N / 2) * delta,
@@ -359,12 +359,8 @@ class Observation:
         ra = torch.deg2rad(self.ra)
         dec = torch.deg2rad(self.dec)
 
-        r = (
-            torch.arange(self.img_size) - self.img_size / 2
-        ) * res + ra
-        d = (
-            torch.arange(self.img_size) - self.img_size / 2
-        ) * res + dec
+        r = (torch.arange(self.img_size) - self.img_size / 2) * res + ra
+        d = (torch.arange(self.img_size) - self.img_size / 2) * res + dec
         _, R = torch.meshgrid((r, r), indexing="ij")
         D, _ = torch.meshgrid((d, d), indexing="ij")
         rd_grid = torch.cat([R[..., None], D[..., None]], dim=2)
