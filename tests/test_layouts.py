@@ -23,3 +23,4 @@ def test_get_array_layout():
     layout = get_array_layout("vla")
 
     assert len(layout.st_num) == 27
+    assert layout[:3].st_num.shape == torch.Size([3])
