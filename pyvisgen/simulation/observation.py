@@ -359,12 +359,8 @@ class Observation:
         ra = torch.deg2rad(self.ra)
         dec = torch.deg2rad(self.dec)
 
-        r = (
-            torch.arange(self.img_size) - self.img_size / 2
-        ) * res + ra
-        d = (
-            torch.arange(self.img_size) - self.img_size / 2
-        ) * res + dec
+        r = (torch.arange(self.img_size) - self.img_size / 2) * res + ra
+        d = (torch.arange(self.img_size) - self.img_size / 2) * res + dec
         _, R = torch.meshgrid((r, r), indexing="ij")
         D, _ = torch.meshgrid((d, d), indexing="ij")
         rd_grid = torch.cat([R[..., None], D[..., None]], dim=2)

@@ -1,8 +1,9 @@
-import pytest
 import shutil
 
+import pytest
 
-@pytest.fixture(autouse=True, scope='session')
+
+@pytest.fixture(autouse=True, scope="session")
 def test_suite_cleanup_thing():
     yield
 

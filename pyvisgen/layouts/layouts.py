@@ -70,7 +70,7 @@ def get_array_layout(array_name, writer=False):
         Station infos combinde in dataclass
     """
     f = array_name + ".txt"
-    array = pd.read_csv(file_dir / f, sep="\s+")
+    array = pd.read_csv(file_dir / f, sep=r"\s+")
     if array_name == "vla":
         loc = EarthLocation.of_site("VLA")
         array["X"] += loc.value[0]
@@ -116,5 +116,3 @@ def get_array_names() -> list[str]:
         for one of the array names this returns.
     """
     return list(file.stem for file in file_dir.glob("*.txt"))
-
-    
