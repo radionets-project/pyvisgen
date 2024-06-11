@@ -53,17 +53,15 @@ def get_array_layout(array_name, writer=False):
         array["Y"] += loc.value[1]
         array["Z"] += loc.value[2]
 
-    stations = Stations(
-        torch.arange(len(array)),
-        torch.tensor(array["X"].values),
-        torch.tensor(array["Y"].values),
-        torch.tensor(array["Z"].values),
-        torch.tensor(array["dish_dia"].values),
-        torch.tensor(array["el_low"].values),
-        torch.tensor(array["el_high"].values),
-        torch.tensor(array["SEFD"].values),
-        torch.tensor(array["altitude"].values),
-    )
+    # drop name col and convert to tensor
+    tensor = torch.from_numpy(array.iloc[:, 1:].values)
+    # add st_num manually (station index)
+    tensor = torch.cat([torch.arange(len(array))[..., None], tensor], dim=1)
+    # swap axes for easy conversion into stations object
+    tensor = tensor.swapaxes(0, 1)
+
+    stations = Stations(*tensor)
+
     if writer:
         return array
     else:
