@@ -23,11 +23,6 @@ class Array:
         delta_z = (combs_z[:, 0] - combs_z[:, 1]).reshape(-1, 1)
         return delta_x, delta_y, delta_z
 
-    def single_occurance(self, tensor):
-        # only calc one half of visibility because of Fourier symmetry
-        vals, index = self.unique(torch.abs(tensor))
-        return index
-
     def unique(self, x, dim=0):
         unique, inverse, counts = torch.unique(
             x, dim=dim, sorted=True, return_inverse=True, return_counts=True
