@@ -9,7 +9,7 @@ class Array:
     @lazyproperty
     def calc_relative_pos(self):
         # from geocentric coordinates to relative coordinates inside array
-        delta_x, delta_y, delta_z = self.get_pairs()
+        delta_x, delta_y, delta_z = self.get_pairs
         return delta_x, delta_y, delta_z
 
     @lazyproperty
