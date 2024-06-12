@@ -10,52 +10,17 @@ class Array:
     def calc_relative_pos(self):
         # from geocentric coordinates to relative coordinates inside array
         delta_x, delta_y, delta_z = self.get_pairs()
-        self.indices = self.single_occurance(delta_x)
-        delta_x = delta_x[self.indices]
-        delta_y = delta_y[self.indices]
-        delta_z = delta_z[self.indices]
-        return delta_x, delta_y, delta_z, self.indices
+        return delta_x, delta_y, delta_z
 
     def get_pairs(self):
-        delta_x = (
-            torch.stack(
-                [
-                    val
-                    - self.array_layout.x[
-                        ~(torch.arange(len(self.array_layout.x)) == i)
-                    ]
-                    for i, val in enumerate(self.array_layout.x)
-                ]
-            )
-            .ravel()
-            .reshape(-1, 1)
-        )
-        delta_y = (
-            torch.stack(
-                [
-                    val
-                    - self.array_layout.y[
-                        ~(torch.arange(len(self.array_layout.y)) == i)
-                    ]
-                    for i, val in enumerate(self.array_layout.y)
-                ]
-            )
-            .ravel()
-            .reshape(-1, 1)
-        )
-        delta_z = (
-            torch.stack(
-                [
-                    val
-                    - self.array_layout.z[
-                        ~(torch.arange(len(self.array_layout.z)) == i)
-                    ]
-                    for i, val in enumerate(self.array_layout.z)
-                ]
-            )
-            .ravel()
-            .reshape(-1, 1)
-        )
+        combs_x = torch.combinations(self.array_layout.x)
+        delta_x = (combs_x[:, 0] - combs_x[:, 1]).reshape(-1, 1)
+
+        combs_y = torch.combinations(self.array_layout.y)
+        delta_y = (combs_y[:, 0] - combs_y[:, 1]).reshape(-1, 1)
+
+        combs_z = torch.combinations(self.array_layout.z)
+        delta_z = (combs_z[:, 0] - combs_z[:, 1]).reshape(-1, 1)
         return delta_x, delta_y, delta_z
 
     def single_occurance(self, tensor):
