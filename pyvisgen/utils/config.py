@@ -19,6 +19,7 @@ def read_data_set_conf(conf_toml):
 
     conf["mode"] = config["sampling_options"]["mode"]
     conf["device"] = config["sampling_options"]["device"]
+    conf["seed"] = config["sampling_options"]["seed"]
     conf["layout"] = (config["sampling_options"]["layout"],)
     conf["img_size"] = (config["sampling_options"]["img_size"],)
     conf["fov_center_ra"] = (config["sampling_options"]["fov_center_ra"],)

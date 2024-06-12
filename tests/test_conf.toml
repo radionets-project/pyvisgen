@@ -1,6 +1,7 @@
 [sampling_options]
 mode = "full"
 device = "cpu"
+seed = 1337
 layout = "vla"
 img_size = 128
 fov_center_ra = [90, 140]

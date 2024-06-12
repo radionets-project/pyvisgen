@@ -7,6 +7,7 @@ def test_read_config():
     assert list(conf.keys()) == [
         "mode",
         "device",
+        "seed",
         "layout",
         "img_size",
         "fov_center_ra",
