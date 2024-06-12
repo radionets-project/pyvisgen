@@ -22,11 +22,16 @@ class Array:
 
         combs_z = torch.combinations(self.array_layout.z)
         delta_z = (combs_z[:, 0] - combs_z[:, 1]).reshape(-1, 1)
+
         return delta_x, delta_y, delta_z
 
     @lazyproperty
     def calc_ant_pair_vals(self):
+        """Calculates station number, low elevation, and high
+        elevation pairs.
+        """
         st_num_pairs = torch.combinations(self.array_layout.st_num)
         els_low_pairs = torch.combinations(self.array_layout.el_low)
         els_high_pairs = torch.combinations(self.array_layout.el_high)
+
         return st_num_pairs, els_low_pairs, els_high_pairs
