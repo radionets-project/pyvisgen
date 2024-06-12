@@ -16,9 +16,6 @@ from pyvisgen.simulation.visibility import vis_loop
 from pyvisgen.utils.config import read_data_set_conf
 from pyvisgen.utils.data import load_bundles, open_bundles
 
-np.random.seed(1337)
-torch.manual_seed(1337)
-
 
 def simulate_data_set(config, slurm=False, job_id=None, n=None):
     """
@@ -41,6 +38,10 @@ def simulate_data_set(config, slurm=False, job_id=None, n=None):
     out_path = Path(conf["out_path_fits"])
     out_path.mkdir(parents=True, exist_ok=True)
     data = load_bundles(conf["in_path"])
+
+    if conf["seed"] is not None:
+        np.random.seed(conf["seed"])
+        torch.manual_seed(conf["seed"])
 
     if slurm:
         job_id = int(job_id + n * 500)
