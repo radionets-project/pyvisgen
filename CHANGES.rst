@@ -1,4 +1,4 @@
-Pyvisgen v0.2.0 (2024-04-11)
+Pyvisgen v0.2.0 (2024-06-12)
 ============================
 
 
@@ -49,6 +49,7 @@ Refactoring and Optimization
   - add observation class, which holds all relevant information
   - drop scan-wise splitting in visibilities calculations, but split all valid baselines equally
   - refactor RIME components (currently only uncorrupted available) [`#28 <https://github.com/radionets-project/pyvisgen/pull/28>`__]
+  - refactor baseline calculations by replacing loops with pytorch built-in methods
 
 
 Pyvisgen v0.1.4 (2023-11-09)
