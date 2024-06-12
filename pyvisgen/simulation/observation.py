@@ -404,12 +404,8 @@ class Observation:
 
         Parameters
         ----------
-        src_crd : astropy SkyCoord object
-            ra and dec of source location / pointing center
-        time : w time object
+        times : time object
             time of observation
-        array_layout : dataclass object
-            station information
 
         Returns
         -------
@@ -421,9 +417,9 @@ class Observation:
         ha_all, el_st_all = self.calc_ref_elev(time=times)
 
         ar = Array(self.array)
-        delta_x, delta_y, delta_z, indices = ar.calc_relative_pos
-        mask = ar.get_baseline_mask
+        delta_x, delta_y, delta_z = ar.calc_relative_pos
         st_num_pairs, els_low_pairs, els_high_pairs = ar.calc_ant_pair_vals
+        print(els_low_pairs.shape)
 
         # Loop over ha and el_st
         baselines = Baselines(
@@ -439,18 +435,12 @@ class Observation:
             u, v, w = self.calc_direction_cosines(ha, el_st, delta_x, delta_y, delta_z)
 
             # calc current elevations
-            els_st = self.delete(
-                arr=torch.stack(torch.meshgrid(el_st, el_st))
-                .swapaxes(0, 2)
-                .reshape(-1, 2),
-                ind=mask,
-                dim=0,
-            )[indices]
+            cur_el_st = torch.combinations(el_st)
 
             # calc valid baselines
             valid = torch.ones(u.shape).bool()
-            m1 = (els_st < els_low_pairs).any(axis=1)
-            m2 = (els_st > els_high_pairs).any(axis=1)
+            m1 = (cur_el_st < els_low_pairs).any(axis=1)
+            m2 = (cur_el_st > els_high_pairs).any(axis=1)
             valid_mask = torch.logical_or(m1, m2)
             valid[valid_mask] = False
 
@@ -469,11 +459,6 @@ class Observation:
             )
             baselines.add_baseline(base)
         return baselines
-
-    def delete(self, arr: torch.Tensor, ind: int, dim: int) -> torch.Tensor:
-        skip = [i for i in range(arr.size(dim)) if i != ind]
-        indices = [slice(None) if i != dim else skip for i in range(arr.ndim)]
-        return arr.__getitem__(indices)
 
     def calc_direction_cosines(self, ha, el_st, delta_x, delta_y, delta_z):
         src_dec = torch.deg2rad(self.dec)
