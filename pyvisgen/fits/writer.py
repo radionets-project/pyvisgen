@@ -19,33 +19,26 @@ def create_vis_hdu(data, conf, layout="vlba", source_name="sim-source-0"):
 
     DATE = data.date - int(data.date.min())
 
-    _DATE = data._date  # central time in the integration period
+    _DATE = np.zeros(DATE.shape)  # central time in the integration period
 
     BASELINE = data.base_num
 
     INTTIM = np.repeat(np.array(conf["corr_int_time"], dtype=">f4"), len(u))
 
     # visibility data
-    values = np.swapaxes(data.get_values(), 0, 1)
+    values = data.get_values()
 
-    num_ifs = values.shape[2]
+    vis = np.stack([values.real, values.imag, np.ones(values.shape)], axis=3)[
+        :, None, None, :, None, ...
+    ]
 
-    vis = np.swapaxes(
-        np.swapaxes(
-            np.stack([values.real, values.imag, np.ones(values.shape)], axis=2),
-            1,
-            3,
-        ),
-        2,
-        3,
-    ).reshape(-1, 1, 1, num_ifs, 1, 4, 3)
     DATA = vis
     # in dim 4 = IFs , dim = 1, dim 4 = number of jones, 3 = real, imag, weight
 
     # wcs
     ra = conf["fov_center_ra"]
     dec = conf["fov_center_dec"]
-    freq = (conf["base_freq"] * un.Hz).value
+    freq = (conf["ref_frequency"] * un.Hz).value
     freq_d = (conf["bandwidths"][0] * un.Hz).value
 
     ws = wcs.WCS(naxis=7)
@@ -119,44 +112,36 @@ def create_vis_hdu(data, conf, layout="vlba", source_name="sim-source-0"):
 
 def create_time_hdu(data):
     TIME = np.array(
-        [
-            data[data.scan == i].date.mean() - int(data.date.min())
-            for i in np.unique(data.scan)
-        ],
+        [data.date.mean() - int(data.date.min())],
         dtype=">f4",
     )
     col1 = fits.Column(name="TIME", format="1E", unit="days", array=TIME)
 
     TIME_INTERVAL = np.array(
-        [
-            (data[data.scan == i].date.max() - data[data.scan == i].date.min())
-            for i in np.unique(data.scan)
-        ],
+        [data.date.max() - data.date.min()],
         dtype=">f4",
     )
     col2 = fits.Column(
         name="TIME INTERVAL", format="1E", unit="days", array=TIME_INTERVAL
     )
 
-    SOURCE_ID = np.ones(
-        len(np.unique(data.scan)), dtype=">i4"
-    )  # always the same source
+    SOURCE_ID = np.ones((1), dtype=">i4")  # always the same source
     col3 = fits.Column(name="SOURCE ID", format="1J", unit=" ", array=SOURCE_ID)
 
-    SUBARRAY = np.ones(len(np.unique(data.scan)), dtype=">i4")  # always same array
+    SUBARRAY = np.ones((1), dtype=">i4")  # always same array
     col4 = fits.Column(name="SUBARRAY", format="1J", unit=" ", array=SUBARRAY)
 
-    FREQ_ID = np.ones(len(np.unique(data.scan)), dtype=">i4")  # always same frequencies
+    FREQ_ID = np.ones((1), dtype=">i4")  # always same frequencies
     col5 = fits.Column(name="FREQ ID", format="1J", unit=" ", array=FREQ_ID)
 
     START_VIS = np.array(
-        [data[data.scan == i].num.min() for i in np.unique(data.scan)],
+        [data.num.min()],
         dtype=">i4",
     )
     col6 = fits.Column(name="START VIS", format="1J", unit=" ", array=START_VIS)
 
     END_VIS = np.array(
-        [data[data.scan == i].num.max() for i in np.unique(data.scan)],
+        [data.num.max()],
         dtype=">i4",
     )
     col7 = fits.Column(name="END VIS", format="1J", unit=" ", array=END_VIS)
@@ -185,7 +170,8 @@ def create_frequency_hdu(conf):
     col1 = fits.Column(name="FRQSEL", format="1J", unit=" ", array=FRQSEL)
 
     IF_FREQ = np.array(
-        [conf["frequsel"]], dtype=">f8"
+        [np.array(conf["frequency_offsets"])],
+        dtype=">f8",
     )  # start with 0, add ch_with per IF
     col2 = fits.Column(
         name="IF FREQ", format=str(IF_FREQ.shape[-1]) + "D", unit="Hz", array=IF_FREQ
@@ -302,7 +288,7 @@ def create_antenna_hdu(conf):
     )
     hdu_ant = fits.BinTableHDU.from_columns(coldefs_ant)
 
-    freq = (conf["base_freq"] * un.Hz).value
+    freq = (conf["ref_frequency"] * un.Hz).value
     ref_date = Time(conf["scan_start"].isoformat(), format="isot")
 
     from astropy.utils import iers

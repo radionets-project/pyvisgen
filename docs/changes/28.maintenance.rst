@@ -1,0 +1,7 @@
+- delete unused code and relicts
+- change from numpy arrays to torch tensors
+- change some of the keywords to more common phrases inside the toml config
+- update default data_set.toml
+- delete old config examples
+- avoid torch einsum for better readability of the code
+- update `ci.yml` and `workflow.yml` for node20

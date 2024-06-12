@@ -1,0 +1,4 @@
+- refactor data classes (Visibilities, Baselines)
+- add observation class, which holds all relevant information
+- drop scan-wise splitting in visibilities calculations, but split all valid baselines equally
+- refactor RIME components (currently only uncorrupted available)

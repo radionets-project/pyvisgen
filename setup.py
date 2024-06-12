@@ -2,7 +2,7 @@ from setuptools import find_packages, setup
 
 setup(
     name="pyvisgen",
-    version="0.1.4",
+    version="0.2.0",
     description="Simulate radio interferometer observations \
             and visibility generation with the RIME formalism.",
     url="https://github.com/radionets-project/pyvisgen",

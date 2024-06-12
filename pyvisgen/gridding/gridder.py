@@ -51,8 +51,6 @@ def create_gridded_data_set(config):
 
             out = out_path / Path("samp_test" + str(i) + ".h5")
 
-            # rescaled to level Stokes I
-            gridded_data_test /= 2
             save_fft_pair(out, gridded_data_test, truth_amp_phase_test)
     #
     ###################
@@ -73,18 +71,6 @@ def create_gridded_data_set(config):
 
         truth_fft_train = calc_truth_fft(sky_dist_train)
 
-        # sim_real_imag_train = np.array(
-        #     (gridded_data_train[:, 0] + 1j * gridded_data_train[:, 1])
-        # )
-        # dirty_image_train = np.abs(
-        #     np.fft.fftshift(
-        #         np.fft.fft2(
-        #             np.fft.fftshift(sim_real_imag_train, axes=(1, 2)), axes=(1, 2)
-        #         ),
-        #         axes=(1, 2),
-        #     )
-        # )
-
         if conf["amp_phase"]:
             gridded_data_train = convert_amp_phase(gridded_data_train, sky_sim=False)
             truth_amp_phase_train = convert_amp_phase(truth_fft_train, sky_sim=True)
@@ -92,10 +78,8 @@ def create_gridded_data_set(config):
             gridded_data_train = convert_real_imag(gridded_data_train, sky_sim=False)
             truth_amp_phase_train = convert_real_imag(truth_fft_train, sky_sim=True)
 
-        out = out_path / Path("samp_train" + str(i) + ".h5")
+        out = out_path / Path("samp_train" + str(i - bundle_test) + ".h5")
 
-        # rescaled to level Stokes I
-        gridded_data_train /= 2
         save_fft_pair(out, gridded_data_train, truth_amp_phase_train)
         train_index_last = i
     #
@@ -120,8 +104,6 @@ def create_gridded_data_set(config):
 
         out = out_path / Path("samp_valid" + str(i - train_index_last) + ".h5")
 
-        # rescaled to level Stokes I
-        gridded_data_valid /= 2
         save_fft_pair(out, gridded_data_valid, truth_amp_phase_valid)
     #
     ###################
@@ -163,8 +145,6 @@ def open_data(fits_files, sky_dist, conf, i):
 
 
 def calc_truth_fft(sky_dist):
-    # norm = np.sum(np.sum(sky_dist_test, keepdims=True, axis=1), axis=2)
-    # sky_dist_test = np.expand_dims(sky_dist_test, -1) / norm[:, None, None]
     truth_fft = np.fft.fftshift(
         np.fft.fft2(np.fft.fftshift(sky_dist, axes=(1, 2)), axes=(1, 2)), axes=(1, 2)
     )
@@ -227,8 +207,11 @@ def ducc0_gridding(uv_data, freq_data):
 
 def grid_data(uv_data, freq_data, conf):
     cmplx = uv_data["DATA"]
-    real = np.squeeze(cmplx[..., 0, 0, 0])  # .ravel()
-    imag = np.squeeze(cmplx[..., 0, 0, 1])  # .ravel()
+    # real and imag for Stokes I, linear feed
+    real = np.squeeze(cmplx[..., 0, 0, 0]) + np.squeeze(cmplx[..., 0, 3, 0])
+    imag = np.squeeze(cmplx[..., 0, 0, 1]) + np.squeeze(cmplx[..., 0, 3, 1])
+
+    # visibility weighting not yet implemented
     # weight = np.squeeze(cmplx[..., 0, 2])
 
     freq = freq_data[1]
@@ -252,32 +235,33 @@ def grid_data(uv_data, freq_data, conf):
     )
     # Generate Mask
     N = conf["grid_size"]  # image size
-    fov = (
-        conf["fov_size"] * np.pi / (3600 * 180)
-    )  # hard code #default 0.00018382, FoV from VLBA 163.7 <- wrong!
-    # depends on setting of simulations
+    fov = conf["grid_fov"] * np.pi / (3600 * 180)
+
     delta = 1 / fov
 
-    bins = np.arange(start=-(N / 2) * delta, stop=(N / 2 + 1) * delta, step=delta)
-    if len(bins) - 1 > N:
-        bins = np.delete(bins, -1)
+    # bins are shifted by delta/2 so that maximum in uv space matches maximum
+    # in numpy fft
+    bins = (
+        np.arange(start=-(N / 2) * delta, stop=(N / 2 + 1) * delta, step=delta)
+        - delta / 2
+    )
+    # if len(bins) - 1 > N:
+    #   bins = np.delete(bins, -1)
 
-    mask, *_ = np.histogram2d(samps[0], samps[1], bins=[bins, bins], normed=False)
+    mask, *_ = np.histogram2d(samps[0], samps[1], bins=[bins, bins], density=False)
     mask[mask == 0] = 1
 
     mask_real, x_edges, y_edges = np.histogram2d(
-        samps[0], samps[1], bins=[bins, bins], weights=samps[2], normed=False
+        samps[0], samps[1], bins=[bins, bins], weights=samps[2], density=False
     )
     mask_imag, x_edges, y_edges = np.histogram2d(
-        samps[0], samps[1], bins=[bins, bins], weights=samps[3], normed=False
+        samps[0], samps[1], bins=[bins, bins], weights=samps[3], density=False
     )
 
     mask_real /= mask
     mask_imag /= mask
 
-    mask_real = np.rot90(mask_real, 1)
-    mask_imag = np.rot90(mask_imag, 1)
-
+    assert mask_real.shape == (conf["grid_size"], conf["grid_size"])
     gridded_vis = np.zeros((2, N, N))
     gridded_vis[0] = mask_real
     gridded_vis[1] = mask_imag
@@ -315,8 +299,9 @@ def save_fft_pair(path, x, y, name_x="x", name_y="y"):
     """
     write fft_pairs created in second analysis step to h5 file
     """
-    x = x[:, :, :65, :]
-    y = y[:, :, :65, :]
+    half_image = x.shape[2] // 2
+    x = x[:, :, : half_image + 1, :]
+    y = y[:, :, : half_image + 1, :]
     with h5py.File(path, "w") as hf:
         hf.create_dataset(name_x, data=x)
         hf.create_dataset(name_y, data=y)

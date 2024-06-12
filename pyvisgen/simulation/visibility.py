@@ -1,171 +1,140 @@
-from dataclasses import dataclass
+from dataclasses import dataclass, fields
 
-import numpy as np
 import torch
-from astropy import units as un
-from astropy.coordinates import SkyCoord
 
-import pyvisgen.layouts.layouts as layouts
 import pyvisgen.simulation.scan as scan
-from pyvisgen.simulation.utils import calc_time_steps, calc_valid_baselines, get_IFs
 
 
 @dataclass
 class Visibilities:
-    SI: [complex]
-    SQ: [complex]
-    SU: [complex]
-    SV: [complex]
-    num: [float]
-    scan: [float]
-    base_num: [float]
-    u: [un]
-    v: [un]
-    w: [un]
-    date: [float]
-    _date: [float]
+    SI: torch.tensor
+    SQ: torch.tensor
+    SU: torch.tensor
+    SV: torch.tensor
+    num: torch.tensor
+    base_num: torch.tensor
+    u: torch.tensor
+    v: torch.tensor
+    w: torch.tensor
+    date: torch.tensor
 
     def __getitem__(self, i):
-        baseline = Vis(
-            self.SI[i],
-            self.SQ[i],
-            self.SU[i],
-            self.SV[i],
-            self.num[i],
-            self.scan[i],
-            self.base_num[i],
-            self.u[i],
-            self.v[i],
-            self.w[i],
-            self.date[i],
-            self._date[i],
-        )
-        return baseline
+        return Visibilities(*[getattr(self, f.name)[i] for f in fields(self)])
 
     def get_values(self):
-        return np.array([self.SI, self.SQ, self.SU, self.SV])
+        return torch.cat(
+            [self.SI[None], self.SQ[None], self.SU[None], self.SV[None]], dim=0
+        ).permute(1, 2, 0)
 
     def add(self, visibilities):
-        self.SI = np.concatenate([self.SI, visibilities.SI])
-        self.SQ = np.concatenate([self.SQ, visibilities.SQ])
-        self.SU = np.concatenate([self.SU, visibilities.SU])
-        self.SV = np.concatenate([self.SV, visibilities.SV])
-        self.num = np.concatenate([self.num, visibilities.num])
-        self.scan = np.concatenate([self.scan, visibilities.scan])
-        self.base_num = np.concatenate([self.base_num, visibilities.base_num])
-        self.u = np.concatenate([self.u, visibilities.u])
-        self.v = np.concatenate([self.v, visibilities.v])
-        self.w = np.concatenate([self.w, visibilities.w])
-        self.date = np.concatenate([self.date, visibilities.date])
-        self._date = np.concatenate([self._date, visibilities._date])
+        [
+            setattr(
+                self,
+                f.name,
+                torch.cat([getattr(self, f.name), getattr(visibilities, f.name)]),
+            )
+            for f in fields(self)
+        ]
 
 
-@dataclass
-class Vis:
-    SI: complex
-    SQ: complex
-    SU: complex
-    SV: complex
-    num: float
-    scan: float
-    base_num: float
-    u: un
-    v: un
-    w: un
-    date: float
-    _date: float
-
-
-def vis_loop(rc, SI, num_threads=10, noisy=True):
+def vis_loop(obs, SI, num_threads=10, noisy=True, mode="full"):
     torch.set_num_threads(num_threads)
+    torch._dynamo.config.suppress_errors = True
 
-    # define array, source coords, and IFs
-    array_layout = layouts.get_array_layout(rc["layout"])
-    src_crd = SkyCoord(
-        ra=rc["fov_center_ra"], dec=rc["fov_center_dec"], unit=(un.deg, un.deg)
+    # define unpolarized sky distribution
+    SI = SI.permute(dims=(1, 2, 0))
+    I = torch.zeros((SI.shape[0], SI.shape[1], 4), dtype=torch.cdouble)
+    I[..., 0] = SI[..., 0]
+
+    # define 2 x 2 Stokes matrix ((I + Q, iU + V), (iU -V, I - Q))
+    B = torch.zeros((SI.shape[0], SI.shape[1], 2, 2), dtype=torch.cdouble).to(
+        torch.device(obs.device)
     )
+    B[:, :, 0, 0] = I[:, :, 0] + I[:, :, 1]
+    B[:, :, 0, 1] = I[:, :, 2] + 1j * I[:, :, 3]
+    B[:, :, 1, 0] = I[:, :, 2] - 1j * I[:, :, 3]
+    B[:, :, 1, 1] = I[:, :, 0] - I[:, :, 1]
 
-    # define IFs
-    IFs = get_IFs(rc)
+    # calculations only for px > sensitivity cut
+    mask = (SI >= obs.sensitivity_cut)[..., 0]
+    B = B[mask]
+    lm = obs.lm[mask]
+    rd = obs.rd[mask]
 
-    # calculate time steps
-    time = calc_time_steps(rc)
-
-    # calculate rd, lm
-    rd = scan.create_rd_grid(rc["fov_size"], rc["img_size"], src_crd)
-    lm = scan.create_lm_grid(rd, src_crd)
-
-    # def number stations and number baselines
-    stat_num = array_layout.st_num.shape[0]
-    base_num = int(stat_num * (stat_num - 1) / 2)
+    # normalize visibilities to factor 0.5,
+    # so that the Stokes I image is normalized to 1
+    B *= 0.5
 
     # calculate vis
     visibilities = Visibilities(
-        np.empty(shape=[0] + [len(IFs)]),
-        np.empty(shape=[0] + [len(IFs)]),
-        np.empty(shape=[0] + [len(IFs)]),
-        np.empty(shape=[0] + [len(IFs)]),
-        [],
-        [],
-        [],
-        [],
-        [],
-        [],
-        [],
-        [],
+        torch.empty(size=[0] + [len(obs.waves_low)]),
+        torch.empty(size=[0] + [len(obs.waves_low)]),
+        torch.empty(size=[0] + [len(obs.waves_low)]),
+        torch.empty(size=[0] + [len(obs.waves_low)]),
+        torch.tensor([]),
+        torch.tensor([]),
+        torch.tensor([]),
+        torch.tensor([]),
+        torch.tensor([]),
+        torch.tensor([]),
     )
-    vis_num = np.zeros(1)
-    for i in range(rc["scans"]):
-        end_idx = int((rc["scan_duration"] / rc["corr_int_time"]) + 1)
-        t = time[i * end_idx : (i + 1) * end_idx]
+    vis_num = torch.zeros(1)
+    if mode == "full":
+        bas = obs.baselines.get_valid_subset(obs.num_baselines, obs.device)
+    elif mode == "grid":
+        bas = obs.baselines.get_valid_subset(
+            obs.num_baselines, obs.device
+        ).get_unique_grid(obs.fov, obs.ref_frequency, obs.img_size, obs.device)
+    elif mode == "dense":
+        if obs.device == torch.device("cpu"):
+            raise ValueError("Only available for GPU calculations!")
+        obs.calc_dense_baselines()
+        bas = obs.dense_baselines_gpu
+    else:
+        raise ValueError("Unsupported mode!")
 
-        baselines = scan.get_baselines(src_crd, t, array_layout)
+    for p in torch.arange(bas[:].shape[1]).split(1000):
+        bas_p = bas[:][:, p]
 
-        base_valid, u_valid, v_valid, w_valid, date, _date = calc_valid_baselines(
-            baselines, base_num, t, rc
+        int_values = torch.cat(
+            [
+                scan.rime(
+                    B,
+                    bas_p,
+                    lm,
+                    rd,
+                    obs.ra,
+                    obs.dec,
+                    torch.unique(obs.array.diam),
+                    wave_low,
+                    wave_high,
+                    corrupted=obs.corrupted,
+                )[None]
+                for wave_low, wave_high in zip(obs.waves_low, obs.waves_high)
+            ]
         )
-
-        int_values = []
-        for IF in IFs:
-            val_i = calc_vis(
-                lm,
-                baselines,
-                IF,
-                t,
-                src_crd,
-                array_layout,
-                SI,
-                rd,
-                vis_num,
-                corrupted=rc["corrupted"],
-            )
-            int_values.append(val_i)
-            del val_i
-
-        int_values = np.array(int_values)
-        if int_values.dtype != np.complex128:
+        if int_values.numel() == 0:
             continue
-        int_values = np.swapaxes(int_values, 0, 1)
 
-        if noisy:
-            noise = generate_noise(int_values.shape, rc)
+        int_values = torch.swapaxes(int_values, 0, 1)
+
+        if noisy != 0:
+            noise = generate_noise(int_values.shape, obs, noisy)
             int_values += noise
 
-        vis_num = np.arange(int_values.shape[0]) + 1 + vis_num.max()
+        vis_num = torch.arange(int_values.shape[0]) + 1 + vis_num.max()
 
         vis = Visibilities(
-            torch.tensor(int_values[:, :, 0]),
-            torch.zeros(int_values[:, :, 0].shape, dtype=torch.complex128),
-            torch.zeros(int_values[:, :, 0].shape, dtype=torch.complex128),
-            torch.zeros(int_values[:, :, 0].shape, dtype=torch.complex128),
+            int_values[:, :, 0, 0].cpu(),
+            int_values[:, :, 0, 1].cpu(),
+            int_values[:, :, 1, 0].cpu(),
+            int_values[:, :, 1, 1].cpu(),
             vis_num,
-            np.repeat(i + 1, len(vis_num)),
-            np.array([baselines[i].baselineNum() for i in base_valid]),
-            u_valid,
-            v_valid,
-            w_valid,
-            date,
-            _date,
+            bas_p[9].cpu(),
+            bas_p[2].cpu(),
+            bas_p[5].cpu(),
+            bas_p[8].cpu(),
+            bas_p[10].cpu(),
         )
 
         visibilities.add(vis)
@@ -173,31 +142,7 @@ def vis_loop(rc, SI, num_threads=10, noisy=True):
     return visibilities
 
 
-def calc_vis(
-    lm, baselines, wave, t, src_crd, array_layout, SI, rd, vis_num, corrupted=True
-):
-    if corrupted:
-        X1 = scan.direction_independent(
-            lm, baselines, wave, t, src_crd, array_layout, SI, rd
-        )
-        if X1.shape[0] == 1:
-            return -1
-        X2 = scan.direction_independent(
-            lm, baselines, wave, t, src_crd, array_layout, SI, rd
-        )
-    else:
-        X1 = scan.uncorrupted(lm, baselines, wave, t, src_crd, array_layout, SI)
-        if X1.shape[0] == 1:
-            return -1
-        X2 = scan.uncorrupted(lm, baselines, wave, t, src_crd, array_layout, SI)
-
-    int_values = scan.integrate(X1, X2).numpy()
-    del X1, X2, SI
-    int_values = int_values
-    return int_values
-
-
-def generate_noise(shape, rc):
+def generate_noise(shape, obs, SEFD):
     # scaling factor for the noise
     factor = 1
 
@@ -205,18 +150,17 @@ def generate_noise(shape, rc):
     eta = 0.93
 
     # taken from simulations
-    chan_width = rc["bandwidths"][0] * len(rc["bandwidths"])
+    chan_width = obs.bandwidths[0] * len(obs.bandwidths)
 
     # corr_int_time
-    exposure = rc["corr_int_time"]
+    exposure = obs.int_time
 
     # taken from:
     # https://science.nrao.edu/facilities/vla/docs/manuals/oss/performance/sensitivity
-    SEFD = 420
 
     std = factor * 1 / eta * SEFD
-    std /= np.sqrt(2 * exposure * chan_width)
-    noise = np.random.normal(loc=0, scale=std, size=shape)
-    noise = noise + 1.0j * np.random.normal(loc=0, scale=std, size=shape)
+    std /= torch.sqrt(2 * exposure * chan_width)
+    noise = torch.normal(mean=0, std=std, size=shape, device=obs.device)
+    noise = noise + 1.0j * torch.normal(mean=0, std=std, size=shape, device=obs.device)
 
     return noise
