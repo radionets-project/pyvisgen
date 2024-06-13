@@ -243,9 +243,7 @@ def calc_ref_elev(src_crd, time, array_layout):
         time = time[None]
     # Calculate for all times
     # calculate GHA, Greenwich as reference for EHT
-    ha_all = Angle(
-        [t.sidereal_time("apparent", "greenwich") - src_crd.ra for t in time]
-    )
+    ha_all = time.sidereal_time("apparent", "greenwich") - src_crd.ra.to(un.hourangle)
 
     # calculate elevations
     el_st_all = src_crd.transform_to(
