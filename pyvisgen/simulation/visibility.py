@@ -98,8 +98,7 @@ def vis_loop(obs, SI, num_threads=10, noisy=True, mode="full"):
 
         int_values = torch.cat(
             [
-                scan.rime(
-                    B,
+                scan.RIME(
                     bas_p,
                     lm,
                     rd,
@@ -109,7 +108,7 @@ def vis_loop(obs, SI, num_threads=10, noisy=True, mode="full"):
                     wave_low,
                     wave_high,
                     corrupted=obs.corrupted,
-                )[None]
+                )(B)[None]
                 for wave_low, wave_high in zip(obs.waves_low, obs.waves_high)
             ]
         )
