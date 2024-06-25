@@ -87,7 +87,7 @@ def create_vis_hdu(data, obs, layout="vlba", source_name="sim-source-0"):
     hdu_vis.header.comments["PTYPE6"] = "Relative Julian date ?"
     hdu_vis.header.comments["PTYPE7"] = "Integration time"
 
-    date_obs = obs.start.date().strftime("%Y-%m-%d")
+    date_obs = obs.start.strftime("%Y-%m-%d")
 
     date_map = Time.now().to_value(format="iso", subfmt="date")
 
