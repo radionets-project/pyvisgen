@@ -61,7 +61,7 @@ class RIME(nn.Module):
         return vis
 
 
-@torch.compile
+# @torch.compile
 def fourier_kernel(bas, lm, spw_low, spw_high):
     """Calculates Fouriertransformation Kernel for every baseline and pixel in lm grid.
 
@@ -111,7 +111,7 @@ def fourier_kernel(bas, lm, spw_low, spw_high):
     return K1, K2
 
 
-@torch.compile
+# @torch.compile
 def calc_beam(rd, ra, dec, ant_diam, spw_low, spw_high):
     diameters = ant_diam.to(rd.device)
     theta = angularDistance(rd, ra, dec)
@@ -124,7 +124,7 @@ def calc_beam(rd, ra, dec, ant_diam, spw_low, spw_high):
     return E1, E2
 
 
-@torch.compile
+# @torch.compile
 def angularDistance(rd, ra, dec):
     """Calculates angular distance from source position
 
@@ -149,7 +149,7 @@ def angularDistance(rd, ra, dec):
     return theta
 
 
-@torch.compile
+# @torch.compile
 def jinc(x):
     """Create jinc function.
 
@@ -168,7 +168,7 @@ def jinc(x):
     return jinc
 
 
-@torch.compile
+# @torch.compile
 def integrate(X1, X2):
     """Summation over (l,m) and avering over time and freq
 

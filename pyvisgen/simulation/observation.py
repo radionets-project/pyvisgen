@@ -46,22 +46,22 @@ class Baselines:
             256 * (bas_reshaped.st1[:-1][mask].ravel() + 1)
             + bas_reshaped.st2[:-1][mask].ravel()
             + 1
-        ).to(device)
+        )  # .to(device)
 
-        u_start = bas_reshaped.u[:-1][mask].to(device)
-        v_start = bas_reshaped.v[:-1][mask].to(device)
-        w_start = bas_reshaped.w[:-1][mask].to(device)
+        u_start = bas_reshaped.u[:-1][mask]  # .to(device)
+        v_start = bas_reshaped.v[:-1][mask]  # .to(device)
+        w_start = bas_reshaped.w[:-1][mask]  # .to(device)
 
-        u_stop = bas_reshaped.u[1:][mask].to(device)
-        v_stop = bas_reshaped.v[1:][mask].to(device)
-        w_stop = bas_reshaped.w[1:][mask].to(device)
+        u_stop = bas_reshaped.u[1:][mask]  # .to(device)
+        v_stop = bas_reshaped.v[1:][mask]  # .to(device)
+        w_stop = bas_reshaped.w[1:][mask]  # .to(device)
 
         u_valid = (u_start + u_stop) / 2
         v_valid = (v_start + v_stop) / 2
         w_valid = (w_start + w_stop) / 2
 
         t = Time(bas_reshaped.time / (60 * 60 * 24), format="mjd").jd
-        date = (torch.from_numpy(t[:-1][mask] + t[1:][mask]) / 2).to(device)
+        date = torch.from_numpy(t[:-1][mask] + t[1:][mask]) / 2  # .to(device)
 
         return ValidBaselineSubset(
             baseline_nums,
@@ -123,7 +123,7 @@ class ValidBaselineSubset:
                 start=-(img_size / 2) * delta,
                 end=(img_size / 2 + 1) * delta,
                 step=delta,
-                device=device,
+                # device=device,
             )
             + delta / 2
         )
@@ -140,7 +140,7 @@ class ValidBaselineSubset:
 
         _, ind_sorted = torch.sort(indices_unique_inv, stable=True)
         cum_sum = counts.cumsum(0)
-        cum_sum = torch.cat((torch.tensor([0], device=device), cum_sum[:-1]))
+        cum_sum = torch.cat((torch.tensor([0]), cum_sum[:-1]))
         first_indices = ind_sorted[cum_sum]
         return self[:][:, indices_bucket_sort[first_indices]]
 
@@ -237,7 +237,7 @@ class Observation:
             start=-(N / 2) * delta,
             end=(N / 2) * delta,
             step=delta,
-            device=self.device,
+            # device=self.device,
             dtype=torch.double,
         )
 
@@ -245,7 +245,7 @@ class Observation:
             start=-(N / 2) * delta,
             end=(N / 2) * delta,
             step=delta,
-            device=self.device,
+            # device=self.device,
             dtype=torch.double,
         )
 
@@ -261,11 +261,21 @@ class Observation:
                 v,
                 v,
                 v,
-                torch.zeros(u.shape, device=self.device),
-                torch.zeros(u.shape, device=self.device),
-                torch.zeros(u.shape, device=self.device),
-                torch.ones(u.shape, device=self.device),
-                torch.ones(u.shape, device=self.device),
+                torch.zeros(
+                    u.shape,
+                ),  # device=self.device),
+                torch.zeros(
+                    u.shape,
+                ),  # device=self.device),
+                torch.zeros(
+                    u.shape,
+                ),  # device=self.device),
+                torch.ones(
+                    u.shape,
+                ),  # device=self.device),
+                torch.ones(
+                    u.shape,
+                ),  # device=self.device),
             ]
         )
 
@@ -386,7 +396,7 @@ class Observation:
         ra = torch.deg2rad(self.ra)
         dec = torch.deg2rad(self.dec)
 
-        lm_grid = torch.zeros(self.rd.shape, device=self.device)
+        lm_grid = torch.zeros(self.rd.shape)
         lm_grid[:, :, 0] = (
             torch.cos(self.rd[:, :, 1]) * torch.sin(self.rd[:, :, 0] - ra)
         ).T
@@ -419,7 +429,6 @@ class Observation:
         ar = Array(self.array)
         delta_x, delta_y, delta_z = ar.calc_relative_pos
         st_num_pairs, els_low_pairs, els_high_pairs = ar.calc_ant_pair_vals
-        print(els_low_pairs.shape)
 
         # Loop over ha and el_st
         baselines = Baselines(
