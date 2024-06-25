@@ -23,7 +23,7 @@ def create_vis_hdu(data, obs, layout="vlba", source_name="sim-source-0"):
 
     BASELINE = data.base_num
 
-    INTTIM = np.repeat(np.array(obs.int_time.cpu(), dtype=">f4"), len(u))
+    INTTIM = np.repeat(np.array(obs.int_time, dtype=">f4"), len(u))
 
     # visibility data
     values = data.get_values()
