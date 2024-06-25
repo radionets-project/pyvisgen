@@ -35,7 +35,7 @@ def test_vis_loop():
     from pyvisgen.utils.data import load_bundles, open_bundles
 
     bundles = load_bundles(conf["in_path"])
-    obs, samp_ops = create_observation(conf)
+    obs = create_observation(conf)
     # num_active_telescopes = test_opts(samp_ops)
     data = open_bundles(bundles[0])
     SI = torch.tensor(data[0])[None]
