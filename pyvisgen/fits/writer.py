@@ -36,10 +36,10 @@ def create_vis_hdu(data, obs, layout="vlba", source_name="sim-source-0"):
     # in dim 4 = IFs , dim = 1, dim 4 = number of jones, 3 = real, imag, weight
 
     # wcs
-    ra = obs.ra.cpu().numpy()
-    dec = obs.dec.cpu().numpy()
-    freq = (obs.ref_frequency.cpu().numpy() * un.Hz).value
-    freq_d = (obs.bandwidths.cpu().numpy() * un.Hz).value
+    ra = obs.ra.cpu().numpy().item()
+    dec = obs.dec.cpu().numpy().item()
+    freq = (obs.ref_frequency.cpu().numpy().item() * un.Hz).value
+    freq_d = (obs.bandwidths.cpu().numpy().item() * un.Hz).value
 
     ws = wcs.WCS(naxis=7)
     ws.wcs.crpix = [1, 1, 1, 1, 1, 1, 1]
