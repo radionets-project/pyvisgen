@@ -293,7 +293,7 @@ def create_antenna_hdu(obs):
     hdu_ant = fits.BinTableHDU.from_columns(coldefs_ant)
 
     freq = (obs.ref_frequency.cpu().numpy() * un.Hz).value
-    ref_date = Time(obs.start.isoformat(), format="isot")
+    ref_date = obs.start
 
     from astropy.utils import iers
 
