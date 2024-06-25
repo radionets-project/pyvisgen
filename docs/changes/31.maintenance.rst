@@ -1,0 +1,1 @@
+- use observation class to pass sampling options to the fits writer
