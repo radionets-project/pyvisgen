@@ -224,6 +224,8 @@ class Observation:
                 len(self.array.st_num) * (len(self.array.st_num) - 1) / 2
             )
             self.baselines.times_unique = torch.unique(self.baselines.time)
+            self.ra = torch.tensor([0]).to(self.device)
+            self.dec = torch.tensor([0]).to(self.device)
 
         self.rd = self.create_rd_grid()
         self.lm = self.create_lm_grid()
@@ -362,12 +364,12 @@ class Observation:
         dec = torch.deg2rad(self.dec)
 
         r = (
-            torch.arange(self.img_size, dtype=torch.float64) - self.img_size / 2
+            torch.arange(self.img_size, device=self.device, dtype=torch.float64) - self.img_size / 2
         ) * res + ra
         d = (
-            torch.arange(self.img_size, dtype=torch.float64) - self.img_size / 2
+            torch.arange(self.img_size, device=self.device, dtype=torch.float64) - self.img_size / 2
         ) * res + dec
-        print(d.dtype)
+
         _, R = torch.meshgrid((r, r), indexing="ij")
         D, _ = torch.meshgrid((d, d), indexing="ij")
         rd_grid = torch.cat([R[..., None], D[..., None]], dim=2)
@@ -391,7 +393,7 @@ class Observation:
         ra = torch.deg2rad(self.ra)
         dec = torch.deg2rad(self.dec)
 
-        lm_grid = torch.zeros(self.rd.shape, device=self.device)
+        lm_grid = torch.zeros(self.rd.shape, device=self.device, dtype=torch.float64)
         lm_grid[:, :, 0] = (
             torch.cos(self.rd[..., 1]) * torch.sin(self.rd[..., 0] - ra)
         ).T
