@@ -207,6 +207,7 @@ class Observation:
         self.sensitivity_cut = sensitivity_cut
         self.device = torch.device(device)
 
+        self.layout = array_layout
         self.array = layouts.get_array_layout(array_layout)
         self.num_baselines = int(
             len(self.array.st_num) * (len(self.array.st_num) - 1) / 2
