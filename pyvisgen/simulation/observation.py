@@ -225,8 +225,6 @@ class Observation:
                 len(self.array.st_num) * (len(self.array.st_num) - 1) / 2
             )
             self.baselines.times_unique = torch.unique(self.baselines.time)
-            self.ra = torch.tensor([0]).to(self.device)
-            self.dec = torch.tensor([0]).to(self.device)
 
         self.rd = self.create_rd_grid()
         self.lm = self.create_lm_grid()
@@ -366,7 +364,7 @@ class Observation:
 
         r = (
             torch.arange(self.img_size, device=self.device, dtype=torch.float64) - self.img_size / 2
-        ) * res + ra
+        ) * res
         d = (
             torch.arange(self.img_size, device=self.device, dtype=torch.float64) - self.img_size / 2
         ) * res + dec
@@ -396,13 +394,13 @@ class Observation:
 
         lm_grid = torch.zeros(self.rd.shape, device=self.device, dtype=torch.float64)
         lm_grid[:, :, 0] = (
-            torch.cos(self.rd[..., 1]) * torch.sin(self.rd[..., 0] - ra)
+            torch.cos(self.rd[..., 1]) * torch.sin(self.rd[..., 0])
         ).T
         lm_grid[:, :, 1] = (
             torch.sin(self.rd[..., 1]) * torch.cos(dec)
             - torch.cos(self.rd[..., 1])
             * torch.sin(dec)
-            * torch.cos(self.rd[..., 0] - ra)
+            * torch.cos(self.rd[..., 0])
         ).T
         return lm_grid
 
