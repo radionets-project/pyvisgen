@@ -383,7 +383,6 @@ class Observation:
         3d array
             Returns a 3d array with every pixel containing a l and m value
         """
-        ra = torch.deg2rad(self.ra)
         dec = torch.deg2rad(self.dec)
 
         lm_grid = torch.zeros(self.rd.shape, device=self.device)
