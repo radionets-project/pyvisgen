@@ -75,13 +75,13 @@ def calc_fourier(img, bas, lm, spw_low, spw_high):
         -2
         * pi
         * 1j
-        * (ul / c.value * spw_low + vm / c.value * spw_low + wn / c.value * spw_low)
+        * (ul + vm + wn) / 3e8 * spw_low
     )[..., None, None]
     K2 = torch.exp(
         -2
         * pi
         * 1j
-        * (ul / c.value * spw_high + vm / c.value * spw_high + wn / c.value * spw_high)
+        * (ul + vm + wn) / 3e8 * spw_high
     )[..., None, None]
     del ul, vm, wn
     return img * K1, img * K2
@@ -168,15 +168,20 @@ def integrate(X1, X2):
     """
     X_f = torch.stack((X1, X2))
     int_m = torch.sum(X_f, dim=2)
+
     del X_f
+
     # only integrate for 1 sky dimension
     # 2d sky is reshaped to 1d by sensitivity mask
     # int_l = torch.sum(int_m, dim=2)
     # del int_m
     int_f = 0.5 * torch.sum(int_m, dim=0)
     del int_m
+
     X_t = torch.stack(torch.split(int_f, int(int_f.shape[0] / 2), dim=0))
     del int_f
+
     int_t = 0.5 * torch.sum(X_t, dim=0)
     del X_t
+
     return int_t
