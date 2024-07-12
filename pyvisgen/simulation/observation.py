@@ -361,7 +361,7 @@ class Observation:
         ra = torch.deg2rad(self.ra)
         dec = torch.deg2rad(self.dec)
 
-        r = (torch.arange(self.img_size) - self.img_size / 2) * res + ra
+        r = (torch.arange(self.img_size) - self.img_size / 2) * res
         d = (torch.arange(self.img_size) - self.img_size / 2) * res + dec
         _, R = torch.meshgrid((r, r), indexing="ij")
         D, _ = torch.meshgrid((d, d), indexing="ij")
@@ -387,14 +387,10 @@ class Observation:
         dec = torch.deg2rad(self.dec)
 
         lm_grid = torch.zeros(self.rd.shape, device=self.device)
-        lm_grid[:, :, 0] = (
-            torch.cos(self.rd[:, :, 1]) * torch.sin(self.rd[:, :, 0] - ra)
-        ).T
+        lm_grid[:, :, 0] = (torch.cos(self.rd[..., 1]) * torch.sin(self.rd[..., 0])).T
         lm_grid[:, :, 1] = (
-            torch.sin(self.rd[:, :, 1]) * torch.cos(dec)
-            - torch.cos(self.rd[:, :, 1])
-            * torch.sin(dec)
-            * torch.cos(self.rd[:, :, 0] - ra)
+            torch.sin(self.rd[..., 1]) * torch.cos(dec)
+            - torch.cos(self.rd[..., 1]) * torch.sin(dec) * torch.cos(self.rd[..., 0])
         ).T
         return lm_grid
 
