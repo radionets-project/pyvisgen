@@ -39,7 +39,7 @@ class Visibilities:
         ]
 
 
-def vis_loop(obs, SI, num_threads=10, noisy=True, mode="full", batch_size=100):
+def vis_loop(obs, SI, num_threads=10, noisy=True, mode="full", batch_size=100, use_tqdm=False):
     torch.set_num_threads(num_threads)
     torch._dynamo.config.suppress_errors = True
 
@@ -95,7 +95,12 @@ def vis_loop(obs, SI, num_threads=10, noisy=True, mode="full", batch_size=100):
     else:
         raise ValueError("Unsupported mode!")
 
-    for p in tqdm(torch.arange(bas[:].shape[1]).split(batch_size)):
+    batches = torch.arange(bas[:].shape[1]).split(batch_size)
+    
+    if use_tqdm:
+        batches = tqdm(batches)
+        
+    for p in batches:
         bas_p = bas[:][:, p]
 
         int_values = torch.cat(
