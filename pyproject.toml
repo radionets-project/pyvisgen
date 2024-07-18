@@ -33,6 +33,7 @@ requires-python = ">=3.10"
 dependencies = [
     "numpy",
     "astropy<=6.1.0",
+    "pytorch",
     "matplotlib",
     "ipython",
     "scipy",
