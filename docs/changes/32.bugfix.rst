@@ -1,0 +1,2 @@
+- fix a numerical issue in the lm grid calculation, caused by adding a big number to small values in the lm grid
+- use torch.float64 for rd grid and lm grid calculation
