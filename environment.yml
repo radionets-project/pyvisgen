@@ -1,4 +1,4 @@
----
+# A conda environment with all useful packages for pyvisgen developers
 name: pyvisgen
 channels:
     - pytorch
@@ -6,9 +6,15 @@ channels:
     - conda-forge
 dependencies:
   - python
+  - astropy<=6.1.0
   - pytorch
   - numpy
+  - matplotlib
   - pip
+  - towncrier
+  - jupyter
+  - pytest
+  - pytest-cov
+  - pytest-runner
   - pip:
-    - towncrier
     - -e .
