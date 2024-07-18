@@ -39,7 +39,7 @@ class Visibilities:
         ]
 
 
-def vis_loop(obs, SI, num_threads=10, noisy=True, mode="full", batch_size=100, use_tqdm=False):
+def vis_loop(obs, SI, num_threads=10, noisy=True, mode="full", batch_size=100, show_progress=False):
     torch.set_num_threads(num_threads)
     torch._dynamo.config.suppress_errors = True
 
@@ -97,7 +97,7 @@ def vis_loop(obs, SI, num_threads=10, noisy=True, mode="full", batch_size=100, u
 
     batches = torch.arange(bas[:].shape[1]).split(batch_size)
     
-    if use_tqdm:
+    if show_progress:
         batches = tqdm(batches)
         
     for p in batches:
