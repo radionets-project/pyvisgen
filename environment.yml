@@ -8,8 +8,8 @@ dependencies:
   - python
   - pytorch
   - numpy
-  - astropy<=6.1.0
   - pip
   - pip:
     - towncrier
+    - astropy==6.1.0
     - -e .
