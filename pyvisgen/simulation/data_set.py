@@ -53,9 +53,9 @@ def simulate_data_set(config, slurm=False, job_id=None, n=None):
         if len(SI.shape) == 2:
             SI = SI.unsqueeze(0)
 
-        obs, samp_ops = create_observation(conf)
+        obs = create_observation(conf)
         vis_data = vis_loop(obs, SI, noisy=conf["noisy"], mode=conf["mode"])
-        hdu_list = writer.create_hdu_list(vis_data, samp_ops)
+        hdu_list = writer.create_hdu_list(vis_data, obs)
         hdu_list.writeto(out, overwrite=True)
 
     else:
@@ -63,11 +63,11 @@ def simulate_data_set(config, slurm=False, job_id=None, n=None):
             SIs = get_images(data, i)
 
             for j, SI in enumerate(tqdm(SIs)):
-                obs, samp_ops = create_observation(conf)
+                obs = create_observation(conf)
                 vis_data = vis_loop(obs, SI, noisy=conf["noisy"], mode=conf["mode"])
 
                 out = out_path / Path("vis_" + str(j + len(SIs) * i) + ".fits")
-                hdu_list = writer.create_hdu_list(vis_data, samp_ops)
+                hdu_list = writer.create_hdu_list(vis_data, obs)
                 hdu_list.writeto(out, overwrite=True)
 
 
@@ -103,7 +103,7 @@ def create_observation(conf):
         dense=dense,
         sensitivity_cut=rc["sensitivity_cut"],
     )
-    return obs, rc
+    return obs
 
 
 def create_sampling_rc(conf):

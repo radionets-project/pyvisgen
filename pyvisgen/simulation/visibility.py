@@ -1,6 +1,7 @@
 from dataclasses import dataclass, fields
 
 import torch
+from tqdm import tqdm
 
 import pyvisgen.simulation.scan as scan
 
@@ -37,7 +38,15 @@ class Visibilities:
         ]
 
 
-def vis_loop(obs, SI, num_threads=10, noisy=True, mode="full"):
+def vis_loop(
+    obs,
+    SI,
+    num_threads=10,
+    noisy=True,
+    mode="full",
+    batch_size=100,
+    show_progress=False,
+):
     torch.set_num_threads(num_threads)
     torch._dynamo.config.suppress_errors = True
 
@@ -93,7 +102,12 @@ def vis_loop(obs, SI, num_threads=10, noisy=True, mode="full"):
     else:
         raise ValueError("Unsupported mode!")
 
-    for p in torch.arange(bas[:].shape[1]).split(1000):
+    batches = torch.arange(bas[:].shape[1]).split(batch_size)
+
+    if show_progress:
+        batches = tqdm(batches)
+
+    for p in batches:
         bas_p = bas[:][:, p]
 
         int_values = torch.cat(
