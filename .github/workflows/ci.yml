@@ -39,7 +39,7 @@ jobs:
           fetch-depth: 0
 
       - name: Prepare mamba installation
-        if: matrix.install-method == 'mamba'
+        if: matrix.install-method == 'mamba' &&  contains(github.event.pull_request.labels.*.name, 'documentation-only') == false
         env:
           PYTHON_VERSION: ${{ matrix.python-version }}
         run: |
@@ -47,8 +47,11 @@ jobs:
           sed -i -e "s/- python.*/- python=$PYTHON_VERSION/g" environment.yml
 
       - name: mamba setup
-        if: matrix.install-method == 'mamba'
+        if: matrix.install-method == 'mamba' &&  contains(github.event.pull_request.labels.*.name, 'documentation-only') == false
         uses: mamba-org/setup-micromamba@v1
+        with:
+          environment-file: environment.yml
+          cache-downloads: true
 
       - name: Install dependencies
         run: |
