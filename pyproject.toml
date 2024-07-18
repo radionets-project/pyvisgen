@@ -54,6 +54,9 @@ dependencies = [
 [project.scripts]
     pyvisgen_create_dataset = "pyvisgen.simulation.scripts.create_dataset:main"
 
+[tool.setuptools.packages.find]
+    where = ["pyvisgen"]
+
 [tool.towncrier]
     package = "ctapipe"
     directory = "docs/changes"
