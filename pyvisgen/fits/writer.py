@@ -39,7 +39,7 @@ def create_vis_hdu(data, obs, layout="vlba", source_name="sim-source-0"):
     ra = obs.ra.cpu().numpy().item()
     dec = obs.dec.cpu().numpy().item()
     freq = obs.ref_frequency.cpu().numpy().item()
-    freq_d = obs.bandwidths.cpu().numpy().item()
+    freq_d = obs.bandwidths[0].cpu().numpy().item()
 
     ws = wcs.WCS(naxis=7)
     ws.wcs.crpix = [1, 1, 1, 1, 1, 1, 1]

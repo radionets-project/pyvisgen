@@ -30,6 +30,7 @@ def test_create_sampling_rc():
 def test_vis_loop():
     import torch
 
+    import pyvisgen.fits.writer as writer
     from pyvisgen.simulation.data_set import create_observation
     from pyvisgen.simulation.visibility import vis_loop
     from pyvisgen.utils.data import load_bundles, open_bundles
@@ -57,3 +58,9 @@ def test_vis_loop():
     # num_vis_calc = vis_data.base_num[vis_data.date == vis_data.date[0]].shape[0]
     # dunno what's going on here
     # assert num_vis_theory == num_vis_calc
+    #
+
+    out_path = Path(conf["out_path_fits"])
+    out = out_path / Path("vis_0.fits")
+    hdu_list = writer.create_hdu_list(vis_data, obs)
+    hdu_list.writeto(out, overwrite=True)
