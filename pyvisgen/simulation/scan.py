@@ -1,7 +1,7 @@
 from math import pi
 
 import torch
-from astropy.constants import c
+from scipy.constants import c
 from torch.special import bessel_j1
 
 
@@ -71,18 +71,8 @@ def calc_fourier(img, bas, lm, spw_low, spw_high):
     wn = w_cmplt[..., None] * (n - 1)
     del l, m, n, u_cmplt, v_cmplt, w_cmplt
 
-    K1 = torch.exp(
-        -2
-        * pi
-        * 1j
-        * (ul + vm + wn) / 3e8 * spw_low
-    )[..., None, None]
-    K2 = torch.exp(
-        -2
-        * pi
-        * 1j
-        * (ul + vm + wn) / 3e8 * spw_high
-    )[..., None, None]
+    K1 = torch.exp(-2 * pi * 1j * (ul + vm + wn) / c * spw_low)[..., None, None]
+    K2 = torch.exp(-2 * pi * 1j * (ul + vm + wn) / c * spw_high)[..., None, None]
     del ul, vm, wn
     return img * K1, img * K2
 
@@ -93,8 +83,8 @@ def calc_beam(X1, X2, rd, ra, dec, ant_diam, spw_low, spw_high):
     theta = angularDistance(rd, ra, dec)
     tds = diameters * theta[..., None]
 
-    E1 = jinc(2 * pi / c.value * spw_low * tds)
-    E2 = jinc(2 * pi / c.value * spw_high * tds)
+    E1 = jinc(2 * pi / c * spw_low * tds)
+    E2 = jinc(2 * pi / c * spw_high * tds)
 
     assert E1.shape == E2.shape
 
