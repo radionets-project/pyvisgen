@@ -54,6 +54,8 @@ jobs:
           cache-downloads: true
 
       - name: Install dependencies
+        env:
+          PYTHON_VERSION: ${{ matrix.python-version }}
         run: |
           python --version
           pip install pytest-cov restructuredtext-lint pytest-xdist 'coverage!=6.3.0'
