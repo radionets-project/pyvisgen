@@ -13,7 +13,7 @@ setup(
     packages=find_packages(),
     install_requires=[
         "numpy",
-        "astropy=6.1.0",
+        "astropy",
         "matplotlib",
         "ipython",
         "scipy",
