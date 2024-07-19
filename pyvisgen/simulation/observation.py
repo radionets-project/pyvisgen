@@ -359,14 +359,15 @@ class Observation:
         # define resolution
         res = fov / self.img_size
 
-        ra = torch.deg2rad(self.ra)
         dec = torch.deg2rad(self.dec)
 
         r = (
-            torch.arange(self.img_size, device=self.device, dtype=torch.float64) - self.img_size / 2
+            torch.arange(self.img_size, device=self.device, dtype=torch.float64)
+            - self.img_size / 2
         ) * res
         d = (
-            torch.arange(self.img_size, device=self.device, dtype=torch.float64) - self.img_size / 2
+            torch.arange(self.img_size, device=self.device, dtype=torch.float64)
+            - self.img_size / 2
         ) * res + dec
 
         _, R = torch.meshgrid((r, r), indexing="ij")
@@ -389,18 +390,13 @@ class Observation:
         3d array
             Returns a 3d array with every pixel containing a l and m value
         """
-        ra = torch.deg2rad(self.ra)
         dec = torch.deg2rad(self.dec)
 
         lm_grid = torch.zeros(self.rd.shape, device=self.device, dtype=torch.float64)
-        lm_grid[:, :, 0] = (
-            torch.cos(self.rd[..., 1]) * torch.sin(self.rd[..., 0])
-        ).T
+        lm_grid[:, :, 0] = (torch.cos(self.rd[..., 1]) * torch.sin(self.rd[..., 0])).T
         lm_grid[:, :, 1] = (
             torch.sin(self.rd[..., 1]) * torch.cos(dec)
-            - torch.cos(self.rd[..., 1])
-            * torch.sin(dec)
-            * torch.cos(self.rd[..., 0])
+            - torch.cos(self.rd[..., 1]) * torch.sin(dec) * torch.cos(self.rd[..., 0])
         ).T
         return lm_grid
 
