@@ -1,7 +1,7 @@
 from math import pi
 
 import torch
-from astropy.constants import c
+from scipy.constants import c
 from torch.special import bessel_j1
 
 
@@ -71,18 +71,8 @@ def calc_fourier(img, bas, lm, spw_low, spw_high):
     wn = w_cmplt[..., None] * (n - 1)
     del l, m, n, u_cmplt, v_cmplt, w_cmplt
 
-    K1 = torch.exp(
-        -2
-        * pi
-        * 1j
-        * (ul / c.value * spw_low + vm / c.value * spw_low + wn / c.value * spw_low)
-    )[..., None, None]
-    K2 = torch.exp(
-        -2
-        * pi
-        * 1j
-        * (ul / c.value * spw_high + vm / c.value * spw_high + wn / c.value * spw_high)
-    )[..., None, None]
+    K1 = torch.exp(-2 * pi * 1j * (ul + vm + wn) / c * spw_low)[..., None, None]
+    K2 = torch.exp(-2 * pi * 1j * (ul + vm + wn) / c * spw_high)[..., None, None]
     del ul, vm, wn
     return img * K1, img * K2
 
@@ -93,8 +83,8 @@ def calc_beam(X1, X2, rd, ra, dec, ant_diam, spw_low, spw_high):
     theta = angularDistance(rd, ra, dec)
     tds = diameters * theta[..., None]
 
-    E1 = jinc(2 * pi / c.value * spw_low * tds)
-    E2 = jinc(2 * pi / c.value * spw_high * tds)
+    E1 = jinc(2 * pi / c * spw_low * tds)
+    E2 = jinc(2 * pi / c * spw_high * tds)
 
     assert E1.shape == E2.shape
 
@@ -125,7 +115,7 @@ def angularDistance(rd, ra, dec):
         Returns angular Distance for every pixel in rd grid with respect
         to source position
     """
-    r = rd[..., 0] - torch.deg2rad(ra.to(rd.device))
+    r = rd[..., 0]
     d = rd[..., 1] - torch.deg2rad(dec.to(rd.device))
     theta = torch.arcsin(torch.sqrt(r**2 + d**2))
     return theta
@@ -168,15 +158,20 @@ def integrate(X1, X2):
     """
     X_f = torch.stack((X1, X2))
     int_m = torch.sum(X_f, dim=2)
+
     del X_f
+
     # only integrate for 1 sky dimension
     # 2d sky is reshaped to 1d by sensitivity mask
     # int_l = torch.sum(int_m, dim=2)
     # del int_m
     int_f = 0.5 * torch.sum(int_m, dim=0)
     del int_m
+
     X_t = torch.stack(torch.split(int_f, int(int_f.shape[0] / 2), dim=0))
     del int_f
+
     int_t = 0.5 * torch.sum(X_t, dim=0)
     del X_t
+
     return int_t
