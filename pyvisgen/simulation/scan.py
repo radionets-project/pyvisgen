@@ -115,7 +115,7 @@ def angularDistance(rd, ra, dec):
         Returns angular Distance for every pixel in rd grid with respect
         to source position
     """
-    r = rd[..., 0] - torch.deg2rad(ra.to(rd.device))
+    r = rd[..., 0]
     d = rd[..., 1] - torch.deg2rad(dec.to(rd.device))
     theta = torch.arcsin(torch.sqrt(r**2 + d**2))
     return theta
