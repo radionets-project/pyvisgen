@@ -1,1 +1,2 @@
 - fix package name and url in pyproject.toml
+- remove obsolete setup.py

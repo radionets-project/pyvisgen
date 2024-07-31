@@ -53,7 +53,7 @@ dependencies = [
 pyvisgen_create_dataset = "pyvisgen.simulation.scripts.create_dataset:main"
 
 [tool.setuptools.packages.find]
-where = ["pyvisgen"]
+where = ["."]
 
 [tool.towncrier]
 package = "pyvisgen"
