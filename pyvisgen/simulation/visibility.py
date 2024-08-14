@@ -286,6 +286,9 @@ class Polarisation:
         elif len(shape) > 2:
             raise ValueError("Only 2d shapes are allowed!")
 
+        if isinstance(order, int):
+            order = [order]
+
         if not isinstance(order, list):
             order = list(order)
 
