@@ -51,6 +51,7 @@ class Polarisation:
         amp_ratio: float,
         delta: float,
         polarisation: str,
+        field_kwargs: dict,
         random_state: int,
         device: str,
     ) -> None:
@@ -91,21 +92,16 @@ class Polarisation:
 
         if random_state:
             torch.manual_seed(random_state)
-        else:
-            torch.seed()
 
         if self.polarisation:
             self.polarisation_field = self.rand_polarisation_field(
                 [SI.shape[0], SI.shape[1]],
-                random_state=random_state,
-                order=[1, 1],
-                scale=[0, 1],
-                threshold=None,
+                **field_kwargs,
             )
 
             self.delta = delta
 
-            if amp_ratio and amp_ratio >= 0:
+            if amp_ratio and (amp_ratio >= 0):
                 ax2 = amp_ratio
             else:
                 ax2 = torch.rand(1)
@@ -233,9 +229,6 @@ class Polarisation:
         else:
             # No polarisation applied
             self.I[..., 0] = self.SI[..., 0]
-            self.I[..., 1] = self.SI[..., 0]
-            self.I[..., 2] = self.SI[..., 0]
-            self.I[..., 3] = self.SI[..., 0]
 
             B[..., 0, 0] = self.I[..., 0] + self.I[..., 1]
             B[..., 0, 1] = self.I[..., 2] + 1j * self.I[..., 3]
@@ -328,10 +321,6 @@ def vis_loop(
     noisy: bool = True,
     mode: str = "full",
     batch_size: int = 100,
-    polarisation: str = "linear",
-    delta: float = 0,
-    amp_ratio: float = None,
-    random_state: int = 42,
     show_progress: bool = False,
 ) -> Visibilities:
     r"""Computes the visibilities of an observation.
@@ -359,14 +348,6 @@ def vis_loop(
         Choose between `'linear'` or `'circular'` or `None` to
         simulate different types of polarisations or disable
         the simulation of polarisation. Default: 'linear'
-    delta : float, optional
-        Sets the phase difference of the amplitudes $A_x$ and $A_y$
-        of the sky distribution. Defines the measure of ellipticity.
-        Default: 0
-    amp_ratio : float, optional
-        Sets the ratio of $A_{x/r}$. The ratio of $A_{y/l}$ is calculated
-        as `1 - amp_ratio`. If set to `None`, a random value is drawn
-        from a uniform distribution. See also: `random_state`. Default: None
     random_state : int, optional
         Random state used when drawing `amp_ratio` and during the generation
         of the random polarisation field. Default: 42
@@ -385,11 +366,10 @@ def vis_loop(
     pol = Polarisation(
         SI,
         sensitivity_cut=obs.sensitivity_cut,
-        amp_ratio=amp_ratio,
-        delta=delta,
-        polarisation=polarisation,
-        random_state=random_state,
+        polarisation=obs.polarisation,
         device=obs.device,
+        field_kwargs=obs.field_kwargs,
+        **obs.pol_kwargs,
     )
 
     B, mask, lin_dop, circ_dop = pol.stokes_matrix()
