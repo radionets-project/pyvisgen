@@ -9,10 +9,10 @@ import pyvisgen.simulation.scan as scan
 
 @dataclass
 class Visibilities:
-    SI: torch.tensor
-    SQ: torch.tensor
-    SU: torch.tensor
-    SV: torch.tensor
+    V_11: torch.tensor
+    V_22: torch.tensor
+    V_12: torch.tensor
+    V_21: torch.tensor
     num: torch.tensor
     base_num: torch.tensor
     u: torch.tensor
@@ -27,7 +27,7 @@ class Visibilities:
 
     def get_values(self):
         return torch.cat(
-            [self.SI[None], self.SQ[None], self.SU[None], self.SV[None]], dim=0
+            [self.V_11[None], self.V_22[None], self.V_12[None], self.V_21[None]], dim=0
         ).permute(1, 2, 0)
 
     def add(self, visibilities):
@@ -95,7 +95,7 @@ class Polarisation:
 
         if self.polarisation:
             self.polarisation_field = self.rand_polarisation_field(
-                [SI.shape[0], SI.shape[1]],
+                [self.SI.shape[0], self.SI.shape[1]],
                 **field_kwargs,
             )
 
@@ -108,8 +108,11 @@ class Polarisation:
 
             ay2 = 1 - ax2
 
-            self.ax2 = self.SI[..., 0] * ax2
-            self.ay2 = self.SI[..., 0] * ay2
+            self.ax2 = self.SI[..., 0].clone() * ax2
+            self.ay2 = self.SI[..., 0].clone() * ay2
+        else:
+            self.ax2 = self.SI[..., 0]
+            self.ay2 = torch.zeros_like(self.ax2)
 
         self.I = torch.zeros(
             (self.SI.shape[0], self.SI.shape[1], 4), dtype=torch.cdouble
@@ -174,13 +177,13 @@ class Polarisation:
         self.I[..., 2] *= self.polarisation_field
         self.I[..., 3] *= self.polarisation_field
 
-        dop_I = self.I[..., 0].clone()
+        dop_I = self.I[..., 0].real.clone()
         dop_I[~mask] = float("nan")
-        dop_Q = self.I[..., 1].clone()
+        dop_Q = self.I[..., 1].real.clone()
         dop_Q[~mask] = float("nan")
-        dop_U = self.I[..., 2].clone()
+        dop_U = self.I[..., 2].real.clone()
         dop_U[~mask] = float("nan")
-        dop_V = self.I[..., 3].clone()
+        dop_V = self.I[..., 3].real.clone()
         dop_V[~mask] = float("nan")
 
         self.lin_dop = torch.sqrt(dop_Q**2 + dop_U**2) / dop_I
@@ -212,28 +215,30 @@ class Polarisation:
             self.linear()
             self.dop()
 
-            B[..., 0, 0] = self.I[..., 0] + self.I[..., 3]
-            B[..., 0, 1] = self.I[..., 1] + 1j * self.I[..., 2]
-            B[..., 1, 0] = self.I[..., 1] - 1j * self.I[..., 2]
-            B[..., 1, 1] = self.I[..., 0] - self.I[..., 3]
+            B[..., 0, 0] = self.I[..., 0] + self.I[..., 1]  # I + Q
+            B[..., 0, 1] = self.I[..., 2] + 1j * self.I[..., 3]  # U + iV
+            B[..., 1, 0] = self.I[..., 2] - 1j * self.I[..., 3]  # U - iV
+            B[..., 1, 1] = self.I[..., 0] - self.I[..., 1]  # I - Q
 
         elif self.polarisation == "circular":
             self.circular()
             self.dop()
 
-            B[..., 0, 0] = self.I[..., 0] + self.I[..., 1]
-            B[..., 0, 1] = self.I[..., 2] + 1j * self.I[..., 3]
-            B[..., 1, 0] = self.I[..., 2] - 1j * self.I[..., 3]
-            B[..., 1, 1] = self.I[..., 0] - self.I[..., 1]
+            B[..., 0, 0] = self.I[..., 0] + self.I[..., 3]  # I + V
+            B[..., 0, 1] = self.I[..., 1] + 1j * self.I[..., 2]  # Q + iU
+            B[..., 1, 0] = self.I[..., 1] - 1j * self.I[..., 2]  # Q - iU
+            B[..., 1, 1] = self.I[..., 0] - self.I[..., 3]  # I - V
 
         else:
             # No polarisation applied
             self.I[..., 0] = self.SI[..., 0]
+            self.polarisation_field = torch.ones_like(self.I[..., 0])
+            self.dop()
 
-            B[..., 0, 0] = self.I[..., 0] + self.I[..., 1]
-            B[..., 0, 1] = self.I[..., 2] + 1j * self.I[..., 3]
-            B[..., 1, 0] = self.I[..., 2] - 1j * self.I[..., 3]
-            B[..., 1, 1] = self.I[..., 0] - self.I[..., 1]
+            B[..., 0, 0] = self.I[..., 0] + self.I[..., 1]  # I + Q
+            B[..., 0, 1] = self.I[..., 2] + 1j * self.I[..., 3]  # U + iV
+            B[..., 1, 0] = self.I[..., 2] - 1j * self.I[..., 3]  # U - iV
+            B[..., 1, 1] = self.I[..., 0] - self.I[..., 1]  # I - Q
 
         # calculations only for px > sensitivity cut
         mask = (self.SI >= self.sensitivity_cut)[..., 0]
@@ -451,10 +456,10 @@ def vis_loop(
         vis_num = torch.arange(int_values.shape[0]) + 1 + vis_num.max()
 
         vis = Visibilities(
-            int_values[:, :, 0, 0].cpu(),
-            int_values[:, :, 0, 1].cpu(),
-            int_values[:, :, 1, 0].cpu(),
-            int_values[:, :, 1, 1].cpu(),
+            int_values[..., 0, 0].cpu(),  # V_11
+            int_values[..., 1, 1].cpu(),  # V_22
+            int_values[..., 0, 1].cpu(),  # V_12
+            int_values[..., 1, 0].cpu(),  # V_21
             vis_num,
             bas_p[9].cpu(),
             bas_p[2].cpu(),
@@ -464,11 +469,13 @@ def vis_loop(
             torch.tensor([]),
             torch.tensor([]),
         )
-        visibilities.linear_dop = lin_dop.cpu()
-        visibilities.circular_dop = circ_dop.cpu()
 
         visibilities.add(vis)
         del int_values
+
+    visibilities.linear_dop = lin_dop.cpu()
+    visibilities.circular_dop = circ_dop.cpu()
+
     return visibilities
 
 
