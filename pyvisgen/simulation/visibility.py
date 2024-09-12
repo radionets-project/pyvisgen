@@ -54,7 +54,7 @@ class Polarisation:
         polarisation: str,
         field_kwargs: dict,
         random_state: int,
-        device: str,
+        device: torch.device,
     ) -> None:
         """Creates the 2 x 2 stokes matrix and simulates
         polarisation if `polarisation` is either 'linear'
@@ -82,7 +82,7 @@ class Polarisation:
         random_state : int
             Random state used when drawing `amp_ratio` and during the generation
             of the random polarisation field.
-        device : str
+        device : torch.device
             Torch device to select for computation.
         """
         self.sensitivity_cut = sensitivity_cut
