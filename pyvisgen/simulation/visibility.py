@@ -373,7 +373,7 @@ def vis_loop(
     torch._dynamo.config.suppress_errors = True
 
     pol = Polarisation(
-        SI,
+        torch.flip(SI, dims=[1]),
         sensitivity_cut=obs.sensitivity_cut,
         polarisation=obs.polarisation,
         device=obs.device,
