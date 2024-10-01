@@ -55,10 +55,10 @@ def test_vis_loop():
     SI = torch.tensor(data[0])[None]
     vis_data = vis_loop(obs, SI, noisy=conf["noisy"], mode=conf["mode"])
 
-    assert (vis_data[0].SI[0]).dtype == torch.complex128
-    assert (vis_data[0].SQ[0]).dtype == torch.complex128
-    assert (vis_data[0].SU[0]).dtype == torch.complex128
-    assert (vis_data[0].SV[0]).dtype == torch.complex128
+    assert (vis_data[0].V_11[0]).dtype == torch.complex128
+    assert (vis_data[0].V_22[0]).dtype == torch.complex128
+    assert (vis_data[0].V_12[0]).dtype == torch.complex128
+    assert (vis_data[0].V_21[0]).dtype == torch.complex128
     assert (vis_data[0].num).dtype == torch.float32
     assert (vis_data[0].base_num).dtype == torch.float64
     assert torch.is_tensor(vis_data[0].u)
