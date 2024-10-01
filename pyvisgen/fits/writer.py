@@ -42,9 +42,17 @@ def create_vis_hdu(data, obs, source_name="sim-source-0"):
     freq_d = obs.bandwidths[0].cpu().numpy().item()
 
     ws = wcs.WCS(naxis=7)
+
+    crval_stokes = -1
+    stokes_comment = "-1=RR, -2=LL, -3=RL, -4=LR"
+    if obs.polarisation == "linear":
+        crval_stokes = -5
+        stokes_comment = "-5=XX, -6=YY, -7=XY, -8=YX"
+        stokes_comment += " or -5=VV, -6=HH, -7=VH, -8=HV"
+
     ws.wcs.crpix = [1, 1, 1, 1, 1, 1, 1]
     ws.wcs.cdelt = np.array([1, 1, -1, freq_d, 1, 1, 1])
-    ws.wcs.crval = [1, 1, -1, freq, 1, ra, dec]
+    ws.wcs.crval = [1, 1, crval_stokes, freq, 1, ra, dec]
     ws.wcs.ctype = ["", "COMPLEX", "STOKES", "FREQ", "IF", "RA", "DEC"]
     h = ws.to_header()
 
@@ -79,6 +87,8 @@ def create_vis_hdu(data, obs, source_name="sim-source-0"):
         hdu_vis.header["PZERO" + str(i + 1)] = parbzeros[i]
 
     # add comments
+    hdu_vis.header.comments["CTYPE2"] = "1=real, 2=imag, 3=weight"
+    hdu_vis.header.comments["CTYPE3"] = stokes_comment
     hdu_vis.header.comments["PTYPE1"] = "u baseline coordinate in light seconds"
     hdu_vis.header.comments["PTYPE2"] = "v baseline coordinate in light seconds"
     hdu_vis.header.comments["PTYPE3"] = "w baseline coordinate in light seconds"
