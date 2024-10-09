@@ -50,6 +50,8 @@ def vis_loop(
     torch.set_num_threads(num_threads)
     torch._dynamo.config.suppress_errors = True
 
+    SI = torch.flip(SI, dims=[1])
+
     # define unpolarized sky distribution
     SI = SI.permute(dims=(1, 2, 0))
     I = torch.zeros((SI.shape[0], SI.shape[1], 4), dtype=torch.cdouble)
