@@ -1,4 +1,5 @@
 from dataclasses import dataclass, fields
+from datetime import datetime
 from math import pi
 
 import astropy.constants as const
@@ -155,24 +156,104 @@ class ValidBaselineSubset:
 class Observation:
     def __init__(
         self,
-        src_ra,
-        src_dec,
-        start_time,
-        scan_duration,
-        num_scans,
-        scan_separation,
-        integration_time,
-        ref_frequency,
-        frequency_offsets,
-        bandwidths,
-        fov,
-        image_size,
-        array_layout,
-        corrupted,
-        device,
-        dense=False,
-        sensitivity_cut=1e-6,
-    ):
+        src_ra: float,
+        src_dec: float,
+        start_time: datetime,
+        scan_duration: int,
+        num_scans: int,
+        scan_separation: int,
+        integration_time: int,
+        ref_frequency: float,
+        frequency_offsets: list,
+        bandwidths: list,
+        fov: float,
+        image_size: int,
+        array_layout: str,
+        corrupted: bool,
+        device: str,
+        dense: bool = False,
+        sensitivity_cut: float = 1e-6,
+        polarisation: str = None,
+        pol_kwargs: dict = {
+            "delta": 0,
+            "amp_ratio": 0.5,
+            "random_state": 42,
+        },
+        field_kwargs: dict = {
+            "order": [1, 1],
+            "scale": [0, 1],
+            "threshold": None,
+            "random_state": 42,
+        },
+    ) -> None:
+        """Sets up the observation class.
+
+        Parameters
+        ----------
+        src_ra : float
+            Source right ascension coordinate.
+        src_dec : float
+            Source declination coordinate.
+        start_time : datetime
+            Observation start time.
+        scan_duration : int
+            Scan duration.
+        num_scans : int
+            Number of scans.
+        scan_separation : int
+            Scan separation.
+        integration_time : int
+            Integration time.
+        ref_frequency : float
+            Reference frequency.
+        frequency_offsets : list
+            Frequency offsets.
+        bandwidths : list
+            Frequency bandwidth.
+        fov : float
+            Field of view.
+        image_size : int
+            Image size of the sky distribution.
+        array_layout : str
+            Name of an existing array layout. See `~pyvisgen.layouts`.
+        corrupted : bool
+            If `True`, apply corruption during the vis loop.
+        device : str
+            Torch device to select for computation.
+        dense : bool, optional
+            If `True`, apply dense baseline calculation of a perfect
+            interferometer. Default: `False`
+        sensitivity_cut : float, optional
+            Sensitivity threshold, where only pixels above the value
+            are kept. Default: 1e-6
+        polarisation : str, optional
+            Choose between `'linear'` or `'circular'` or `None` to
+            simulate different types of polarisations or disable
+            the simulation of polarisation. Default: `None`
+        pol_kwargs : dict, optional
+            Additional keyword arguments for the simulation
+            of polarisation. Default: `{
+                "delta": 0,
+                "amp_ratio": 0.5,
+                "random_state": 42,
+            }
+        field_kwargs : dict, optional
+            Additional keyword arguments for the random polarisation
+            field that is applied when simulating polarisation.
+            Default: `{
+                "order": [1, 1],
+                "scale": [0, 1],
+                "threshold": None,
+                "random_state": 42
+            }`
+
+        Notes
+        -----
+        See `~pyvisgen.simulation.visibility.Polarisation` and
+        `~pyvisgen.simulation.visibility.Polarisation.rand_polarisation_field`
+        for more information on the keyword arguments in `pol_kwargs`
+        and `field_kwargs`, respectively.
+        """
         self.ra = torch.tensor(src_ra).double()
         self.dec = torch.tensor(src_dec).double()
 
@@ -228,6 +309,11 @@ class Observation:
 
         self.rd = self.create_rd_grid()
         self.lm = self.create_lm_grid()
+
+        # polarisation
+        self.polarisation = polarisation
+        self.pol_kwargs = pol_kwargs
+        self.field_kwargs = field_kwargs
 
     def calc_dense_baselines(self):
         N = self.img_size
