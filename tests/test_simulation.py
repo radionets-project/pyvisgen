@@ -305,6 +305,14 @@ class TestPolarisation:
         pf = self.pol.rand_polarisation_field(
             shape=self.im_shape,
             random_state=42,
+            order=(1, 1),
+        )
+        # assert order = (1, 1) and order = [1, 1] yield same images
+        assert_array_equal(pf, pf_ref, strict=True)
+
+        pf = self.pol.rand_polarisation_field(
+            shape=self.im_shape,
+            random_state=42,
             order=[1],
         )
         # assert order = [1] and order = [1, 1] yield same images
