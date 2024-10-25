@@ -1,8 +1,8 @@
 from dataclasses import dataclass, fields
-from tqdm import tqdm
 
-import torch
 import scipy.ndimage
+import torch
+from tqdm import tqdm
 
 import pyvisgen.simulation.scan as scan
 
@@ -119,7 +119,7 @@ class Polarisation:
         )  # noqa: E741
 
     def linear(self) -> None:
-        """Computes the stokes parameters I, Q, U, and V
+        r"""Computes the stokes parameters I, Q, U, and V
         for linear polarisation.
 
         .. math::
@@ -144,7 +144,7 @@ class Polarisation:
         )
 
     def circular(self) -> None:
-        """Computes the stokes parameters I, Q, U, and V
+        r"""Computes the stokes parameters I, Q, U, and V
         for circular polarisation.
 
         .. math::
@@ -323,7 +323,7 @@ class Polarisation:
 
 
 def vis_loop(
-    obs: "Observation",
+    obs,
     SI: torch.tensor,
     num_threads: int = 10,
     noisy: bool = True,

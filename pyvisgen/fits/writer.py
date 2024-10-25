@@ -10,7 +10,7 @@ from astropy.time import Time
 import pyvisgen.layouts.layouts as layouts
 
 
-def create_vis_hdu(data, obs, layout="vlba", source_name="sim-source-0"):
+def create_vis_hdu(data, obs, source_name="sim-source-0"):
     u = data.u
 
     v = data.v
@@ -105,8 +105,8 @@ def create_vis_hdu(data, obs, layout="vlba", source_name="sim-source-0"):
     hdu_vis.header["EXTNAME"] = ("AIPS UV", "AIPS UV")
     hdu_vis.header["EXTVER"] = (1, "Version number of table")
     hdu_vis.header["OBJECT"] = (source_name, "Source name")
-    hdu_vis.header["TELESCOP"] = (layout, "Telescope name")
-    hdu_vis.header["INSTRUME"] = (layout, "Instrument name (receiver or ?)")
+    hdu_vis.header["TELESCOP"] = (obs.layout, "Telescope name")
+    hdu_vis.header["INSTRUME"] = (obs.layout, "Instrument name (receiver or ?)")
     hdu_vis.header["DATE-OBS"] = (date_obs, "Observation date")
     hdu_vis.header["DATE-MAP"] = (date_map, "File processing date")
     hdu_vis.header["BSCALE"] = (1, "Always 1")

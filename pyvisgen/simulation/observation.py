@@ -436,7 +436,7 @@ class Observation:
 
         Returns
         -------
-        3d array
+        rd_grid : 3d array
             Returns a 3d array with every pixel containing a RA and Dec value
         """
         # transform to rad
@@ -474,7 +474,7 @@ class Observation:
 
         Returns
         -------
-        3d array
+        lm_grid : 3d array
             Returns a 3d array with every pixel containing a l and m value
         """
         dec = torch.deg2rad(self.dec)
