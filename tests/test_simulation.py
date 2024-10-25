@@ -227,6 +227,22 @@ class TestPolarisation:
         assert lin_dop.shape == self.im_shape
         assert lin_dop.shape == self.im_shape
 
+    def test_polarisation_amplitude(self):
+        """Test random amplitude."""
+        pol_kwargs = {"delta": 0, "amp_ratio": None, "random_state": 42}
+
+        self.pol.__init__(
+            self.SI,
+            sensitivity_cut=self.obs.sensitivity_cut,
+            polarisation="linear",
+            device=self.obs.device,
+            field_kwargs=self.obs.field_kwargs,
+            **pol_kwargs,
+        )
+
+        assert self.pol.ax2.sum() <= 9
+        assert self.pol.ay2.sum() <= 9
+
     def test_polarisation_field(self):
         """Test Polarisation.rand_polarisation_field method."""
         pf = self.pol.rand_polarisation_field(shape=self.im_shape)
@@ -245,13 +261,28 @@ class TestPolarisation:
         assert torch.random.initial_seed() == random_state
         assert pf.shape == torch.Size([100, 100])
 
-    def test_polarisation_field_shape_int(self):
+    def test_polarisation_field_shape(self):
         """Test polarisation field method for type(shape) = int."""
+        pf_ref = self.pol.rand_polarisation_field(
+            shape=self.im_shape,
+            random_state=42,
+        )
+
         pf = self.pol.rand_polarisation_field(
             shape=self.im_shape[0],
+            random_state=42,
         )
 
         assert pf.shape == torch.Size([100, 100])
+        assert_array_equal(pf, pf_ref, strict=True)
+
+        # assert len(shape) > 2 raises ValueError
+        assert_raises(
+            ValueError,
+            self.pol.rand_polarisation_field,
+            shape=[100, 100, 100],
+            random_state=42,
+        )
 
     def test_polarisation_field_order(self):
         """Test polarisation field method for different orders."""
@@ -269,6 +300,14 @@ class TestPolarisation:
 
         assert pf.shape == torch.Size([100, 100])
         # assert order = 1 and order = [1, 1] yield same images
+        assert_array_equal(pf, pf_ref, strict=True)
+
+        pf = self.pol.rand_polarisation_field(
+            shape=self.im_shape,
+            random_state=42,
+            order=[1],
+        )
+        # assert order = [1] and order = [1, 1] yield same images
         assert_array_equal(pf, pf_ref, strict=True)
 
         # assert different order creates different image
