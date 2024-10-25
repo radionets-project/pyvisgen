@@ -94,7 +94,7 @@ class Polarisation:
         if random_state:
             torch.manual_seed(random_state)
 
-        if self.polarisation:
+        if self.polarisation and self.polarisation in ["circular", "linear"]:
             self.polarisation_field = self.rand_polarisation_field(
                 [self.SI.shape[0], self.SI.shape[1]],
                 **field_kwargs,
@@ -282,6 +282,9 @@ class Polarisation:
         """
         if random_state:
             torch.random.manual_seed(random_state)
+
+        if isinstance(shape, int):
+            shape = [shape]
 
         if not isinstance(shape, list):
             shape = list(shape)
