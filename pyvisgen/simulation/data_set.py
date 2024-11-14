@@ -39,9 +39,6 @@ def simulate_data_set(config, slurm=False, job_id=None, n=None):
     out_path.mkdir(parents=True, exist_ok=True)
     data = load_bundles(conf["in_path"])
 
-    # if conf["seed"] is not None:
-    #     global rng
-    #     rng = np.random.default_rng(conf["seed"])
     if slurm:
         job_id = int(job_id + n * 500)
         out = out_path / Path("vis_" + str(job_id) + ".fits")
