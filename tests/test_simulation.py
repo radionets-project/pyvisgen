@@ -64,3 +64,9 @@ def test_vis_loop():
     out = out_path / Path("vis_0.fits")
     hdu_list = writer.create_hdu_list(vis_data, obs)
     hdu_list.writeto(out, overwrite=True)
+
+
+def test_simulate_data_set_no_slurm():
+    from pyvisgen.simulation.data_set import simulate_data_set
+
+    simulate_data_set(config)
