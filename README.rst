@@ -34,7 +34,7 @@ utilize the RIME formalism for creating visibilities data. With the option ``gri
 as input images for training a neural network from the radionets framework. The necessary options and variables are set with a ``toml``
 file. An exemplary file can be found in ``config/data_set.toml``.
 
-..code::
+.. code::
 
   $ pyvisgen_create_dataset --mode=simulate some_file.toml
 
