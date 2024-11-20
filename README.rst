@@ -60,13 +60,11 @@ RIME
 
 Currently, we use the following expression for the simulation process:
 
-.. math::
+$$\\mathbf{V}_{\\mathrm{pq}}(l, m) = \\sum_{l, m} \\mathbf{E}_{\\mathrm{p}}(l, m) \\mathbf{K}_{\\mathrm{p}}(l, m) \\mathbf{B}(l, m) \\mathbf{K}^{H}_{\\mathrm{q}}(l, m) \\mathbf{E}^{H}_{\\mathrm{q}}(l, m)$$
 
-  \mathbf{V}_{\mathrm{pq}}(l, m) = \sum\_{l, m} \mathbf{E}\_{\mathrm{p}}(l, m) \mathbf{K}\_{\mathrm{p}}(l, m) \mathbf{B}(l, m) \mathbf{K}^{H}\_{\mathrm{q}}(l, m) \mathbf{E}^{H}\_{\mathrm{q}}(l, m)
-
-Here, :math:`\mathbf{B}(l, m)` corresponds to the source distribution, :math:`\mathbf{K}(l, m) = \exp(-2\pi\cdot i\cdot (ul + vm))` represents
-the phase delay, and :math:`\mathbf{E}(l, m) = \mathrm{jinc}\left(\frac{2\pi}{\lambda}d\cdot \theta\_{lm}\right)` the telescope properties,
-with :math:`\mathrm{jinc(x)}=\frac{J_1(x}{x}` and :math:`J_1(x)` as the first Bessel function. An exemplary result can be found below.
+Here, $\\mathbf{B}(l, m)$ corresponds to the source distribution, $\\mathbf{K}(l, m) = \\exp(-2\\pi\\cdot i\\cdot (ul + vm))$ represents
+the phase delay, and $\\mathbf{E}(l, m) = \\mathrm{jinc}\\left(\\frac{2\\pi}{\\lambda}d\\cdot \\theta_{lm}\\right)$ the telescope properties,
+with $\\mathrm{jinc(x)} = \\frac{J_1(x)}{x}$ and $J_1(x)$ as the first Bessel function. An exemplary result can be found below.
 
 .. image:: https://github.com/radionets-project/pyvisgen/assets/23259659/858a5d4b-893a-4216-8d33-41d33981354c
    :alt: visibilities
@@ -74,14 +72,14 @@ with :math:`\mathrm{jinc(x)}=\frac{J_1(x}{x}` and :math:`J_1(x)` as the first Be
 Visualization of Jones matrices
 ===============================
 
-In this section, you can see visualizations of the matrices :math:`\mathbf{E}(l, m)`  and :math:`\mathbf{K}(l, m)`.
+In this section, you can see visualizations of the matrices $\\mathbf{E}(l, m)$  and $\\mathbf{K}(l, m)$.
 
-Visualization of the E matrix
------------------------------
+Visualization of the $\\mathbf{E}$ matrix
+-----------------------------------------
 .. image:: https://github.com/radionets-project/pyvisgen/assets/23259659/194a321b-77cd-423b-9d01-c18c0741d6c5
    :alt: visualize_E
 
-Visualization of the K matrix
------------------------------
+Visualization of the $\\mathbf{K}$ matrix
+-----------------------------------------
 .. image:: https://github.com/radionets-project/pyvisgen/assets/23259659/501f487a-498b-4143-b54a-eb0e2f28e417
    :alt: visualize_K
