@@ -75,11 +75,11 @@ Visualization of Jones matrices
 In this section, you can see visualizations of the matrices $\\mathbf{E}(l, m)$  and $\\mathbf{K}(l, m)$.
 
 Visualization of the $\\mathbf{E}$ matrix
------------------------------
+-----------------------------------------
 .. image:: https://github.com/radionets-project/pyvisgen/assets/23259659/194a321b-77cd-423b-9d01-c18c0741d6c5
    :alt: visualize_E
 
 Visualization of the $\\mathbf{K}$ matrix
------------------------------
+-----------------------------------------
 .. image:: https://github.com/radionets-project/pyvisgen/assets/23259659/501f487a-498b-4143-b54a-eb0e2f28e417
    :alt: visualize_K
