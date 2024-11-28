@@ -45,7 +45,7 @@ def get_array_layout(array_layout: str | Path | pd.DataFrame, writer: bool = Fal
     dataclass objects
         Station infos combined in dataclass
     """
-    if isinstance(array_layout, (str, Path)):
+    if isinstance(array_layout, str):
         f = array_layout + ".txt"
         array = pd.read_csv(file_dir / f, sep=r"\s+")
 
@@ -57,12 +57,6 @@ def get_array_layout(array_layout: str | Path | pd.DataFrame, writer: bool = Fal
             array["Y"] += loc.value[1]
             array["Z"] += loc.value[2]
 
-        if array_layout == "test_layout":
-            # Place the test_layout at Dortmund
-            loc = EarthLocation.of_address("dortmund")
-            array["X"] += loc.value[0]
-            array["Y"] += loc.value[1]
-            array["Z"] += loc.value[2]
     elif isinstance(array_layout, pd.DataFrame):
         array = array_layout
     else:
