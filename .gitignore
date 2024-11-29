@@ -1,3 +1,10 @@
+# docs
+docs/_build
+docs/api
+
+pyvisgen/_version_cache.py
+pyvisgen/_version.py
+
 #slurm
 *.slurm
 *.log
