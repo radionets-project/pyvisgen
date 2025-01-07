@@ -24,34 +24,46 @@ class Stations:
         return Stations(*[getattr(self, f.name)[i] for f in fields(self)])
 
 
-def get_array_layout(array_name, writer=False):
+def get_array_layout(array_layout: str | Path | pd.DataFrame, writer: bool = False):
     """Reads telescope layout txt file and converts it into a dataclass.
+    Also allows a DataFrame to be passed that is then converted into a dataclass
+    object.
     Available arrays:
     - EHT
 
     Parameters
     ----------
-    array_name : str
-        Name of telescope array
+    array_layout : str or pathlib.Path or pd.DataFrame
+        Name of telescope array or pd.DataFrame containing
+        the array layout.
+    writer : bool, optional
+        If ``True``, return ``array`` DataFrame instead of
+        ``Stations`` dataclass object.
 
     Returns
     -------
     dataclass objects
-        Station infos combinde in dataclass
+        Station infos combined in dataclass
     """
-    f = array_name + ".txt"
-    array = pd.read_csv(file_dir / f, sep=r"\s+")
-    if array_name == "vla":
-        loc = EarthLocation.of_site("VLA")
-        array["X"] += loc.value[0]
-        array["Y"] += loc.value[1]
-        array["Z"] += loc.value[2]
+    if isinstance(array_layout, str):
+        f = array_layout + ".txt"
+        array = pd.read_csv(file_dir / f, sep=r"\s+")
 
-    if array_name == "test_layout":
-        loc = EarthLocation.of_address("dortmund")
-        array["X"] += loc.value[0]
-        array["Y"] += loc.value[1]
-        array["Z"] += loc.value[2]
+        if array_layout == "vla":
+            # Change relative positions to absolute positions
+            # for the VLA layout
+            loc = EarthLocation.of_site("VLA")
+            array["X"] += loc.value[0]
+            array["Y"] += loc.value[1]
+            array["Z"] += loc.value[2]
+
+    elif isinstance(array_layout, pd.DataFrame):
+        array = array_layout
+    else:
+        raise TypeError(
+            "Expected array_layout to be of type str, "
+            "pathlib.Path, or pandas.DataFrame!"
+        )
 
     # drop name col and convert to tensor
     tensor = torch.from_numpy(array.iloc[:, 1:].values)
