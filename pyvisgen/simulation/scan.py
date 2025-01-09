@@ -6,7 +6,19 @@ from torch.special import bessel_j1
 
 
 @torch.compile
-def rime(img, bas, lm, rd, ra, dec, ant_diam, spw_low, spw_high, corrupted=False):
+def rime(
+    img,
+    bas,
+    lm,
+    rd,
+    ra,
+    dec,
+    ant_diam,
+    spw_low,
+    spw_high,
+    polarisation,
+    corrupted=False,
+):
     """Calculates visibilities using RIME
 
     Parameters
@@ -21,6 +33,8 @@ def rime(img, bas, lm, rd, ra, dec, ant_diam, spw_low, spw_high, corrupted=False
         lower wavelength
     spw_high : float
         higher wavelength
+    polarisation : str
+        Type of polarisation.
 
     Returns
     -------
@@ -29,8 +43,11 @@ def rime(img, bas, lm, rd, ra, dec, ant_diam, spw_low, spw_high, corrupted=False
     """
     with torch.no_grad():
         X1, X2 = calc_fourier(img, bas, lm, spw_low, spw_high)
+        print(X1.shape)
         if corrupted:
             X1, X2 = calc_beam(X1, X2, rd, ra, dec, ant_diam, spw_low, spw_high)
+
+        X1, X2 = calc_feed_rotation(X1, X2, bas.q1, bas.q2, polarisation)
         vis = integrate(X1, X2)
     return vis
 
@@ -75,6 +92,37 @@ def calc_fourier(img, bas, lm, spw_low, spw_high):
     K2 = torch.exp(-2 * pi * 1j * (ul + vm + wn) / c * spw_high)[..., None, None]
     del ul, vm, wn
     return img * K1, img * K2
+
+
+@torch.compile
+def calc_feed_rotation(X1, X2, q1, q2, polarisation):
+    """ """
+    P1 = torch.ones_like(X1)
+    P2 = torch.ones_like(X2)
+
+    if polarisation == "linear":
+        P1[..., 0, 0] = torch.cos(q1)
+        P1[..., 0, 1] = torch.sin(q1)
+        P1[..., 1, 0] = -torch.sin(q1)
+        P1[..., 1, 1] = torch.cos(q1)
+
+        P2[..., 0, 0] = torch.cos(q2)
+        P2[..., 0, 1] = torch.sin(q2)
+        P2[..., 1, 0] = -torch.sin(q2)
+        P2[..., 1, 1] = torch.cos(q2)
+
+    if polarisation == "circular":
+        P1[..., 0, 0] = torch.exp(1j * q1)
+        P1[..., 0, 1] = 0
+        P1[..., 1, 0] = 0
+        P1[..., 1, 1] = torch.exp(-1j * q1)
+
+        P2[..., 0, 0] = torch.exp(1j * q2)
+        P2[..., 0, 1] = 0
+        P2[..., 1, 0] = 0
+        P2[..., 1, 1] = torch.exp(-1j * q2)
+
+    return img * P1, img * P2
 
 
 @torch.compile
