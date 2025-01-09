@@ -7,7 +7,7 @@ import astropy.units as un
 import numpy as np
 import torch
 from astropy.constants import c
-from astropy.coordinates import AltAz, Angle, EarthLocation, SkyCoord
+from astropy.coordinates import AltAz, Angle, EarthLocation, SkyCoord, Longitude
 from astropy.time import Time
 
 from pyvisgen.layouts import layouts
@@ -23,6 +23,9 @@ class Baselines:
     w: torch.tensor
     valid: torch.tensor
     time: torch.tensor
+    q_all: torch.tensor
+    q1: torch.tensor
+    q2: torch.tensor
 
     def __getitem__(self, i):
         return Baselines(*[getattr(self, f.name)[i] for f in fields(self)])
@@ -61,6 +64,9 @@ class Baselines:
         v_valid = (v_start + v_stop) / 2
         w_valid = (w_start + w_stop) / 2
 
+        q1_valid = bas_reshaped.q1[mask].to(device)
+        q2_valid = bas_reshaped.q2[mask].to(device)
+
         t = Time(bas_reshaped.time / (60 * 60 * 24), format="mjd").jd
         date = (torch.from_numpy(t[:-1][mask] + t[1:][mask]) / 2).to(device)
 
@@ -76,6 +82,8 @@ class Baselines:
             w_valid,
             baseline_nums,
             date,
+            q1_valid,
+            q2_valid,
         )
 
 
@@ -92,6 +100,8 @@ class ValidBaselineSubset:
     w_valid: torch.tensor
     baseline_nums: torch.tensor
     date: torch.tensor
+    q1_valid: torch.tensor
+    q2_valid: torch.tensor
 
     def __getitem__(self, i):
         return torch.stack(
@@ -107,6 +117,8 @@ class ValidBaselineSubset:
                 self.w_valid,
                 self.baseline_nums,
                 self.date,
+                self.q1_valid,
+                self.q2_valid,
             ]
         )
 
@@ -236,7 +248,7 @@ class Observation:
                 "delta": 0,
                 "amp_ratio": 0.5,
                 "random_state": 42,
-            }
+            }`
         field_kwargs : dict, optional
             Additional keyword arguments for the random polarisation
             field that is applied when simulating polarisation.
@@ -265,7 +277,8 @@ class Observation:
         self.times, self.times_mjd = self.calc_time_steps()
         self.scans = torch.stack(
             torch.split(
-                torch.arange(len(self.times)), (len(self.times) // self.num_scans)
+                torch.arange(self.times.size),
+                (self.times.size // self.num_scans),
             ),
             dim=0,
         )
@@ -290,6 +303,9 @@ class Observation:
 
         self.layout = array_layout
         self.array = layouts.get_array_layout(array_layout)
+        self.array_earth_loc = EarthLocation.from_geocentric(
+            self.array.x, self.array.y, self.array.z, unit=un.m
+        )
         self.num_baselines = int(
             len(self.array.st_num) * (len(self.array.st_num) - 1) / 2
         )
@@ -303,7 +319,7 @@ class Observation:
         else:
             self.calc_baselines()
             self.baselines.num = int(
-                len(self.array.st_num) * (len(self.array.st_num) - 1) / 2
+                self.array.st_num.size(dim=0) * (self.array.st_num.size(dim=0) - 1) / 2
             )
             self.baselines.times_unique = torch.unique(self.baselines.time)
 
@@ -365,7 +381,15 @@ class Observation:
             torch.tensor([]),
             torch.tensor([]),
             torch.tensor([]),
+            torch.tensor([]),
+            torch.tensor([]),
+            torch.tensor([]),
         )
+        self.q_comb_l = []
+        self.q_all_l = []
+
+        self.n = 1
+
         for scan in self.scans:
             bas = self.get_baselines(self.times[scan])
             self.baselines.add_baseline(bas)
@@ -389,12 +413,25 @@ class Observation:
             time = self.times
         if time.shape == ():
             time = time[None]
+
         src_crd = SkyCoord(ra=self.ra, dec=self.dec, unit=(un.deg, un.deg))
         # Calculate for all times
         # calculate GHA, Greenwich as reference
-        ha_all = Angle(
+        GHA = Angle(
             [t.sidereal_time("apparent", "greenwich") - src_crd.ra for t in time]
         )
+        self.ha_all = GHA
+
+        # calculate local sidereal time and HA at each antenna
+        lst = un.Quantity(
+            [
+                Time(time, location=loc).sidereal_time("mean")
+                for loc in self.array_earth_loc
+            ]
+        )
+        ha_local = torch.from_numpy(
+            (lst - Longitude(self.ra.item(), unit=un.deg)).radian
+        ).T
 
         # calculate elevations
         el_st_all = src_crd.transform_to(
@@ -408,8 +445,38 @@ class Observation:
                 ),
             )
         )
-        assert len(ha_all.value) == len(el_st_all)
-        return torch.tensor(ha_all.deg), torch.tensor(el_st_all.alt.degree)
+        assert len(GHA.value) == len(el_st_all)
+        return torch.tensor(GHA.deg), ha_local, torch.tensor(el_st_all.alt.degree)
+
+    def calc_feed_rotation(self, ha: Angle) -> Angle:
+        r"""Calculates feed rotation for every antenna at every time step.
+
+        Notes
+        -----
+        The calculation is based on Equation (13.1) of Meeus'
+        Astronomical Algorithms:
+
+        .. math::
+
+            q = \frac{\sin h}{\cos\delta \tan\varphi - \sin\delta \cos h,
+
+        where $h$ is the local hour angle, $\varphi$ the geographical latitude
+        of the observer, and $\delta$ the declination of the source.
+        """
+        # We need to create a tensor from the EarthLocation object
+        # and save only the geographical latitude of each antenna
+        ant_lat = torch.tensor(self.array_earth_loc.lat)
+
+        # Eqn (13.1) of Meeus' Astronomical Algorithms
+        q = torch.arctan2(
+            torch.sin(ha),
+            (
+                torch.tan(ant_lat) * torch.cos(self.dec)
+                - torch.sin(self.dec) * torch.cos(ha)
+            ),
+        )
+
+        return q
 
     def test_active_telescopes(self):
         _, el_st_0 = self.calc_ref_elev(self.times[0])
@@ -501,9 +568,10 @@ class Observation:
         dataclass object
             baselines between telescopes with visibility flags
         """
-        # Calculate for all times
-        # calculate GHA, Greenwich as reference
-        ha_all, el_st_all = self.calc_ref_elev(time=times)
+        # calculate GHA, local HA, and station elevation for all times.
+        GHA, ha_local, el_st_all = self.calc_ref_elev(time=times)
+
+        self.el_st_all = el_st_all
 
         ar = Array(self.array)
         delta_x, delta_y, delta_z = ar.calc_relative_pos
@@ -518,8 +586,31 @@ class Observation:
             torch.tensor([]),
             torch.tensor([]),
             torch.tensor([]),
+            torch.tensor([]),
+            torch.tensor([]),
+            torch.tensor([]),
         )
-        for ha, el_st, time in zip(ha_all, el_st_all, times):
+        q_all = self.calc_feed_rotation(ha_local)
+        q_comb = torch.vstack([torch.combinations(qi) for qi in q_all])
+        q_comb = q_comb.reshape(-1, int(q_comb.shape[0] / times.shape[0]), 2)
+
+        self.q_comb_l.append(q_comb)
+        self.q_all_l.append(q_all)
+
+        print(
+            GHA.shape,
+            el_st_all.shape,
+            times.shape,
+            q_all.shape,
+            q_comb.shape,
+        )
+
+        self.GHA = GHA
+        self.delx = delta_x
+        self.dely = delta_y
+        self.delz = delta_z
+
+        for ha, el_st, time, q, qc in zip(GHA, el_st_all, times, q_all, q_comb):
             u, v, w = self.calc_direction_cosines(ha, el_st, delta_x, delta_y, delta_z)
 
             # calc current elevations
@@ -535,6 +626,7 @@ class Observation:
             time_mjd = torch.repeat_interleave(
                 torch.tensor(time.mjd) * (24 * 60 * 60), len(valid)
             )
+
             # collect baselines
             base = Baselines(
                 st_num_pairs[:, 0],
@@ -544,6 +636,9 @@ class Observation:
                 w,
                 valid,
                 time_mjd,
+                q,
+                qc[..., 0].ravel(),
+                qc[..., 1].ravel(),
             )
             baselines.add_baseline(base)
         return baselines
