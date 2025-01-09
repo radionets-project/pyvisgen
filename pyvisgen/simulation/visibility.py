@@ -514,6 +514,7 @@ def _batch_loop(
                     torch.unique(obs.array.diam),
                     wave_low,
                     wave_high,
+                    obs.polarisation,
                     corrupted=obs.corrupted,
                 )[None]
                 for wave_low, wave_high in zip(obs.waves_low, obs.waves_high)
