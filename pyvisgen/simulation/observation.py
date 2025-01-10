@@ -274,6 +274,7 @@ class Observation:
         self.num_scans = num_scans
         self.int_time = integration_time
         self.scan_separation = scan_separation
+
         self.times, self.times_mjd = self.calc_time_steps()
         self.scans = torch.stack(
             torch.split(
@@ -286,6 +287,7 @@ class Observation:
         self.ref_frequency = torch.tensor(ref_frequency)
         self.bandwidths = torch.tensor(bandwidths)
         self.frequency_offsets = torch.tensor(frequency_offsets)
+
         self.waves_low = (
             self.ref_frequency + self.frequency_offsets
         ) - self.bandwidths / 2
@@ -330,6 +332,30 @@ class Observation:
         self.polarisation = polarisation
         self.pol_kwargs = pol_kwargs
         self.field_kwargs = field_kwargs
+
+    def calc_time_steps(self):
+        """Computes the time steps of the observation.
+
+        Returns
+        -------
+        time : array_like
+            Array of time steps.
+        time.mjd : array_like
+            Time steps in mjd format.
+        """
+        time_lst = [
+            self.start
+            + self.scan_separation * i * un.second
+            + i * self.scan_duration * un.second
+            + j * self.int_time * un.second
+            for i in range(self.num_scans)
+            for j in range(int(self.scan_duration / self.int_time) + 1)
+        ]
+        # +1 because t_1 is the stop time of t_0
+        # in order to save computing power we take one time more to complete interval
+        time = Time(time_lst)
+
+        return time, time.mjd * (60 * 60 * 24)
 
     def calc_dense_baselines(self):
         N = self.img_size
@@ -394,166 +420,6 @@ class Observation:
             bas = self.get_baselines(self.times[scan])
             self.baselines.add_baseline(bas)
 
-    def calc_time_steps(self):
-        time_lst = [
-            self.start
-            + self.scan_separation * i * un.second
-            + i * self.scan_duration * un.second
-            + j * self.int_time * un.second
-            for i in range(self.num_scans)
-            for j in range(int(self.scan_duration / self.int_time) + 1)
-        ]
-        # +1 because t_1 is the stop time of t_0
-        # in order to save computing power we take one time more to complete interval
-        time = Time(time_lst)
-        return time, time.mjd * (60 * 60 * 24)
-
-    def calc_ref_elev(self, time=None):
-        if time is None:
-            time = self.times
-        if time.shape == ():
-            time = time[None]
-
-        src_crd = SkyCoord(ra=self.ra, dec=self.dec, unit=(un.deg, un.deg))
-        # Calculate for all times
-        # calculate GHA, Greenwich as reference
-        GHA = Angle(
-            [t.sidereal_time("apparent", "greenwich") - src_crd.ra for t in time]
-        )
-        self.ha_all = GHA
-
-        # calculate local sidereal time and HA at each antenna
-        lst = un.Quantity(
-            [
-                Time(time, location=loc).sidereal_time("mean")
-                for loc in self.array_earth_loc
-            ]
-        )
-        ha_local = torch.from_numpy(
-            (lst - Longitude(self.ra.item(), unit=un.deg)).radian
-        ).T
-
-        # calculate elevations
-        el_st_all = src_crd.transform_to(
-            AltAz(
-                obstime=time[..., None],
-                location=EarthLocation.from_geocentric(
-                    torch.repeat_interleave(self.array.x[None], len(time), dim=0),
-                    torch.repeat_interleave(self.array.y[None], len(time), dim=0),
-                    torch.repeat_interleave(self.array.z[None], len(time), dim=0),
-                    unit=un.m,
-                ),
-            )
-        )
-        assert len(GHA.value) == len(el_st_all)
-        return torch.tensor(GHA.deg), ha_local, torch.tensor(el_st_all.alt.degree)
-
-    def calc_feed_rotation(self, ha: Angle) -> Angle:
-        r"""Calculates feed rotation for every antenna at every time step.
-
-        Notes
-        -----
-        The calculation is based on Equation (13.1) of Meeus'
-        Astronomical Algorithms:
-
-        .. math::
-
-            q = \frac{\sin h}{\cos\delta \tan\varphi - \sin\delta \cos h,
-
-        where $h$ is the local hour angle, $\varphi$ the geographical latitude
-        of the observer, and $\delta$ the declination of the source.
-        """
-        # We need to create a tensor from the EarthLocation object
-        # and save only the geographical latitude of each antenna
-        ant_lat = torch.tensor(self.array_earth_loc.lat)
-
-        # Eqn (13.1) of Meeus' Astronomical Algorithms
-        q = torch.arctan2(
-            torch.sin(ha),
-            (
-                torch.tan(ant_lat) * torch.cos(self.dec)
-                - torch.sin(self.dec) * torch.cos(ha)
-            ),
-        )
-
-        return q
-
-    def test_active_telescopes(self):
-        _, el_st_0 = self.calc_ref_elev(self.times[0])
-        _, el_st_1 = self.calc_ref_elev(self.times[1])
-        el_min = 15
-        el_max = 85
-        active_telescopes_0 = np.sum((el_st_0 >= el_min) & (el_st_0 <= el_max))
-        active_telescopes_1 = np.sum((el_st_1 >= el_min) & (el_st_1 <= el_max))
-        return min(active_telescopes_0, active_telescopes_1)
-
-    def create_rd_grid(self):
-        """Calculates RA and Dec values for a given fov around a source position
-
-        Parameters
-        ----------
-        fov : float
-            FOV size
-        samples : int
-            number of pixels
-        src_ra :
-            right ascensio of the source in deg
-        src_dec :
-            dec of the source in deg
-
-        Returns
-        -------
-        rd_grid : 3d array
-            Returns a 3d array with every pixel containing a RA and Dec value
-        """
-        # transform to rad
-        fov = self.fov / 3600 * (pi / 180)
-
-        # define resolution
-        res = fov / self.img_size
-
-        dec = torch.deg2rad(self.dec)
-
-        r = (
-            torch.arange(self.img_size, device=self.device, dtype=torch.float64)
-            - self.img_size / 2
-        ) * res
-        d = (
-            torch.arange(self.img_size, device=self.device, dtype=torch.float64)
-            - self.img_size / 2
-        ) * res + dec
-
-        R, _ = torch.meshgrid((r, r), indexing="ij")
-        _, D = torch.meshgrid((d, d), indexing="ij")
-        rd_grid = torch.cat([R[..., None], D[..., None]], dim=2)
-
-        return rd_grid
-
-    def create_lm_grid(self):
-        """Calculates sine projection for fov
-
-        Parameters
-        ----------
-        rd_grid : 3d array
-            array containing a RA and Dec value in every pixel
-        src_crd : astropy SkyCoord
-            source position
-
-        Returns
-        -------
-        lm_grid : 3d array
-            Returns a 3d array with every pixel containing a l and m value
-        """
-        dec = torch.deg2rad(self.dec)
-
-        lm_grid = torch.zeros(self.rd.shape, device=self.device, dtype=torch.float64)
-        lm_grid[..., 0] = torch.cos(self.rd[..., 1]) * torch.sin(self.rd[..., 0])
-        lm_grid[..., 1] = torch.sin(self.rd[..., 1]) * torch.cos(dec) - torch.cos(
-            self.rd[..., 1]
-        ) * torch.sin(dec) * torch.cos(self.rd[..., 0])
-
-        return lm_grid
-
     def get_baselines(self, times):
         """Calculates baselines from source coordinates and time of observation for
         every antenna station in array_layout.
@@ -617,9 +483,10 @@ class Observation:
             cur_el_st = torch.combinations(el_st)
 
             # calc valid baselines
-            valid = torch.ones(u.shape).bool()
             m1 = (cur_el_st < els_low_pairs).any(axis=1)
             m2 = (cur_el_st > els_high_pairs).any(axis=1)
+
+            valid = torch.ones(u.shape).bool()
             valid_mask = torch.logical_or(m1, m2)
             valid[valid_mask] = False
 
@@ -641,11 +508,90 @@ class Observation:
                 qc[..., 1].ravel(),
             )
             baselines.add_baseline(base)
+
         return baselines
+
+    def calc_ref_elev(self, time=None):
+        if time is None:
+            time = self.times
+        if time.shape == ():
+            time = time[None]
+
+        src_crd = SkyCoord(ra=self.ra, dec=self.dec, unit=(un.deg, un.deg))
+        # Calculate for all times
+        # calculate GHA, Greenwich as reference
+        GHA = Angle(
+            [t.sidereal_time("apparent", "greenwich") - src_crd.ra for t in time]
+        )
+        self.ha_all = GHA
+
+        # calculate local sidereal time and HA at each antenna
+        lst = un.Quantity(
+            [
+                Time(time, location=loc).sidereal_time("mean")
+                for loc in self.array_earth_loc
+            ]
+        )
+        ha_local = torch.from_numpy(
+            (lst - Longitude(self.ra.item(), unit=un.deg)).radian
+        ).T
+
+        # calculate elevations
+        el_st_all = src_crd.transform_to(
+            AltAz(
+                obstime=time[..., None],
+                location=EarthLocation.from_geocentric(
+                    torch.repeat_interleave(self.array.x[None], len(time), dim=0),
+                    torch.repeat_interleave(self.array.y[None], len(time), dim=0),
+                    torch.repeat_interleave(self.array.z[None], len(time), dim=0),
+                    unit=un.m,
+                ),
+            )
+        )
+        assert len(GHA.value) == len(el_st_all)
+
+        if not len(GHA.value) == len(el_st_all):
+            raise ValueError(
+                "Expected GHA and el_st_all to have the same length"
+                f"{len(GHA.value)} and {len(el_st_all)}"
+            )
+
+        return torch.tensor(GHA.deg), ha_local, torch.tensor(el_st_all.alt.degree)
+
+    def calc_feed_rotation(self, ha: Angle) -> Angle:
+        r"""Calculates feed rotation for every antenna at every time step.
+
+        Notes
+        -----
+        The calculation is based on Equation (13.1) of Meeus'
+        Astronomical Algorithms:
+
+        .. math::
+
+            q = \frac{\sin h}{\cos\delta \tan\varphi - \sin\delta \cos h,
+
+        where $h$ is the local hour angle, $\varphi$ the geographical latitude
+        of the observer, and $\delta$ the declination of the source.
+        """
+        # We need to create a tensor from the EarthLocation object
+        # and save only the geographical latitude of each antenna
+        ant_lat = torch.tensor(self.array_earth_loc.lat)
+
+        # Eqn (13.1) of Meeus' Astronomical Algorithms
+        q = torch.arctan2(
+            torch.sin(ha),
+            (
+                torch.tan(ant_lat) * torch.cos(self.dec)
+                - torch.sin(self.dec) * torch.cos(ha)
+            ),
+        )
+
+        return q
 
     def calc_direction_cosines(self, ha, el_st, delta_x, delta_y, delta_z):
         src_dec = torch.deg2rad(self.dec)
         ha = torch.deg2rad(ha)
+
         u = (torch.sin(ha) * delta_x + torch.cos(ha) * delta_y).reshape(-1)
         v = (
             -torch.sin(src_dec) * torch.cos(ha) * delta_x
@@ -657,5 +603,78 @@ class Observation:
             - torch.cos(src_dec) * torch.sin(ha) * delta_y
             + torch.sin(src_dec) * delta_z
         ).reshape(-1)
-        assert u.shape == v.shape == w.shape
+
+        if not (u.shape == v.shape == w.shape):
+            raise ValueError(
+                "u, v, w array shapes are not the same: "
+                f"{u.shape}, {v.shape}, {w.shape}"
+            )
+
         return u, v, w
+
+    def create_rd_grid(self):
+        """Calculates RA and Dec values for a given fov around a source position
+
+        Parameters
+        ----------
+        fov : float
+            FOV size
+        samples : int
+            number of pixels
+        src_ra :
+            right ascensio of the source in deg
+        src_dec :
+            dec of the source in deg
+
+        Returns
+        -------
+        rd_grid : 3d array
+            Returns a 3d array with every pixel containing a RA and Dec value
+        """
+        # transform to rad
+        fov = self.fov / 3600 * (pi / 180)
+
+        # define resolution
+        res = fov / self.img_size
+
+        dec = torch.deg2rad(self.dec)
+
+        r = (
+            torch.arange(self.img_size, device=self.device, dtype=torch.float64)
+            - self.img_size / 2
+        ) * res
+        d = (
+            torch.arange(self.img_size, device=self.device, dtype=torch.float64)
+            - self.img_size / 2
+        ) * res + dec
+
+        R, _ = torch.meshgrid((r, r), indexing="ij")
+        _, D = torch.meshgrid((d, d), indexing="ij")
+        rd_grid = torch.cat([R[..., None], D[..., None]], dim=2)
+
+        return rd_grid
+
+    def create_lm_grid(self):
+        """Calculates sine projection for fov
+
+        Parameters
+        ----------
+        rd_grid : 3d array
+            array containing a RA and Dec value in every pixel
+        src_crd : astropy SkyCoord
+            source position
+
+        Returns
+        -------
+        lm_grid : 3d array
+            Returns a 3d array with every pixel containing an l and m value
+        """
+        dec = torch.deg2rad(self.dec)
+
+        lm_grid = torch.zeros(self.rd.shape, device=self.device, dtype=torch.float64)
+        lm_grid[..., 0] = torch.cos(self.rd[..., 1]) * torch.sin(self.rd[..., 0])
+        lm_grid[..., 1] = torch.sin(self.rd[..., 1]) * torch.cos(dec) - torch.cos(
+            self.rd[..., 1]
+        ) * torch.sin(dec) * torch.cos(self.rd[..., 0])
+
+        return lm_grid
