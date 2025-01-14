@@ -14,6 +14,20 @@ from pyvisgen.layouts import layouts
 from pyvisgen.simulation.array import Array
 
 
+DEFAULT_POL_KWARGS = {
+    "delta": 0,
+    "amp_ratio": 0.5,
+    "random_state": 42,
+}
+
+DEFAULT_FIELD_KWARGS = {
+    "order": [1, 1],
+    "scale": [0, 1],
+    "threshold": None,
+    "random_state": 42,
+}
+
+
 @dataclass
 class Baselines:
     st1: torch.tensor
@@ -146,7 +160,6 @@ class ValidBaselineSubset:
 
     def get_unique_grid(self, fov_size, ref_frequency, img_size, device):
         uv = torch.cat([self.u_valid[None], self.v_valid[None]], dim=0)
-        q = torch.cat([self.q1_valid[None], self.q2_valid[None]], dim=0)
 
         fov = fov_size * pi / (3600 * 180)
         delta = 1 / fov * const.c.value.item() / ref_frequency
@@ -207,17 +220,8 @@ class Observation:
         dense: bool = False,
         sensitivity_cut: float = 1e-6,
         polarisation: str = None,
-        pol_kwargs: dict = {
-            "delta": 0,
-            "amp_ratio": 0.5,
-            "random_state": 42,
-        },
-        field_kwargs: dict = {
-            "order": [1, 1],
-            "scale": [0, 1],
-            "threshold": None,
-            "random_state": 42,
-        },
+        pol_kwargs: dict = DEFAULT_POL_KWARGS,
+        field_kwargs: dict = DEFAULT_FIELD_KWARGS,
     ) -> None:
         """Sets up the observation class.
 
@@ -431,10 +435,6 @@ class Observation:
             torch.tensor([]),
             torch.tensor([]),
         )
-        self.q_comb_l = []
-        self.q_all_l = []
-
-        self.n = 1
 
         for scan in self.scans:
             bas = self.get_baselines(self.times[scan])
@@ -456,8 +456,6 @@ class Observation:
         """
         # calculate GHA, local HA, and station elevation for all times.
         GHA, ha_local, el_st_all = self.calc_ref_elev(time=times)
-
-        self.el_st_all = el_st_all
 
         ar = Array(self.array)
         delta_x, delta_y, delta_z = ar.calc_relative_pos
@@ -499,8 +497,8 @@ class Observation:
 
             # collect baselines
             base = Baselines(
-                st_num_pairs[:, 0],
-                st_num_pairs[:, 1],
+                st_num_pairs[..., 0],
+                st_num_pairs[..., 1],
                 u,
                 v,
                 w,
@@ -525,7 +523,6 @@ class Observation:
         GHA = Angle(
             [t.sidereal_time("apparent", "greenwich") - src_crd.ra for t in time]
         )
-        self.ha_all = GHA
 
         # calculate local sidereal time and HA at each antenna
         lst = un.Quantity(
@@ -550,8 +547,6 @@ class Observation:
                 ),
             )
         )
-        assert len(GHA.value) == len(el_st_all)
-
         if not len(GHA.value) == len(el_st_all):
             raise ValueError(
                 "Expected GHA and el_st_all to have the same length"
@@ -608,7 +603,7 @@ class Observation:
 
         if not (u.shape == v.shape == w.shape):
             raise ValueError(
-                "u, v, w array shapes are not the same: "
+                "Expected u, v, and w to have the same shapes: "
                 f"{u.shape}, {v.shape}, {w.shape}"
             )
 
