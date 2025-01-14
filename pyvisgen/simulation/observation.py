@@ -23,7 +23,6 @@ class Baselines:
     w: torch.tensor
     valid: torch.tensor
     time: torch.tensor
-    q_all: torch.tensor
     q1: torch.tensor
     q2: torch.tensor
 
@@ -64,8 +63,14 @@ class Baselines:
         v_valid = (v_start + v_stop) / 2
         w_valid = (w_start + w_stop) / 2
 
-        q1_valid = bas_reshaped.q1[mask].to(device)
-        q2_valid = bas_reshaped.q2[mask].to(device)
+        q1_start = bas_reshaped.q1[:-1][mask].to(device)
+        q2_start = bas_reshaped.q2[:-1][mask].to(device)
+
+        q1_stop = bas_reshaped.q1[1:][mask].to(device)
+        q2_stop = bas_reshaped.q2[1:][mask].to(device)
+
+        q1_valid = (q1_start + q1_stop) / 2
+        q2_valid = (q2_start + q2_stop) / 2
 
         t = Time(bas_reshaped.time / (60 * 60 * 24), format="mjd").jd
         date = (torch.from_numpy(t[:-1][mask] + t[1:][mask]) / 2).to(device)
@@ -82,7 +87,11 @@ class Baselines:
             w_valid,
             baseline_nums,
             date,
+            q1_start,
+            q1_stop,
             q1_valid,
+            q2_start,
+            q2_stop,
             q2_valid,
         )
 
@@ -100,7 +109,11 @@ class ValidBaselineSubset:
     w_valid: torch.tensor
     baseline_nums: torch.tensor
     date: torch.tensor
+    q1_start: torch.tensor
+    q1_stop: torch.tensor
     q1_valid: torch.tensor
+    q2_start: torch.tensor
+    q2_stop: torch.tensor
     q2_valid: torch.tensor
 
     def __getitem__(self, i):
@@ -117,7 +130,11 @@ class ValidBaselineSubset:
                 self.w_valid,
                 self.baseline_nums,
                 self.date,
+                self.q1_start,
+                self.q1_stop,
                 self.q1_valid,
+                self.q2_start,
+                self.q2_stop,
                 self.q2_valid,
             ]
         )
@@ -129,6 +146,8 @@ class ValidBaselineSubset:
 
     def get_unique_grid(self, fov_size, ref_frequency, img_size, device):
         uv = torch.cat([self.u_valid[None], self.v_valid[None]], dim=0)
+        q = torch.cat([self.q1_valid[None], self.q2_valid[None]], dim=0)
+
         fov = fov_size * pi / (3600 * 180)
         delta = 1 / fov * const.c.value.item() / ref_frequency
         bins = (
@@ -140,8 +159,10 @@ class ValidBaselineSubset:
             )
             + delta / 2
         )
+
         if len(bins) - 1 > img_size:
             bins = bins[:-1]
+
         indices_bucket = torch.bucketize(uv, bins)
         indices_bucket_sort, indices_bucket_inv = self._lexsort(indices_bucket)
         indices_unique, indices_unique_inv, counts = torch.unique_consecutive(
@@ -409,7 +430,6 @@ class Observation:
             torch.tensor([]),
             torch.tensor([]),
             torch.tensor([]),
-            torch.tensor([]),
         )
         self.q_comb_l = []
         self.q_all_l = []
@@ -454,27 +474,10 @@ class Observation:
             torch.tensor([]),
             torch.tensor([]),
             torch.tensor([]),
-            torch.tensor([]),
         )
         q_all = self.calc_feed_rotation(ha_local)
         q_comb = torch.vstack([torch.combinations(qi) for qi in q_all])
         q_comb = q_comb.reshape(-1, int(q_comb.shape[0] / times.shape[0]), 2)
-
-        self.q_comb_l.append(q_comb)
-        self.q_all_l.append(q_all)
-
-        print(
-            GHA.shape,
-            el_st_all.shape,
-            times.shape,
-            q_all.shape,
-            q_comb.shape,
-        )
-
-        self.GHA = GHA
-        self.delx = delta_x
-        self.dely = delta_y
-        self.delz = delta_z
 
         for ha, el_st, time, q, qc in zip(GHA, el_st_all, times, q_all, q_comb):
             u, v, w = self.calc_direction_cosines(ha, el_st, delta_x, delta_y, delta_z)
@@ -503,7 +506,6 @@ class Observation:
                 w,
                 valid,
                 time_mjd,
-                q,
                 qc[..., 0].ravel(),
                 qc[..., 1].ravel(),
             )
