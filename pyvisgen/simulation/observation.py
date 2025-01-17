@@ -4,11 +4,11 @@ from math import pi
 
 import astropy.constants as const
 import astropy.units as un
-import numpy as np
 import torch
 from astropy.constants import c
 from astropy.coordinates import AltAz, Angle, EarthLocation, SkyCoord, Longitude
 from astropy.time import Time
+from tqdm import tqdm
 
 from pyvisgen.layouts import layouts
 from pyvisgen.simulation.array import Array
@@ -189,6 +189,7 @@ class ValidBaselineSubset:
         cum_sum = counts.cumsum(0)
         cum_sum = torch.cat((torch.tensor([0], device=device), cum_sum[:-1]))
         first_indices = ind_sorted[cum_sum]
+
         return self[:][:, indices_bucket_sort[first_indices]]
 
     def _lexsort(self, a, dim=-1):
@@ -222,6 +223,7 @@ class Observation:
         polarisation: str = None,
         pol_kwargs: dict = DEFAULT_POL_KWARGS,
         field_kwargs: dict = DEFAULT_FIELD_KWARGS,
+        show_progress: bool = False,
     ) -> None:
         """Sets up the observation class.
 
@@ -283,6 +285,9 @@ class Observation:
                 "threshold": None,
                 "random_state": 42
             }`
+        show_progress : bool, optional
+            If `True`, show a progress bar during the iteration over the
+            scans. Default: False
 
         Notes
         -----
@@ -336,6 +341,8 @@ class Observation:
         self.num_baselines = int(
             len(self.array.st_num) * (len(self.array.st_num) - 1) / 2
         )
+
+        self.show_progress = show_progress
 
         if dense:
             self.waves_low = [self.ref_frequency]
@@ -424,6 +431,10 @@ class Observation:
         )
 
     def calc_baselines(self):
+        """Initializes Baselines dataclass object and
+        calls self.get_baselines to compute the contents of
+        the Baselines dataclass.
+        """
         self.baselines = Baselines(
             torch.tensor([]),
             torch.tensor([]),
@@ -435,6 +446,9 @@ class Observation:
             torch.tensor([]),
             torch.tensor([]),
         )
+
+        if self.show_progress:
+            self.scans = tqdm(self.scans)
 
         for scan in self.scans:
             bas = self.get_baselines(self.times[scan])
@@ -553,7 +567,11 @@ class Observation:
                 f"{len(GHA.value)} and {len(el_st_all)}"
             )
 
-        return torch.tensor(GHA.deg), ha_local, torch.tensor(el_st_all.alt.degree)
+        return (
+            torch.tensor(GHA.deg),
+            torch.tensor(ha_local),
+            torch.tensor(el_st_all.alt.degree),
+        )
 
     def calc_feed_rotation(self, ha: Angle) -> Angle:
         r"""Calculates feed rotation for every antenna at every time step.
