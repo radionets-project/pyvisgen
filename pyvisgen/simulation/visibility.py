@@ -1,6 +1,7 @@
 from dataclasses import dataclass, fields
 
 import torch
+import toma
 from tqdm import tqdm
 
 import pyvisgen.simulation.scan as scan
@@ -44,11 +45,17 @@ def vis_loop(
     num_threads=10,
     noisy=True,
     mode="full",
-    batch_size=100,
+    batch_size="auto",
     show_progress=False,
 ):
     torch.set_num_threads(num_threads)
     torch._dynamo.config.suppress_errors = True
+
+    if not (
+        isinstance(batch_size, int)
+        or (isinstance(batch_size, str) and batch_size == "auto")
+    ):
+        raise ValueError("Expected batch_size to be 'auto' or of type int")
 
     SI = torch.flip(SI, dims=[1])
 
@@ -104,6 +111,70 @@ def vis_loop(
     else:
         raise ValueError("Unsupported mode!")
 
+    if batch_size == "auto":
+        batch_size = bas[:].shape[1]
+
+    visibilities = toma.explicit.batch(
+        _batch_loop,
+        batch_size,
+        visibilities,
+        vis_num,
+        obs,
+        B,
+        bas,
+        lm,
+        rd,
+        noisy,
+        show_progress,
+    )
+
+    return visibilities
+
+
+def _batch_loop(
+    batch_size: int,
+    visibilities,
+    vis_num: int,
+    obs,
+    B: torch.tensor,
+    bas,
+    lm: torch.tensor,
+    rd: torch.tensor,
+    noisy: bool | float,
+    show_progress: bool,
+):
+    """Main simulation loop of pyvisgen. Computes visibilities
+    batchwise.
+
+    Parameters
+    ----------
+    batch_size : int
+        Batch size for loop over Baselines dataclass object.
+    visibilities : Visibilities
+        Visibilities dataclass object.
+    vis_num : int
+        Number of visibilities.
+    obs : Observation
+        Observation class object.
+    B : torch.tensor
+        Stokes matrix containing stokes visibilities.
+    bas : Baselines
+        Baselines dataclass object.
+    lm : torch.tensor
+        lm grid.
+    rd : torch.tensor
+        rd grid.
+    noisy : float or bool
+        Simulate noise as SEFD with given value. If set to False,
+        no noise is simulated.
+    show_progress :
+        If True, show a progress bar tracking the loop.
+
+    Returns
+    -------
+    visibilities : Visibilities
+        Visibilities dataclass object.
+    """
     batches = torch.arange(bas[:].shape[1]).split(batch_size)
 
     if show_progress:
@@ -155,6 +226,7 @@ def vis_loop(
 
         visibilities.add(vis)
         del int_values
+
     return visibilities
 
 
