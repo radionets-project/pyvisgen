@@ -2,7 +2,7 @@ from dataclasses import dataclass, fields
 
 import torch
 import toma
-from tqdm import tqdm
+from tqdm.autonotebook import tqdm
 
 import pyvisgen.simulation.scan as scan
 
@@ -176,9 +176,13 @@ def _batch_loop(
         Visibilities dataclass object.
     """
     batches = torch.arange(bas[:].shape[1]).split(batch_size)
-
-    if show_progress:
-        batches = tqdm(batches)
+    batches = tqdm(
+        batches,
+        position=0,
+        disable=not show_progress,
+        desc="Computing visibilities",
+        postfix=f"Batchsize: {batch_size}",
+    )
 
     for p in batches:
         bas_p = bas[:][:, p]
