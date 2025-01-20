@@ -28,6 +28,18 @@ def test_create_sampling_rc():
     test_opts(samp_ops)
 
 
+def test_create_sampling_rc_no_seed():
+    from pyvisgen.simulation.data_set import create_sampling_rc, test_opts
+
+    mod_conf = conf.copy()
+    mod_conf["seed"] = None
+
+    samp_ops = create_sampling_rc(mod_conf)
+    assert len(samp_ops) == 17
+
+    test_opts(samp_ops)
+
+
 def test_vis_loop():
     import torch
 
@@ -131,3 +143,9 @@ def test_vis_loop_batch_size_invalid():
         mode=conf["mode"],
         batch_size=20.0,
     )
+    
+ 
+def test_simulate_data_set_no_slurm():
+    from pyvisgen.simulation.data_set import simulate_data_set
+
+    simulate_data_set(config)
