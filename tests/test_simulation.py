@@ -1,6 +1,7 @@
 from pathlib import Path
 
 import torch
+from numpy.testing import assert_raises
 
 from pyvisgen.utils.config import read_data_set_conf
 
@@ -64,3 +65,37 @@ def test_vis_loop():
     out = out_path / Path("vis_0.fits")
     hdu_list = writer.create_hdu_list(vis_data, obs)
     hdu_list.writeto(out, overwrite=True)
+
+
+def test_vis_loop_invalid_batch_size():
+    import torch
+
+    import pyvisgen.fits.writer as writer
+    from pyvisgen.simulation.data_set import create_observation
+    from pyvisgen.simulation.visibility import vis_loop
+    from pyvisgen.utils.data import load_bundles, open_bundles
+
+    bundles = load_bundles(conf["in_path"])
+    obs = create_observation(conf)
+    data = open_bundles(bundles[0])
+    SI = torch.tensor(data[0])[None]
+
+    assert_raises(
+        ValueError,
+        vis_loop,
+        obs,
+        SI,
+        noisy=conf["noisy"],
+        mode=conf["mode"],
+        batch_size="abc",
+    )
+
+    assert_raises(
+        ValueError,
+        vis_loop,
+        obs,
+        SI,
+        noisy=conf["noisy"],
+        mode=conf["mode"],
+        batch_size=20.0,
+    )
