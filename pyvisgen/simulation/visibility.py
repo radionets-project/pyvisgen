@@ -181,7 +181,7 @@ def _batch_loop(
         position=0,
         disable=not show_progress,
         desc="Computing visibilities",
-        postfix=f"Batchsize: {batch_size}",
+        postfix=f"Batch size: {batch_size}",
     )
 
     for p in batches:
