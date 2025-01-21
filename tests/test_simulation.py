@@ -1,7 +1,7 @@
 from pathlib import Path
 
 import torch
-from numpy.testing import assert_raises
+from numpy.testing import assert_array_equal, assert_raises
 
 from pyvisgen.utils.config import read_data_set_conf
 
@@ -143,9 +143,189 @@ def test_vis_loop_batch_size_invalid():
         mode=conf["mode"],
         batch_size=20.0,
     )
-    
- 
+
+
 def test_simulate_data_set_no_slurm():
     from pyvisgen.simulation.data_set import simulate_data_set
 
     simulate_data_set(config)
+
+
+class TestPolarisation:
+    """Unit test class for ``pyvisgen.simulation.visibility.Polarisation``."""
+
+    def setup_class(self):
+        """Set up common objects and variables for the following tests."""
+        from pyvisgen.simulation.data_set import create_observation
+        from pyvisgen.simulation.visibility import Polarisation
+
+        self.obs = create_observation(conf)
+
+        self.SI = torch.zeros((100, 100))
+        self.SI[25::25, 25::25] = 1
+        self.SI = self.SI[None, ...]
+
+        self.si_shape = self.SI.shape
+        self.im_shape = self.si_shape[1], self.si_shape[2]
+
+        self.obs.img_size = self.im_shape[0]
+
+        self.pol = Polarisation(
+            self.SI,
+            sensitivity_cut=self.obs.sensitivity_cut,
+            polarisation=self.obs.polarisation,
+            device=self.obs.device,
+            field_kwargs=self.obs.field_kwargs,
+            **self.obs.pol_kwargs,
+        )
+
+    def test_polarisation_circular(self):
+        """Test circular polarisation."""
+
+        self.pol.__init__(
+            self.SI,
+            sensitivity_cut=self.obs.sensitivity_cut,
+            polarisation="circular",
+            device=self.obs.device,
+            field_kwargs=self.obs.field_kwargs,
+            **self.obs.pol_kwargs,
+        )
+
+        assert self.pol.delta == 0
+        assert self.pol.ax2.sum() == self.SI.sum() * 0.5
+        assert self.pol.ay2.sum() == self.SI.sum() * 0.5
+
+        B, mask, lin_dop, circ_dop = self.pol.stokes_matrix()
+
+        assert mask.sum() == 9
+        assert B.shape == torch.Size([9, 2, 2])
+        assert mask.shape == self.im_shape
+        assert lin_dop.shape == self.im_shape
+        assert lin_dop.shape == self.im_shape
+
+    def test_polarisation_linear(self):
+        """Test linear polarisation."""
+
+        self.pol.__init__(
+            self.SI,
+            sensitivity_cut=self.obs.sensitivity_cut,
+            polarisation="linear",
+            device=self.obs.device,
+            field_kwargs=self.obs.field_kwargs,
+            **self.obs.pol_kwargs,
+        )
+
+        assert self.pol.delta == 0
+        assert self.pol.ax2.sum() == self.SI.sum() * 0.5
+        assert self.pol.ay2.sum() == self.SI.sum() * 0.5
+
+        B, mask, lin_dop, circ_dop = self.pol.stokes_matrix()
+
+        assert mask.sum() == 9
+        assert B.shape == torch.Size([9, 2, 2])
+        assert mask.shape == self.im_shape
+        assert lin_dop.shape == self.im_shape
+        assert lin_dop.shape == self.im_shape
+
+    def test_polarisation_field(self):
+        """Test Polarisation.rand_polarisation_field method."""
+        pf = self.pol.rand_polarisation_field(shape=self.im_shape)
+
+        assert pf.shape == torch.Size([100, 100])
+
+    def test_polarisation_field_random_state(self):
+        """Test polarisation field method for a given random_state"""
+        random_state = 42
+
+        pf = self.pol.rand_polarisation_field(
+            shape=self.im_shape,
+            random_state=random_state,
+        )
+
+        assert torch.random.initial_seed() == random_state
+        assert pf.shape == torch.Size([100, 100])
+
+    def test_polarisation_field_shape_int(self):
+        """Test polarisation field method for type(shape) = int."""
+        pf = self.pol.rand_polarisation_field(
+            shape=self.im_shape[0],
+        )
+
+        assert pf.shape == torch.Size([100, 100])
+
+    def test_polarisation_field_order(self):
+        """Test polarisation field method for different orders."""
+
+        pf_ref = self.pol.rand_polarisation_field(
+            shape=self.im_shape,
+            random_state=42,
+        )
+
+        pf = self.pol.rand_polarisation_field(
+            shape=self.im_shape,
+            random_state=42,
+            order=[1, 1],
+        )
+
+        assert pf.shape == torch.Size([100, 100])
+        # assert order = 1 and order = [1, 1] yield same images
+        assert_array_equal(pf, pf_ref, strict=True)
+
+        # assert different order creates different image
+        pf = self.pol.rand_polarisation_field(
+            shape=self.im_shape, random_state=42, order=[10, 10]
+        )
+        # expected to raise an AssertionError
+        assert_raises(AssertionError, assert_array_equal, pf, pf_ref)
+
+        # assert len(order) > 2 raises ValueError
+        assert_raises(
+            ValueError,
+            self.pol.rand_polarisation_field,
+            shape=self.im_shape,
+            random_state=42,
+            order=[10, 10, 10],
+        )
+
+    def test_polarisation_field_scale(self):
+        """Test polarisation field method for different scales."""
+
+        pf_ref = self.pol.rand_polarisation_field(
+            shape=self.im_shape,
+            random_state=42,
+        )
+
+        # scale = None
+        pf = self.pol.rand_polarisation_field(
+            shape=self.im_shape,
+            random_state=42,
+            scale=None,
+        )
+
+        # expected to raise an AssertionError
+        assert_raises(AssertionError, assert_array_equal, pf, pf_ref)
+
+        # scale = [0.25, 0.25]
+        pf = self.pol.rand_polarisation_field(
+            shape=self.im_shape, random_state=42, scale=[0.25, 0.25]
+        )
+
+        # expected to raise an AssertionError
+        assert_raises(AssertionError, assert_array_equal, pf, pf_ref)
+
+    def test_polarisation_field_threshold(self):
+        """Test polarisation field method for different threshold."""
+
+        pf_ref = self.pol.rand_polarisation_field(
+            shape=self.im_shape,
+            random_state=42,
+        )
+
+        pf = self.pol.rand_polarisation_field(
+            shape=self.im_shape,
+            random_state=42,
+            threshold=0.5,
+        )
+
+        # expected to raise an AssertionError
+        assert_raises(AssertionError, assert_array_equal, pf, pf_ref)
