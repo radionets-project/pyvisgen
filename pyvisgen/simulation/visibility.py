@@ -4,7 +4,6 @@ from tqdm.autonotebook import tqdm
 import scipy.ndimage
 import torch
 import toma
-import scipy.ndimage
 
 import pyvisgen.simulation.scan as scan
 
@@ -333,7 +332,7 @@ def vis_loop(
     num_threads: int = 10,
     noisy: bool = True,
     mode: str = "full",
-    batch_size: int = 100,
+    batch_size: int = "auto",
     show_progress: bool = False,
 ) -> Visibilities:
     r"""Computes the visibilities of an observation.
@@ -376,6 +375,12 @@ def vis_loop(
     torch.set_num_threads(num_threads)
     torch._dynamo.config.suppress_errors = True
 
+    if not (
+        isinstance(batch_size, int)
+        or (isinstance(batch_size, str) and batch_size == "auto")
+    ):
+        raise ValueError("Expected batch_size to be 'auto' or type int")
+
     pol = Polarisation(
         torch.flip(SI, dims=[1]),
         sensitivity_cut=obs.sensitivity_cut,
@@ -409,7 +414,9 @@ def vis_loop(
         torch.tensor([]),
         torch.tensor([]),
     )
+
     vis_num = torch.zeros(1)
+
     if mode == "full":
         bas = obs.baselines.get_valid_subset(obs.num_baselines, obs.device)
     elif mode == "grid":
