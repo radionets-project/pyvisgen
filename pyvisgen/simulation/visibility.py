@@ -1,8 +1,9 @@
 from dataclasses import dataclass, fields
+from tqdm.autonotebook import tqdm
 
 import torch
 import toma
-from tqdm.autonotebook import tqdm
+import scipy.ndimage
 
 import pyvisgen.simulation.scan as scan
 
@@ -19,6 +20,8 @@ class Visibilities:
     v: torch.tensor
     w: torch.tensor
     date: torch.tensor
+    linear_dop: torch.tensor
+    circular_dop: torch.tensor
 
     def __getitem__(self, i):
         return Visibilities(*[getattr(self, f.name)[i] for f in fields(self)])
@@ -39,43 +42,359 @@ class Visibilities:
         ]
 
 
+class Polarisation:
+    """Simulation of polarisation."""
+
+    def __init__(
+        self,
+        SI: torch.tensor,
+        sensitivity_cut: float,
+        amp_ratio: float,
+        delta: float,
+        polarisation: str,
+        random_state: int,
+        device: str,
+    ) -> None:
+        """Creates the 2 x 2 stokes matrix and simulates
+        polarisation if `polarisation` is either 'linear'
+        or 'circular'. Also computes the degree of polarisation.
+
+        Parameters
+        ----------
+        SI : torch.tensor
+            Stokes I component, i.e. intensity distribution
+            of the sky.
+        sensitivity_cut : float
+            Sensitivity cut, where only pixels above the value
+            are kept.
+        amp_ratio : float
+            Sets the ratio of $A_{x/r}$. The ratio of $A_{y/l}$ is calculated
+            as `1 - amp_ratio`. If set to `None`, a random value is drawn
+            from a uniform distribution. See also: `random_state`.
+        delta : float
+            Sets the phase difference of the amplitudes $A_x$ and $A_y$
+            of the sky distribution. Defines the measure of ellipticity.
+        polarisation : str
+            Choose between `'linear'` or `'circular'` or `None` to
+            simulate different types of polarisations or disable
+            the simulation of polarisation.
+        random_state : int
+            Random state used when drawing `amp_ratio` and during the generation
+            of the random polarisation field.
+        device : str
+            Torch device to select for computation.
+        """
+        self.sensitivity_cut = sensitivity_cut
+        self.polarisation = polarisation
+        self.device = device
+
+        self.SI = SI.permute(dims=(1, 2, 0))
+
+        if random_state:
+            torch.manual_seed(random_state)
+        else:
+            torch.seed()
+
+        if self.polarisation:
+            self.polarisation_field = self.rand_polarisation_field(
+                [SI.shape[0], SI.shape[1]],
+                random_state=random_state,
+                order=[1, 1],
+                scale=[0, 1],
+                threshold=None,
+            )
+
+            self.delta = delta
+
+            if amp_ratio and amp_ratio >= 0:
+                ax2 = amp_ratio
+            else:
+                ax2 = torch.rand(1)
+
+            ay2 = 1 - ax2
+
+            self.ax2 = self.SI[..., 0] * ax2
+            self.ay2 = self.SI[..., 0] * ay2
+
+        self.I = torch.zeros(
+            (self.SI.shape[0], self.SI.shape[1], 4), dtype=torch.cdouble
+        )  # noqa: E741
+
+    def linear(self) -> None:
+        """Computes the stokes parameters I, Q, U, and V
+        for linear polarisation.
+
+        .. math::
+            I = A_x^2 + A_y^2
+            Q = A_r^2 - A_l^2
+            U = 2A_x A_y \cos\delta_{xy}
+            V = -2A_x A_y \sin\delta_{xy}
+        """
+        self.I[..., 0] = self.ax2 + self.ay2
+        self.I[..., 1] = self.ax2 - self.ay2
+        self.I[..., 2] = (
+            2
+            * torch.sqrt(self.ax2)
+            * torch.sqrt(self.ay2)
+            * torch.cos(torch.deg2rad(torch.tensor(self.delta)))
+        )
+        self.I[..., 3] = (
+            -2
+            * torch.sqrt(self.ax2)
+            * torch.sqrt(self.ay2)
+            * torch.sin(torch.deg2rad(torch.tensor(self.delta)))
+        )
+
+    def circular(self) -> None:
+        """Computes the stokes parameters I, Q, U, and V
+        for circular polarisation.
+
+        .. math::
+            I = A_r^2 + A_l^2
+            Q = 2A_r A_l \cos\delta_{rl}
+            U = -2A_r A_l \sin\delta_{rl}
+            V = A_r^2 - A_l^2
+        """
+        self.I[..., 0] = self.ax2 + self.ay2
+        self.I[..., 1] = (
+            2
+            * torch.sqrt(self.ax2)
+            * torch.sqrt(self.ay2)
+            * torch.cos(torch.deg2rad(torch.tensor(self.delta)))
+        )
+        self.I[..., 2] = (
+            -2
+            * torch.sqrt(self.ax2)
+            * torch.sqrt(self.ay2)
+            * torch.sin(torch.deg2rad(torch.tensor(self.delta)))
+        )
+        self.I[..., 3] = self.ax2 - self.ay2
+
+    def dop(self) -> None:
+        """Computes the degree of polarisation for each pixel."""
+        mask = (self.ax2 + self.ay2) > 0
+
+        # apply polarisation_field to Q, U, and V only
+        self.I[..., 1] *= self.polarisation_field
+        self.I[..., 2] *= self.polarisation_field
+        self.I[..., 3] *= self.polarisation_field
+
+        dop_I = self.I[..., 0].clone()
+        dop_I[~mask] = float("nan")
+        dop_Q = self.I[..., 1].clone()
+        dop_Q[~mask] = float("nan")
+        dop_U = self.I[..., 2].clone()
+        dop_U[~mask] = float("nan")
+        dop_V = self.I[..., 3].clone()
+        dop_V[~mask] = float("nan")
+
+        self.lin_dop = torch.sqrt(dop_Q**2 + dop_U**2) / dop_I
+        self.circ_dop = torch.abs(dop_V) / dop_I
+
+        del dop_I, dop_Q, dop_U, dop_V
+
+    def stokes_matrix(self) -> tuple:
+        """Computes and returns the 2 x 2 stokes matrix B.
+
+        Returns
+        -------
+        B : torch.tensor
+            2 x 2 stokes brightness matrix. Either for linear,
+            circular or no polarisation.
+        mask : torch.tensor
+            Mask of the sensitivity cut (Keep all px > sensitivity_cut).
+        lin_dop : torch.tensor
+            Degree of linear polarisation of every pixel in the sky.
+        circ_dop : torch.tensor
+            Degree of circular polarisation of every pixel in the sky.
+        """
+        # define 2 x 2 Stokes matrix
+        B = torch.zeros(
+            (self.SI.shape[0], self.SI.shape[1], 2, 2), dtype=torch.cdouble
+        ).to(torch.device(self.device))
+
+        if self.polarisation == "linear":
+            self.linear()
+            self.dop()
+
+            B[..., 0, 0] = self.I[..., 0] + self.I[..., 3]
+            B[..., 0, 1] = self.I[..., 1] + 1j * self.I[..., 2]
+            B[..., 1, 0] = self.I[..., 1] - 1j * self.I[..., 2]
+            B[..., 1, 1] = self.I[..., 0] - self.I[..., 3]
+
+        elif self.polarisation == "circular":
+            self.circular()
+            self.dop()
+
+            B[..., 0, 0] = self.I[..., 0] + self.I[..., 1]
+            B[..., 0, 1] = self.I[..., 2] + 1j * self.I[..., 3]
+            B[..., 1, 0] = self.I[..., 2] - 1j * self.I[..., 3]
+            B[..., 1, 1] = self.I[..., 0] - self.I[..., 1]
+
+        else:
+            # No polarisation applied
+            self.I[..., 0] = self.SI[..., 0]
+            self.I[..., 1] = self.SI[..., 0]
+            self.I[..., 2] = self.SI[..., 0]
+            self.I[..., 3] = self.SI[..., 0]
+
+            B[..., 0, 0] = self.I[..., 0] + self.I[..., 1]
+            B[..., 0, 1] = self.I[..., 2] + 1j * self.I[..., 3]
+            B[..., 1, 0] = self.I[..., 2] - 1j * self.I[..., 3]
+            B[..., 1, 1] = self.I[..., 0] - self.I[..., 1]
+
+        # calculations only for px > sensitivity cut
+        mask = (self.SI >= self.sensitivity_cut)[..., 0]
+        B = B[mask]
+
+        return B, mask, self.lin_dop, self.circ_dop
+
+    def rand_polarisation_field(
+        self,
+        shape: list[int, int] | int,
+        order: list[int, int] | int = 1,
+        random_state: int = None,
+        scale: list = [0, 1],
+        threshold: float = None,
+    ) -> torch.tensor:
+        """
+        Generates a random noise mask for polarisation.
+
+        Parameters
+        ----------
+        shape : array_like (M, N), or int
+            The size of the sky image.
+        order : array_like (M, N) or int, optional
+            Morphology of the random noise. Higher values create
+            more and smaller fluctuations. Default: 1.
+        random_state : int, optional
+            Random state for the random number generator. If None,
+            a random entropy is pulled from the OS. Default: None.
+        scale : array_like, optional
+            Scaling of the distribution of the image. Default: [0, 1]
+        threshold : float, optional
+            If not None, an upper threshold is applied to the image.
+            Default: None
+
+        Returns
+        -------
+        im : torch.tensor
+            An array containing random noise values between
+            scale[0] and scale[1].
+        """
+        if random_state:
+            torch.random.manual_seed(random_state)
+
+        if not isinstance(shape, list):
+            shape = list(shape)
+
+        if len(shape) < 2:
+            shape *= 2
+        elif len(shape) > 2:
+            raise ValueError("Only 2d shapes are allowed!")
+
+        if not isinstance(order, list):
+            order = list(order)
+
+        if len(order) < 2:
+            order *= 2
+        elif len(order) > 2:
+            raise ValueError("Only 2d shapes are allowed!")
+
+        sigma = torch.mean(torch.tensor(shape).double()) / (40 * torch.tensor(order))
+
+        im = torch.rand(shape)
+        im = scipy.ndimage.gaussian_filter(im, sigma=sigma.numpy())
+
+        if scale is None:
+            scale = [im.min(), im.max()]
+
+        im_flatten = torch.from_numpy(im.flatten())
+        im_argsort = torch.argsort(torch.argsort(im_flatten))
+        im_linspace = torch.linspace(*scale, im_argsort.size()[0])
+        uniform_flatten = im_linspace[im_argsort]
+
+        im = torch.reshape(uniform_flatten, im.shape)
+
+        if threshold:
+            im = im < threshold
+
+        return im
+
+
 def vis_loop(
     obs,
-    SI,
-    num_threads=10,
-    noisy=True,
-    mode="full",
-    batch_size="auto",
-    show_progress=False,
-):
+    SI: torch.tensor,
+    num_threads: int = 10,
+    noisy: bool = True,
+    mode: str = "full",
+    batch_size: int = 100,
+    polarisation: str = "linear",
+    delta: float = 0,
+    amp_ratio: float = None,
+    random_state: int = 42,
+    show_progress: bool = False,
+) -> Visibilities:
+    r"""Computes the visibilities of an observation.
+
+    Parameters
+    ----------
+    obs : Observation class object
+        Observation class object generated by the
+        `~pyvisgen.simulation.Observation` class.
+    SI : torch.tensor
+        Tensor containing the sky intensity distribution.
+    num_threads : int, optional
+        Number of threads used for intraoperative parallelism
+        on the CPU. See `~torch.set_num_threads`. Default: 10
+    noisy : bool, optional
+        If `True`, generate and add additional noise to
+        the simulated measurements. Default: True
+    mode : str, optional
+        Select one of `'full'`, `'grid'`, or `'dense'` to get
+        all valid baselines, a grid of unique baselines, or
+        dense baselines. Default: 'full'
+    batch_size : int, optional
+        Batch size for iteration over baselines. Default: 100
+    polarisation : str, optional
+        Choose between `'linear'` or `'circular'` or `None` to
+        simulate different types of polarisations or disable
+        the simulation of polarisation. Default: 'linear'
+    delta : float, optional
+        Sets the phase difference of the amplitudes $A_x$ and $A_y$
+        of the sky distribution. Defines the measure of ellipticity.
+        Default: 0
+    amp_ratio : float, optional
+        Sets the ratio of $A_{x/r}$. The ratio of $A_{y/l}$ is calculated
+        as `1 - amp_ratio`. If set to `None`, a random value is drawn
+        from a uniform distribution. See also: `random_state`. Default: None
+    random_state : int, optional
+        Random state used when drawing `amp_ratio` and during the generation
+        of the random polarisation field. Default: 42
+    show_progress : bool, optional
+        If `True`, show a progress bar during the iteration over the
+        batches of baselines. Default: False
+
+    Returns
+    -------
+    visibilities : Visibilities
+        Dataclass object containing visibilities and baselines.
+    """
     torch.set_num_threads(num_threads)
     torch._dynamo.config.suppress_errors = True
 
-    if not (
-        isinstance(batch_size, int)
-        or (isinstance(batch_size, str) and batch_size == "auto")
-    ):
-        raise ValueError("Expected batch_size to be 'auto' or of type int")
-
-    SI = torch.flip(SI, dims=[1])
-
-    # define unpolarized sky distribution
-    SI = SI.permute(dims=(1, 2, 0))
-    I = torch.zeros((SI.shape[0], SI.shape[1], 4), dtype=torch.cdouble)
-    I[..., 0] = SI[..., 0]
-
-    # define 2 x 2 Stokes matrix ((I + Q, iU + V), (iU -V, I - Q))
-    B = torch.zeros((SI.shape[0], SI.shape[1], 2, 2), dtype=torch.cdouble).to(
-        torch.device(obs.device)
+    pol = Polarisation(
+        SI,
+        sensitivity_cut=obs.sensitivity_cut,
+        amp_ratio=amp_ratio,
+        delta=delta,
+        polarisation=polarisation,
+        random_state=random_state,
+        device=obs.device,
     )
-    B[:, :, 0, 0] = I[:, :, 0] + I[:, :, 1]
-    B[:, :, 0, 1] = I[:, :, 2] + 1j * I[:, :, 3]
-    B[:, :, 1, 0] = I[:, :, 2] - 1j * I[:, :, 3]
-    B[:, :, 1, 1] = I[:, :, 0] - I[:, :, 1]
 
-    # calculations only for px > sensitivity cut
-    mask = (SI >= obs.sensitivity_cut)[..., 0]
-    B = B[mask]
+    B, mask, lin_dop, circ_dop = pol.stokes_matrix()
+
     lm = obs.lm[mask]
     rd = obs.rd[mask]
 
@@ -89,6 +408,8 @@ def vis_loop(
         torch.empty(size=[0] + [len(obs.waves_low)]),
         torch.empty(size=[0] + [len(obs.waves_low)]),
         torch.empty(size=[0] + [len(obs.waves_low)]),
+        torch.tensor([]),
+        torch.tensor([]),
         torch.tensor([]),
         torch.tensor([]),
         torch.tensor([]),
@@ -127,6 +448,9 @@ def vis_loop(
         noisy,
         show_progress,
     )
+
+    visibilities.linear_dop = lin_dop.cpu()
+    visibilities.circular_dop = circ_dop.cpu()
 
     return visibilities
 
@@ -226,6 +550,8 @@ def _batch_loop(
             bas_p[5].cpu(),
             bas_p[8].cpu(),
             bas_p[10].cpu(),
+            torch.tensor([]),
+            torch.tensor([]),
         )
 
         visibilities.add(vis)
