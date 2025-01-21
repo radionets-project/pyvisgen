@@ -1,6 +1,7 @@
 from dataclasses import dataclass, fields
 from tqdm.autonotebook import tqdm
 
+import scipy.ndimage
 import torch
 import toma
 import scipy.ndimage
@@ -120,7 +121,7 @@ class Polarisation:
         )  # noqa: E741
 
     def linear(self) -> None:
-        """Computes the stokes parameters I, Q, U, and V
+        r"""Computes the stokes parameters I, Q, U, and V
         for linear polarisation.
 
         .. math::
@@ -145,7 +146,7 @@ class Polarisation:
         )
 
     def circular(self) -> None:
-        """Computes the stokes parameters I, Q, U, and V
+        r"""Computes the stokes parameters I, Q, U, and V
         for circular polarisation.
 
         .. math::

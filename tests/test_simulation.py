@@ -5,6 +5,7 @@ from numpy.testing import assert_array_equal, assert_raises
 
 from pyvisgen.utils.config import read_data_set_conf
 
+
 torch.manual_seed(1)
 config = "tests/test_conf.toml"
 conf = read_data_set_conf(config)
@@ -114,7 +115,6 @@ def test_vis_loop_batch_size_auto():
 def test_vis_loop_batch_size_invalid():
     import torch
 
-    import pyvisgen.fits.writer as writer
     from pyvisgen.simulation.data_set import create_observation
     from pyvisgen.simulation.visibility import vis_loop
     from pyvisgen.utils.data import load_bundles, open_bundles
@@ -143,12 +143,6 @@ def test_vis_loop_batch_size_invalid():
         mode=conf["mode"],
         batch_size=20.0,
     )
-
-
-def test_simulate_data_set_no_slurm():
-    from pyvisgen.simulation.data_set import simulate_data_set
-
-    simulate_data_set(config)
 
 
 class TestPolarisation:
@@ -376,3 +370,9 @@ class TestPolarisation:
 
         # expected to raise an AssertionError
         assert_raises(AssertionError, assert_array_equal, pf, pf_ref)
+
+
+def test_simulate_data_set_no_slurm():
+    from pyvisgen.simulation.data_set import simulate_data_set
+
+    simulate_data_set(config)
