@@ -60,11 +60,14 @@ write_to = "pyvisgen/_version.py"
 where = ["."]
 
 [tool.coverage.run]
-branch = true
 omit = [
+  "pyvisgen/version.py",
   "pyvisgen/_version.py",
   "docs/*"
 ]
+
+[tool.coverage.xml]
+output = "coverage.xml"
 
 [tool.towncrier]
 package = "pyvisgen"
