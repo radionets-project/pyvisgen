@@ -1,0 +1,5 @@
+[xml]
+output = coverage.xml
+
+[run]
+parallel = True
