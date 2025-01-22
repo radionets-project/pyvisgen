@@ -436,15 +436,15 @@ class Observation:
         the Baselines dataclass.
         """
         self.baselines = Baselines(
-            torch.tensor([]),
-            torch.tensor([]),
-            torch.tensor([]),
-            torch.tensor([]),
-            torch.tensor([]),
-            torch.tensor([]),
-            torch.tensor([]),
-            torch.tensor([]),
-            torch.tensor([]),
+            torch.tensor([]),  # st1
+            torch.tensor([]),  # st2
+            torch.tensor([]),  # u
+            torch.tensor([]),  # v
+            torch.tensor([]),  # w
+            torch.tensor([]),  # valid
+            torch.tensor([]),  # time
+            torch.tensor([]),  # q1
+            torch.tensor([]),  # q2
         )
 
         if self.show_progress:
@@ -475,22 +475,22 @@ class Observation:
         delta_x, delta_y, delta_z = ar.calc_relative_pos
         st_num_pairs, els_low_pairs, els_high_pairs = ar.calc_ant_pair_vals
 
-        # Loop over ha and el_st
         baselines = Baselines(
-            torch.tensor([]),
-            torch.tensor([]),
-            torch.tensor([]),
-            torch.tensor([]),
-            torch.tensor([]),
-            torch.tensor([]),
-            torch.tensor([]),
-            torch.tensor([]),
-            torch.tensor([]),
+            torch.tensor([]),  # st1
+            torch.tensor([]),  # st2
+            torch.tensor([]),  # u
+            torch.tensor([]),  # v
+            torch.tensor([]),  # w
+            torch.tensor([]),  # valid
+            torch.tensor([]),  # time
+            torch.tensor([]),  # q1
+            torch.tensor([]),  # q2
         )
         q_all = self.calc_feed_rotation(ha_local)
         q_comb = torch.vstack([torch.combinations(qi) for qi in q_all])
         q_comb = q_comb.reshape(-1, int(q_comb.shape[0] / times.shape[0]), 2)
 
+        # Loop over ha, el_st, times, parallactic angles
         for ha, el_st, time, q, qc in zip(GHA, el_st_all, times, q_all, q_comb):
             u, v, w = self.calc_direction_cosines(ha, el_st, delta_x, delta_y, delta_z)
 
@@ -583,7 +583,7 @@ class Observation:
 
         .. math::
 
-            q = \frac{\sin h}{\cos\delta \tan\varphi - \sin\delta \cos h,
+            q = \atan\left(\frac{\sin h}{\cos\delta \tan\varphi - \sin\delta \cos h\right),
 
         where $h$ is the local hour angle, $\varphi$ the geographical latitude
         of the observer, and $\delta$ the declination of the source.
