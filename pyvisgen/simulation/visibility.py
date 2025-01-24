@@ -1,8 +1,8 @@
 from dataclasses import dataclass, fields
-from tqdm import tqdm
 
-import torch
 import scipy.ndimage
+import torch
+from tqdm import tqdm
 
 import pyvisgen.simulation.scan as scan
 
@@ -54,6 +54,9 @@ class Polarisation:
         field_kwargs: dict,
         random_state: int,
         device: torch.device,
+        SEFD: int,
+        int_time: float,
+        bandwidths: list,
     ) -> None:
         """Creates the 2 x 2 stokes matrix and simulates
         polarisation if `polarisation` is either 'linear'
@@ -87,6 +90,9 @@ class Polarisation:
         self.sensitivity_cut = sensitivity_cut
         self.polarisation = polarisation
         self.device = device
+        self.SEFD = SEFD
+        self.int_time = int_time
+        self.bandwiths = bandwidths
 
         self.SI = SI.permute(dims=(1, 2, 0))
 
@@ -119,7 +125,7 @@ class Polarisation:
         )  # noqa: E741
 
     def linear(self) -> None:
-        """Computes the stokes parameters I, Q, U, and V
+        r"""Computes the stokes parameters I, Q, U, and V
         for linear polarisation.
 
         .. math::
@@ -144,7 +150,7 @@ class Polarisation:
         )
 
     def circular(self) -> None:
-        """Computes the stokes parameters I, Q, U, and V
+        r"""Computes the stokes parameters I, Q, U, and V
         for circular polarisation.
 
         .. math::
@@ -210,6 +216,16 @@ class Polarisation:
         B = torch.zeros(
             (self.SI.shape[0], self.SI.shape[1], 2, 2), dtype=torch.cdouble
         ).to(torch.device(self.device))
+
+        if self.SEFD != 0:
+            noise = generate_noise(
+                B.shape,
+                self.bandwiths,
+                self.int_time,
+                self.device,
+                self.SEFD,
+            )
+            B += noise
 
         if self.polarisation == "linear":
             self.linear()
@@ -323,7 +339,7 @@ class Polarisation:
 
 
 def vis_loop(
-    obs: "Observation",
+    obs,
     SI: torch.tensor,
     num_threads: int = 10,
     noisy: bool = True,
@@ -372,10 +388,13 @@ def vis_loop(
     torch._dynamo.config.suppress_errors = True
 
     pol = Polarisation(
-        torch.flip(SI, dims=[1]),
+        SI,  # torch.flip(SI, dims=[1]),
         sensitivity_cut=obs.sensitivity_cut,
         polarisation=obs.polarisation,
         device=obs.device,
+        SEFD=noisy,
+        int_time=obs.int_time,
+        bandwidths=obs.bandwidths,
         field_kwargs=obs.field_kwargs,
         **obs.pol_kwargs,
     )
@@ -387,7 +406,7 @@ def vis_loop(
 
     # normalize visibilities to factor 0.5,
     # so that the Stokes I image is normalized to 1
-    B *= 0.5
+    # B *= 0.5
 
     # calculate vis
     visibilities = Visibilities(
@@ -449,10 +468,6 @@ def vis_loop(
 
         int_values = torch.swapaxes(int_values, 0, 1)
 
-        if noisy != 0:
-            noise = generate_noise(int_values.shape, obs, noisy)
-            int_values += noise
-
         vis_num = torch.arange(int_values.shape[0]) + 1 + vis_num.max()
 
         vis = Visibilities(
@@ -479,7 +494,7 @@ def vis_loop(
     return visibilities
 
 
-def generate_noise(shape, obs, SEFD):
+def generate_noise(shape, bandwidths, int_time, device, SEFD):
     # scaling factor for the noise
     factor = 1
 
@@ -487,17 +502,17 @@ def generate_noise(shape, obs, SEFD):
     eta = 0.93
 
     # taken from simulations
-    chan_width = obs.bandwidths[0] * len(obs.bandwidths)
+    chan_width = bandwidths[0] * len(bandwidths)
 
     # corr_int_time
-    exposure = obs.int_time
+    exposure = int_time
 
     # taken from:
     # https://science.nrao.edu/facilities/vla/docs/manuals/oss/performance/sensitivity
 
     std = factor * 1 / eta * SEFD
     std /= torch.sqrt(2 * exposure * chan_width)
-    noise = torch.normal(mean=0, std=std, size=shape, device=obs.device)
-    noise = noise + 1.0j * torch.normal(mean=0, std=std, size=shape, device=obs.device)
+    noise = torch.normal(mean=0, std=std, size=shape, device=device)
+    noise = noise + 1.0j * torch.normal(mean=0, std=std, size=shape, device=device)
 
     return noise
