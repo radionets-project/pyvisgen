@@ -452,12 +452,16 @@ class Observation:
             - self.img_size / 2
         ) * res
         d = (
-            torch.arange(self.img_size, device=self.device, dtype=torch.float64)
-            - self.img_size / 2
-        ) * res + dec
+            -(
+                torch.arange(self.img_size, device=self.device, dtype=torch.float64)
+                - self.img_size / 2
+            )
+            * res
+            + dec
+        )
 
-        R, _ = torch.meshgrid((r, r), indexing="ij")
-        _, D = torch.meshgrid((d, d), indexing="ij")
+        _, R = torch.meshgrid((r, r), indexing="ij")
+        D, _ = torch.meshgrid((d, d), indexing="ij")
         rd_grid = torch.cat([R[..., None], D[..., None]], dim=2)
 
         return rd_grid
