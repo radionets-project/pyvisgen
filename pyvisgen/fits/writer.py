@@ -210,17 +210,12 @@ def create_frequency_hdu(obs):
     SIDEBAND = np.array([1])
     col5 = fits.Column(name="SIDEBAND", format="1J", unit=" ", array=SIDEBAND)
 
-    # RXCODE = np.chararray(1, itemsize=32, unicode=True)
-    # RXCODE[:] = ""
-    # col6 = fits.Column(name="RXCODE", format="32A", unit=" ", array=RXCODE)
-
     coldefs_freq = fits.ColDefs([col1, col2, col3, col4, col5])
     hdu_freq = fits.BinTableHDU.from_columns(coldefs_freq)
 
     # add additional keywords
     hdu_freq.header["EXTNAME"] = ("AIPS FQ", "AIPS FQ")
     hdu_freq.header["EXTVER"] = (1, "Version number of table")
-    # hdu_freq.header["NO_IF"] = (IF_FREQ.shape[-1], "Number IFs (n IF)")
 
     # add comments
     hdu_freq.header.comments["TTYPE1"] = "Frequency setup ID number"
@@ -228,7 +223,6 @@ def create_frequency_hdu(obs):
     hdu_freq.header.comments["TTYPE3"] = "Spectral channel separation"
     hdu_freq.header.comments["TTYPE4"] = "Total width of spectral window"
     hdu_freq.header.comments["TTYPE5"] = "Sideband"
-    # hdu_freq.header.comments["TTYPE6"] = "No one knows..."
 
     return hdu_freq
 
