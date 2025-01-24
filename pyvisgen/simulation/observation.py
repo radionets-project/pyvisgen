@@ -8,7 +8,7 @@ import torch
 from astropy.constants import c
 from astropy.coordinates import AltAz, Angle, EarthLocation, SkyCoord, Longitude
 from astropy.time import Time
-from tqdm import tqdm
+from tqdm.autonotebook import tqdm
 
 from pyvisgen.layouts import layouts
 from pyvisgen.simulation.array import Array
@@ -447,8 +447,11 @@ class Observation:
             torch.tensor([]),  # q2
         )
 
-        if self.show_progress:
-            self.scans = tqdm(self.scans)
+        self.scans = tqdm(
+            self.scans,
+            disable=not self.show_progress,
+            desc="Computing scans",
+        )
 
         for scan in self.scans:
             bas = self.get_baselines(self.times[scan])
@@ -569,7 +572,7 @@ class Observation:
 
         return (
             torch.tensor(GHA.deg),
-            torch.tensor(ha_local),
+            ha_local,
             torch.tensor(el_st_all.alt.degree),
         )
 
