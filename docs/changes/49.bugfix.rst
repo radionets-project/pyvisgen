@@ -1,0 +1,2 @@
+- update the order of simulated bandwidths in the fits writer to the standard found from converted MeerKat observations
+- tried to fix polarisation infos antenna hdu
