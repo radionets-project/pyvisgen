@@ -1,9 +1,9 @@
 from dataclasses import dataclass, fields
-from tqdm.autonotebook import tqdm
 
 import scipy.ndimage
-import torch
 import toma
+import torch
+from tqdm.autonotebook import tqdm
 
 import pyvisgen.simulation.scan as scan
 
@@ -334,6 +334,7 @@ def vis_loop(
     mode: str = "full",
     batch_size: int = "auto",
     show_progress: bool = False,
+    normalize: bool = True,
 ) -> Visibilities:
     r"""Computes the visibilities of an observation.
 
@@ -366,6 +367,9 @@ def vis_loop(
     show_progress : bool, optional
         If `True`, show a progress bar during the iteration over the
         batches of baselines. Default: False
+    normalize : bool, optional
+        If ``True``, normalize stokes matrix ``B`` by a factor 0.5.
+        Default: ``True``
 
     Returns
     -------
