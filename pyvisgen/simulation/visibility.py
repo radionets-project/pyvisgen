@@ -397,7 +397,8 @@ def vis_loop(
 
     # normalize visibilities to factor 0.5,
     # so that the Stokes I image is normalized to 1
-    B *= 0.5
+    if normalize:
+        B *= 0.5
 
     # calculate vis
     visibilities = Visibilities(

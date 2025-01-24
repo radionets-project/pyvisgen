@@ -17,19 +17,19 @@ def create_vis_hdu(data, obs, source_name="sim-source-0"):
 
     w = data.w
 
-    DATE = data.date - int(data.date.min())
+    DATE = np.trunc(data.date)
 
-    _DATE = np.zeros(DATE.shape)  # central time in the integration period
+    _DATE = data.date % 1
 
     BASELINE = data.base_num
 
-    INTTIM = np.repeat(np.array(obs.int_time, dtype=">f4"), len(u))
+    FREQSEL = np.repeat(np.array([1.0], dtype=">f4"), len(u))
 
     # visibility data
     values = data.get_values()
 
     vis = np.stack([values.real, values.imag, np.ones(values.shape)], axis=3)[
-        :, None, None, :, None, ...
+        :, None, None, None, ...
     ]
 
     DATA = vis
@@ -50,13 +50,20 @@ def create_vis_hdu(data, obs, source_name="sim-source-0"):
         stokes_comment = "-5=XX, -6=YY, -7=XY, -8=YX"
         stokes_comment += " or -5=VV, -6=HH, -7=VH, -8=HV"
 
-    ws.wcs.crpix = [1, 1, 1, 1, 1, 1, 1]
-    ws.wcs.cdelt = np.array([1, 1, -1, freq_d, 1, 1, 1])
-    ws.wcs.crval = [1, 1, crval_stokes, freq, 1, ra, dec]
+    ws.wcs.crpix = [0, 1, 1, 1, 1, 1, 1]
+    ws.wcs.crota = [0, 0, 0, 0, 0, 0, 0]
+    ws.wcs.cdelt = [1, 1, -1, freq_d, 1, 1, 1]
+    ws.wcs.crval = [0, 1, crval_stokes, freq, 1, ra, dec]
     ws.wcs.ctype = ["", "COMPLEX", "STOKES", "FREQ", "IF", "RA", "DEC"]
+
+    ws.wcs.specsys = "TOPOCENTER"
+    ws.wcs.radesys = "FK5"
+    ws.wcs.equinox = 2000.0
+    ws.wcs.dateobs = obs.start.isot
+    ws.wcs.mjdobs = obs.start.mjd
+
     h = ws.to_header()
 
-    scale = 1
     u_scale = u / const.c
     v_scale = v / const.c
     w_scale = w / const.c
@@ -65,22 +72,24 @@ def create_vis_hdu(data, obs, source_name="sim-source-0"):
         DATA,
         bitpix=-32,
         parnames=[
-            "UU--",
-            "VV--",
-            "WW--",
-            "BASELINE",
+            "UU",
+            "VV",
+            "WW",
             "DATE",
-            "_DATE",
-            "INTTIM",
+            "DATE",
+            "BASELINE",
+            "FREQSEL",
         ],
-        pardata=[u_scale, v_scale, w_scale, BASELINE, DATE, _DATE, INTTIM],
+        pardata=[u_scale, v_scale, w_scale, DATE, _DATE, BASELINE, FREQSEL],
     )
 
     hdu_vis = fits.GroupsHDU(groupdata_vis, header=h)
 
     # add scales and zeors
-    parbscales = [scale, scale, scale, 1, 1, 1, 1]
-    parbzeros = [0, 0, 0, 0, int(data.date.min()), 0, 0]
+    scale = 1.0
+    zero = 0.0
+    parbscales = [scale, scale, scale, scale, scale, scale, scale]
+    parbzeros = [zero, zero, zero, zero, zero, zero, zero]
 
     for i in range(len(parbscales)):
         hdu_vis.header["PSCAL" + str(i + 1)] = parbscales[i]
@@ -109,11 +118,11 @@ def create_vis_hdu(data, obs, source_name="sim-source-0"):
     hdu_vis.header["INSTRUME"] = (obs.layout, "Instrument name (receiver or ?)")
     hdu_vis.header["DATE-OBS"] = (date_obs, "Observation date")
     hdu_vis.header["DATE-MAP"] = (date_map, "File processing date")
-    hdu_vis.header["BSCALE"] = (1, "Always 1")
-    hdu_vis.header["BZERO"] = (0, "Always 0")
+    hdu_vis.header["EPOCH"] = (2000.0, "")
+    hdu_vis.header["BSCALE"] = (1.0, "Always 1")
+    hdu_vis.header["BZERO"] = (0.0, "Always 0")
     hdu_vis.header["BUNIT"] = ("UNCALIB", "Units of flux")
-    hdu_vis.header["EQUINOX"] = (2000, "Equinox of source coordinates and uvw")
-    hdu_vis.header["ALTRPIX"] = (1, "Reference pixel for velocity")  # not quite sure
+    hdu_vis.header["ALTRPIX"] = (1.0, "Reference pixel for velocity")
     hdu_vis.header["OBSRA"] = (ra, "Antenna pointing Ra")
     hdu_vis.header["OBSDEC"] = (dec, "Antenna pointing Dec")
 
@@ -177,25 +186,19 @@ def create_time_hdu(data):
 
 def create_frequency_hdu(obs):
     FRQSEL = np.array([1], dtype=">i4")
-    col1 = fits.Column(name="FRQSEL", format="1J", unit=" ", array=FRQSEL)
+    col1 = fits.Column(name="FRQSEL", format="1J", array=FRQSEL)
 
     IF_FREQ = np.array(
-        [np.array(obs.frequency_offsets.cpu().numpy())],
+        [0.0],
         dtype=">f8",
     )  # start with 0, add ch_with per IF
-    col2 = fits.Column(
-        name="IF FREQ", format=str(IF_FREQ.shape[-1]) + "D", unit="Hz", array=IF_FREQ
-    )
+    col2 = fits.Column(name="IF FREQ", format="1D", unit="Hz", array=IF_FREQ)
 
-    CH_WIDTH = np.repeat(
-        np.array([obs.bandwidths.cpu().numpy()], dtype=">f4"), 1, axis=1
-    )
-    col3 = fits.Column(
-        name="CH WIDTH", format=str(CH_WIDTH.shape[-1]) + "E", unit="Hz", array=CH_WIDTH
-    )
+    CH_WIDTH = np.array([obs.bandwidths[0].cpu().numpy()], dtype=">f4")
+    col3 = fits.Column(name="CH WIDTH", format="1E", unit="Hz", array=CH_WIDTH)
 
-    TOTAL_BANDWIDTH = np.repeat(
-        np.array([obs.bandwidths.cpu().numpy()], dtype=">f4"), 1, axis=1
+    TOTAL_BANDWIDTH = np.array(
+        [(obs.bandwidths[0] * len(obs.bandwidths)).cpu().numpy()], dtype=">f4"
     )
     col4 = fits.Column(
         name="TOTAL BANDWIDTH",
@@ -204,24 +207,15 @@ def create_frequency_hdu(obs):
         array=TOTAL_BANDWIDTH,
     )
 
-    SIDEBAND = np.zeros((1, IF_FREQ.shape[-1]))
-    SIDEBAND[IF_FREQ >= 0] = 1
-    SIDEBAND[IF_FREQ < 0] = -1
-    col5 = fits.Column(
-        name="SIDEBAND", format=str(SIDEBAND.shape[-1]) + "J", unit=" ", array=SIDEBAND
-    )
+    SIDEBAND = np.array([1])
+    col5 = fits.Column(name="SIDEBAND", format="1J", unit=" ", array=SIDEBAND)
 
-    RXCODE = np.chararray(1, itemsize=32, unicode=True)
-    RXCODE[:] = ""
-    col6 = fits.Column(name="RXCODE", format="32A", unit=" ", array=RXCODE)
-
-    coldefs_freq = fits.ColDefs([col1, col2, col3, col4, col5, col6])
+    coldefs_freq = fits.ColDefs([col1, col2, col3, col4, col5])
     hdu_freq = fits.BinTableHDU.from_columns(coldefs_freq)
 
     # add additional keywords
     hdu_freq.header["EXTNAME"] = ("AIPS FQ", "AIPS FQ")
     hdu_freq.header["EXTVER"] = (1, "Version number of table")
-    hdu_freq.header["NO_IF"] = (IF_FREQ.shape[-1], "Number IFs (n IF)")
 
     # add comments
     hdu_freq.header.comments["TTYPE1"] = "Frequency setup ID number"
@@ -229,7 +223,6 @@ def create_frequency_hdu(obs):
     hdu_freq.header.comments["TTYPE3"] = "Spectral channel separation"
     hdu_freq.header.comments["TTYPE4"] = "Total width of spectral window"
     hdu_freq.header.comments["TTYPE5"] = "Sideband"
-    hdu_freq.header.comments["TTYPE6"] = "No one knows..."
 
     return hdu_freq
 
@@ -256,31 +249,28 @@ def create_antenna_hdu(obs):
     STAXOF = np.zeros(len(array), dtype=">f4")
     col6 = fits.Column(name="STAXOF", format="1E", unit="METERS", array=STAXOF)
 
-    DIAMETER = np.array(array["dish_dia"].values, dtype=">f4")
-    col7 = fits.Column(name="DIAMETER", format="1E", unit="METERS", array=DIAMETER)
-
-    BEAMFWHM = np.zeros((len(array), 4), dtype=">f4")
-    col8 = fits.Column(name="BEAMFWHM", format="4E", unit="DEGR/M", array=BEAMFWHM)
-
     POLTYA = np.chararray(len(array), itemsize=1, unicode=True)
-    POLTYA[:] = "R"
-    col9 = fits.Column(name="POLTYA", format="1A", unit=" ", array=POLTYA)
+    POLTYA[:] = "X"
+    col7 = fits.Column(name="POLTYA", format="1A", unit=" ", array=POLTYA)
 
-    POLAA = np.zeros(len(array), dtype=">f4")
-    col10 = fits.Column(name="POLAA", format="1E", unit="DEGREES", array=POLAA)
+    POLAA = np.ones(len(array), dtype=">f4") * -90
+    col8 = fits.Column(name="POLAA", format="1E", unit="DEGREES", array=POLAA)
 
-    POLCALA = np.zeros((len(array), 8), dtype=">f4")
-    col11 = fits.Column(name="POLCALA", format="8E", unit=" ", array=POLCALA)
+    POLCALA = np.zeros((len(array)), dtype=">f4")
+    col9 = fits.Column(name="POLCALA", format="1E", unit=" ", array=POLCALA)
 
     POLTYB = np.chararray(len(array), itemsize=1, unicode=True)
-    POLTYB[:] = "L"
-    col12 = fits.Column(name="POLTYB", format="1A", unit=" ", array=POLTYB)
+    POLTYB[:] = "Y"
+    col10 = fits.Column(name="POLTYB", format="1A", unit=" ", array=POLTYB)
 
-    POLAB = np.zeros(len(array), dtype=">f4")
-    col13 = fits.Column(name="POLAB", format="1E", unit="DEGREES", array=POLAB)
+    POLAB = np.ones(len(array), dtype=">f4") * -90
+    col11 = fits.Column(name="POLAB", format="1E", unit="DEGREES", array=POLAB)
 
-    POLCALB = np.zeros((len(array), 8), dtype=">f4")
-    col14 = fits.Column(name="POLCALB", format="8E", unit=" ", array=POLCALB)
+    POLCALB = np.zeros((len(array)), dtype=">f4")
+    col12 = fits.Column(name="POLCALB", format="1E", unit=" ", array=POLCALB)
+
+    DIAMETER = np.array(array["dish_dia"].values, dtype=">f4")
+    col13 = fits.Column(name="DIAMETER", format="1E", unit="METERS", array=DIAMETER)
 
     coldefs_ant = fits.ColDefs(
         [
@@ -297,13 +287,14 @@ def create_antenna_hdu(obs):
             col11,
             col12,
             col13,
-            col14,
         ]
     )
     hdu_ant = fits.BinTableHDU.from_columns(coldefs_ant)
 
     freq = (obs.ref_frequency.cpu().numpy() * un.Hz).value
-    ref_date = obs.start
+    ref_date = Time(
+        obs.start.isot.split("T")[0] + "T0:00:00.000", format="isot", scale="utc"
+    )
 
     from astropy.utils import iers
 
@@ -341,14 +332,14 @@ def create_antenna_hdu(obs):
     hdu_ant.header["TIMSYS"] = ("UTC", "Time system")
     hdu_ant.header["ARRNAM"] = (obs.layout, "Array name")
     hdu_ant.header["XYZHAND"] = ("RIGHT", "Handedness of station coordinates")
-    hdu_ant.header["FRAME"] = ("????", "Coordinate frame, FOR IGNORANCE")
+    hdu_ant.header["FRAME"] = ("ITRF", "Coordinate frame")
     hdu_ant.header["NUMORB"] = (0, "Number orbital parameters in table (n orb)")
     hdu_ant.header["NOPCAL"] = (
         2,
         "Number of polarization calibration values / IF(n pcal)",
     )
-    hdu_ant.header["NO_IF"] = (4, "Number IFs (n IF)")
-    hdu_ant.header["FREQID"] = (-1, "Frequency setup number")
+    hdu_ant.header["NO_IF"] = (1, "Number IFs (n IF)")
+    hdu_ant.header["FREQID"] = (1, "Frequency setup number")
     hdu_ant.header["IATUTC"] = (
         ref_date.tai.ymdhms[-1],
         "Difference between TAI and UTC",
@@ -362,14 +353,13 @@ def create_antenna_hdu(obs):
     hdu_ant.header.comments["TTYPE4"] = "Antenna number"
     hdu_ant.header.comments["TTYPE5"] = "Mount type"
     hdu_ant.header.comments["TTYPE6"] = "Axis offset"
-    hdu_ant.header.comments["TTYPE7"] = "Antenna diameter"
-    hdu_ant.header.comments["TTYPE8"] = "Antenna beam FWHM"
-    hdu_ant.header.comments["TTYPE9"] = "R, L, feed A"
-    hdu_ant.header.comments["TTYPE10"] = "Position angle feed A"
-    hdu_ant.header.comments["TTYPE11"] = "Calibration parameters feed A"
-    hdu_ant.header.comments["TTYPE12"] = "R, L, polarization 2"
-    hdu_ant.header.comments["TTYPE13"] = "Position angle feed B"
-    hdu_ant.header.comments["TTYPE14"] = "Calibration parameters feed B"
+    hdu_ant.header.comments["TTYPE7"] = "R, L, feed A"
+    hdu_ant.header.comments["TTYPE8"] = "Position angle feed A"
+    hdu_ant.header.comments["TTYPE9"] = "Calibration parameters feed A"
+    hdu_ant.header.comments["TTYPE10"] = "R, L, polarization 2"
+    hdu_ant.header.comments["TTYPE11"] = "Position angle feed B"
+    hdu_ant.header.comments["TTYPE12"] = "Calibration parameters feed B"
+    hdu_ant.header.comments["TTYPE13"] = "Antenna diameter"
 
     return hdu_ant
 
@@ -380,5 +370,5 @@ def create_hdu_list(data, obs):
     time_hdu = create_time_hdu(data)
     freq_hdu = create_frequency_hdu(obs)
     ant_hdu = create_antenna_hdu(obs)
-    hdu_list = fits.HDUList([vis_hdu, time_hdu, freq_hdu, ant_hdu])
+    hdu_list = fits.HDUList([vis_hdu, freq_hdu, ant_hdu, time_hdu])
     return hdu_list
