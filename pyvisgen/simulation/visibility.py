@@ -446,6 +446,7 @@ def vis_loop(
         rd,
         noisy,
         show_progress,
+        mode,
     )
 
     visibilities.linear_dop = lin_dop.cpu()
@@ -465,6 +466,7 @@ def _batch_loop(
     rd: torch.tensor,
     noisy: bool | float,
     show_progress: bool,
+    mode: str,
 ):
     """Main simulation loop of pyvisgen. Computes visibilities
     batchwise.
@@ -523,6 +525,7 @@ def _batch_loop(
                     wave_low,
                     wave_high,
                     obs.polarisation,
+                    mode=mode,
                     corrupted=obs.corrupted,
                 )[None]
                 for wave_low, wave_high in zip(obs.waves_low, obs.waves_high)

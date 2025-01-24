@@ -17,6 +17,7 @@ def rime(
     spw_low,
     spw_high,
     polarisation,
+    mode,
     corrupted=False,
 ):
     """Calculates visibilities using RIME
@@ -44,10 +45,12 @@ def rime(
     with torch.no_grad():
         X1, X2 = calc_fourier(img, bas, lm, spw_low, spw_high)
 
+        if mode != "dense":
+            X1, X2 = calc_feed_rotation(X1, X2, bas, polarisation)
+
         if corrupted:
             X1, X2 = calc_beam(X1, X2, rd, ra, dec, ant_diam, spw_low, spw_high)
 
-        X1, X2 = calc_feed_rotation(X1, X2, bas, polarisation)
         vis = integrate(X1, X2)
     return vis
 
