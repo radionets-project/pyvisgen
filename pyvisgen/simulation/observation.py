@@ -306,8 +306,8 @@ class Observation:
         src_crd = SkyCoord(ra=self.ra, dec=self.dec, unit=(un.deg, un.deg))
         # Calculate for all times
         # calculate GHA, Greenwich as reference
-        ha_all = Angle(
-            [t.sidereal_time("apparent", "greenwich") - src_crd.ra for t in time]
+        ha_all = time.sidereal_time("apparent", "greenwich") - src_crd.ra.to(
+            un.hourangle
         )
 
         # calculate elevations
