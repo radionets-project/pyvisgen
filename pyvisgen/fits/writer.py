@@ -43,12 +43,13 @@ def create_vis_hdu(data, obs, source_name="sim-source-0"):
 
     ws = wcs.WCS(naxis=7)
 
+    # need to switch between lin and circ pol in future
     crval_stokes = -5
     stokes_comment = "-1=RR, -2=LL, -3=RL, -4=LR"
-    if obs.polarisation == "linear":
-        crval_stokes = -5
-        stokes_comment = "-5=XX, -6=YY, -7=XY, -8=YX"
-        stokes_comment += " or -5=VV, -6=HH, -7=VH, -8=HV"
+    # if obs.polarisation == "linear":
+    #     crval_stokes = -5
+    #     stokes_comment = "-5=XX, -6=YY, -7=XY, -8=YX"
+    #     stokes_comment += " or -5=VV, -6=HH, -7=VH, -8=HV"
 
     ws.wcs.crpix = [0, 1, 1, 1, 1, 1, 1]
     ws.wcs.crota = [0, 0, 0, 0, 0, 0, 0]
