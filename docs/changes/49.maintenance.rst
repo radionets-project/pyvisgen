@@ -1,0 +1,2 @@
+- drop integration time in fits writer (also missing fits files which are converted from ms files)
+- use infos from observation class
