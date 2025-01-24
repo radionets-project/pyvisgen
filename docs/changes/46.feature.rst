@@ -1,0 +1,1 @@
+- ``pyvisgen.layouts.get_array_layout`` now also accepts custom layouts stored in a ``pd.DataFrame``

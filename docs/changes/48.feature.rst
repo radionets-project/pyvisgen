@@ -1,0 +1,1 @@
+- Added optional auto scaling for batchsize in vis_loop
