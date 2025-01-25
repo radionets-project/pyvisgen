@@ -114,7 +114,13 @@ class ValidBaselineSubset:
             *[getattr(self, f.name).ravel() for f in fields(self)]
         )[(self.date >= t_start) & (self.date <= t_stop)]
 
-    def get_unique_grid(self, fov_size, ref_frequency, img_size, device):
+    def get_unique_grid(
+        self,
+        fov_size: float,
+        ref_frequency: float,
+        img_size: int,
+        device: str,
+    ):
         uv = torch.cat([self.u_valid[None], self.v_valid[None]], dim=0)
         fov = fov_size * pi / (3600 * 180)
         delta = 1 / fov * const.c.value.item() / ref_frequency
@@ -389,7 +395,8 @@ class Observation:
         Returns
         -------
         lm_grid : 3d array
-            Returns a 3d array with every pixel containing a l and m value
+            Returns a 3d array with every pixel containing an
+            l and an m value
         """
         dec = torch.deg2rad(self.dec)
 
@@ -402,8 +409,8 @@ class Observation:
         return lm_grid
 
     def get_baselines(self, times):
-        """Calculates baselines from source coordinates and time of observation for
-        every antenna station in array_layout.
+        """Calculates baselines from source coordinates and time
+        of observation for every antenna station in ``array_layout``.
 
         Parameters
         ----------
@@ -462,7 +469,39 @@ class Observation:
             baselines.add_baseline(base)
         return baselines
 
-    def calc_direction_cosines(self, ha, el_st, delta_x, delta_y, delta_z):
+    def calc_direction_cosines(
+        self,
+        ha: torch.tensor,
+        el_st: torch.tensor,
+        delta_x: torch.tensor,
+        delta_y: torch.tensor,
+        delta_z: torch.tensor,
+    ):
+        """Calculates direction cosines u, v, and w for
+        given hour angles and relative antenna positions.
+
+        Parameters
+        ----------
+        ha : :func:`torch.tensor`
+            Tensor containing hour angles for each time step.
+        el_st : :func:`torch.tensor`
+            Tensor containing station elevations.
+        delta_x : :func:`torch.tensor`
+            Tensor containing relative antenna x-postions.
+        delta_y : :func:`torch.tensor`
+            Tensor containing relative antenna y-postions.
+        delta_z : :func:`torch.tensor`
+            Tensor containing relative antenna z-postions.
+
+        Returns
+        -------
+        u : :func:`torch.tensor`
+            Tensor containing direction cosines in u-axis direction.
+        v : :func:`torch.tensor`
+            Tensor containing direction cosines in v-axis direction.
+        w : :func:`torch.tensor`
+            Tensor containing direction cosines in w-axis direction.
+        """
         src_dec = torch.deg2rad(self.dec)
         ha = torch.deg2rad(ha)
         u = (torch.sin(ha) * delta_x + torch.cos(ha) * delta_y).reshape(-1)
