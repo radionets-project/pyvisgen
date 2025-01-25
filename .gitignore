@@ -1,6 +1,7 @@
 # docs
 docs/_build
 docs/api
+!docs/_static/*.png
 
 pyvisgen/_version_cache.py
 pyvisgen/_version.py
