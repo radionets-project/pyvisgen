@@ -74,6 +74,7 @@ html_file_suffix = ".html"
 
 html_css_files = ["pyvisgen.css"]
 
+html_favicon = "_static/favicon/favicon.ico"
 
 html_theme_options = {
     "github_url": "https://github.com/radionets-project/pyvisgen",
@@ -90,6 +91,11 @@ html_theme_options = {
             "icon": "https://avatars.githubusercontent.com/u/77392854?s=200&v=4",  # noqa: E501
         },
     ],
+    "logo": {
+        "image_light": "_static/pyvisgen.webp",
+        "image_dark": "_static/pyvisgen_dark.webp",
+        "alt_text": "pyvisgen",
+    },
     "announcement": """
         <p>pyvisgen is not stable yet, so expect large and rapid
         changes to structure and functionality as we explore various
@@ -115,6 +121,7 @@ intersphinx_mapping = {
     "scipy": ("https://docs.scipy.org/doc/scipy", None),
     "setuptools": ("https://setuptools.pypa.io/en/stable", None),
     "sklearn": ("https://scikit-learn.org/stable", None),
+    "torch": ("https://pytorch.org/docs/stable/", None),
 }
 
 
