@@ -3,36 +3,30 @@
 
 .. _pyvisgen:
 
-########
-Pyvisgen
-########
-
 .. currentmodule:: pyvisgen
+
+.. image:: _static/pyvisgen.webp
+   :class: only-light
+   :align: center
+   :width: 90%
+   :alt: The pyvisgen logo.
+
+.. image:: _static/pyvisgen_dark.webp
+   :class: only-dark
+   :align: center
+   :width: 90%
+   :alt: The pyvisgen logo.
 
 |
 
-.. .. image:: _static/pyvisgen_logo.webp
-..    :class: only-light
-..    :align: center
-..    :width: 90%
-..    :alt: The pyvisgen logo.
-..
-.. .. image:: _static/pyvisgen_logo_dark.webp
-..    :class: only-dark
-..    :align: center
-..    :width: 90%
-..    :alt: The pyvisgen logo.
-
-
-
-**Version**: |version| **Date**: |today|
+**Version**: |version| | **Date**: |today|
 
 **Useful links**:
 `Source Repository <https://github.com/radionets-project/pyvisgen>`__ |
 `Issue Tracker <https://github.com/radionets-project/pyvisgen/issues>`__ |
 `Pull Requests <https://github.com/radionets-project/pyvisgen/pulls>`__
 
-**License**: MIT
+**License**: `MIT <https://github.com/radionets-project/pyvisgen/blob/main/LICENSE>`__
 
 **Python**: |python_requires|
 
