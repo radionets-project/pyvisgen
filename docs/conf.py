@@ -28,6 +28,7 @@ extensions = [
     "numpydoc",
     "sphinx_design",
     "IPython.sphinxext.ipython_console_highlighting",
+    "sphinx_copybutton",
 ]
 
 numpydoc_show_class_members = False
@@ -103,7 +104,7 @@ html_theme_options = {
     """,
 }
 
-html_title = f"{project}"
+html_title = f"{project}: Visibility Simulations in Python"
 htmlhelp_basename = project + "docs"
 
 
