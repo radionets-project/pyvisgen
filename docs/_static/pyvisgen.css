@@ -4,7 +4,7 @@
 
 :root[data-theme="light"] {
   --pst-color-text: #090704;
-  --pst-color-background: #ebebeb;
+  --pst-color-background: #f5f5f5;
   --pst-color-on-background: #ffffff;
   --pst-color-primary: #52ba66;
   --pst-color-secondary: #325e8d;
@@ -14,6 +14,7 @@
   --bd-header-announcement-color: var(--pst-color-background);
   --bd-header-announcement-background: var(--pst-color-primary);
   --table-hover-background: var(--pst-color-primary-highlight);
+  --hl-pre-code-background: var(--pst-color-background);
 }
 :root[data-theme="dark"] {
   --pst-color-text: #faf8f4;
@@ -27,6 +28,7 @@
   --bd-header-announcement-color: var(--pst-color-background);
   --bd-header-announcement-background: var(--pst-color-primary-highlight);
   --table-hover-background: #279544;
+  --hl-pre-code-background: var(--pst-color-background);
 }
 
 
@@ -34,6 +36,11 @@ body {
   font-family: 'Open Sans';
   font-weight: 400;
 }
+
+:root {
+  --pst-font-family-monospace: "Fira Mono";
+}
+
 
 h1, h2, h3, h4, h5 {
 font-family: 'Open Sans';
@@ -70,19 +77,22 @@ h5 {font-size: 1.200rem; /* 19.2px */}
 
 small {font-size: 0.833rem; /* 13.28px */}
 
-
-:root {
-  --pst-font-family-monospace: "Fira Mono";
-}
-
 dt:target {
   background-color: var(--pst-color-surface);
   border-radius: 10px;
   padding: 5px 5px 5px 5px;
 }
 
+/* code blocks */
+div.highlight {
+  background-color: var(--hl-pre-code-background) !important;
+}
 .highlight pre {
   border-radius: 20px;
+  background-color: var(--pst-color-on-background);
+}
+.highlight pre .gp {
+  color: var(--pst-color-primary);
 }
 
 .bd-header-announcement {
@@ -131,9 +141,9 @@ dt:target {
 .sd-card:hover {
   border-color: var(--pst-color-secondary);
   transform: scale(1.05);
-  -webkit-transition: all .25s;
-  -moz-transition: all .25s;
-  transition: all .25s;
+  -webkit-transition: all .2s;
+  -moz-transition: all .2s;
+  transition: all .2s;
 }
 
 .sd-card .sd-btn:hover {
