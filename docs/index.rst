@@ -3,6 +3,19 @@
 
 .. _pyvisgen:
 
+.. show title in tab name but not on index page
+.. raw:: html
+
+   <div style="height: 0; visibility: hidden;">
+
+========
+Pyvisgen
+========
+
+.. raw:: html
+
+   </div>
+
 .. currentmodule:: pyvisgen
 
 .. image:: _static/pyvisgen.webp
