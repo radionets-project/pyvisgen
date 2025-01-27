@@ -8,3 +8,4 @@ User Guide
    :maxdepth: 2
 
    getting-started
+   about
