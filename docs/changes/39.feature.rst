@@ -1,0 +1,5 @@
+- Add class `Polarisation` to `pyvisgen.simulation.visibility` that is called in `vis_loop`
+  - Added linear, circular, and no polarisation options
+- Update `pyvisgen.simulation.visibility.Visibilities` dataclass to also store polarisation degree tensors
+- Add keyword arguments for polarisation simulation to `pyvisgen.simulation.observation.Observation` class
+- Add parallactic angle computation

@@ -1,0 +1,4 @@
+- Fix gridding in `pyvisgen.simulation.observation.Observation` methods `create_rd_grid` and `create_lm_grid`
+  methods resulting in rotated images
+- Fix `pyvisgen.simulation.observation.ValidBaselineSubset` dataclass field order
+- Fix tests failing because of api change

@@ -1,16 +1,31 @@
 from dataclasses import dataclass, fields
+from datetime import datetime
 from math import pi
 
 import astropy.constants as const
 import astropy.units as un
-import numpy as np
 import torch
 from astropy.constants import c
-from astropy.coordinates import AltAz, Angle, EarthLocation, SkyCoord
+from astropy.coordinates import AltAz, Angle, EarthLocation, SkyCoord, Longitude
 from astropy.time import Time
+from tqdm.autonotebook import tqdm
 
 from pyvisgen.layouts import layouts
 from pyvisgen.simulation.array import Array
+
+
+DEFAULT_POL_KWARGS = {
+    "delta": 0,
+    "amp_ratio": 0.5,
+    "random_state": 42,
+}
+
+DEFAULT_FIELD_KWARGS = {
+    "order": [1, 1],
+    "scale": [0, 1],
+    "threshold": None,
+    "random_state": 42,
+}
 
 
 @dataclass
@@ -22,6 +37,8 @@ class Baselines:
     w: torch.tensor
     valid: torch.tensor
     time: torch.tensor
+    q1: torch.tensor
+    q2: torch.tensor
 
     def __getitem__(self, i):
         return Baselines(*[getattr(self, f.name)[i] for f in fields(self)])
@@ -60,6 +77,15 @@ class Baselines:
         v_valid = (v_start + v_stop) / 2
         w_valid = (w_start + w_stop) / 2
 
+        q1_start = bas_reshaped.q1[:-1][mask].to(device)
+        q2_start = bas_reshaped.q2[:-1][mask].to(device)
+
+        q1_stop = bas_reshaped.q1[1:][mask].to(device)
+        q2_stop = bas_reshaped.q2[1:][mask].to(device)
+
+        q1_valid = (q1_start + q1_stop) / 2
+        q2_valid = (q2_start + q2_stop) / 2
+
         t = Time(bas_reshaped.time / (60 * 60 * 24), format="mjd").jd
         date = (torch.from_numpy(t[:-1][mask] + t[1:][mask]) / 2).to(device)
 
@@ -75,6 +101,12 @@ class Baselines:
             w_valid,
             baseline_nums,
             date,
+            q1_start,
+            q1_stop,
+            q1_valid,
+            q2_start,
+            q2_stop,
+            q2_valid,
         )
 
 
@@ -91,6 +123,12 @@ class ValidBaselineSubset:
     w_valid: torch.tensor
     baseline_nums: torch.tensor
     date: torch.tensor
+    q1_start: torch.tensor
+    q1_stop: torch.tensor
+    q1_valid: torch.tensor
+    q2_start: torch.tensor
+    q2_stop: torch.tensor
+    q2_valid: torch.tensor
 
     def __getitem__(self, i):
         return torch.stack(
@@ -106,6 +144,12 @@ class ValidBaselineSubset:
                 self.w_valid,
                 self.baseline_nums,
                 self.date,
+                self.q1_start,
+                self.q1_stop,
+                self.q1_valid,
+                self.q2_start,
+                self.q2_stop,
+                self.q2_valid,
             ]
         )
 
@@ -116,6 +160,7 @@ class ValidBaselineSubset:
 
     def get_unique_grid(self, fov_size, ref_frequency, img_size, device):
         uv = torch.cat([self.u_valid[None], self.v_valid[None]], dim=0)
+
         fov = fov_size * pi / (3600 * 180)
         delta = 1 / fov * const.c.value.item() / ref_frequency
         bins = (
@@ -127,8 +172,10 @@ class ValidBaselineSubset:
             )
             + delta / 2
         )
+
         if len(bins) - 1 > img_size:
             bins = bins[:-1]
+
         indices_bucket = torch.bucketize(uv, bins)
         indices_bucket_sort, indices_bucket_inv = self._lexsort(indices_bucket)
         indices_unique, indices_unique_inv, counts = torch.unique_consecutive(
@@ -142,6 +189,7 @@ class ValidBaselineSubset:
         cum_sum = counts.cumsum(0)
         cum_sum = torch.cat((torch.tensor([0], device=device), cum_sum[:-1]))
         first_indices = ind_sorted[cum_sum]
+
         return self[:][:, indices_bucket_sort[first_indices]]
 
     def _lexsort(self, a, dim=-1):
@@ -155,24 +203,99 @@ class ValidBaselineSubset:
 class Observation:
     def __init__(
         self,
-        src_ra,
-        src_dec,
-        start_time,
-        scan_duration,
-        num_scans,
-        scan_separation,
-        integration_time,
-        ref_frequency,
-        frequency_offsets,
-        bandwidths,
-        fov,
-        image_size,
-        array_layout,
-        corrupted,
-        device,
-        dense=False,
-        sensitivity_cut=1e-6,
-    ):
+        src_ra: float,
+        src_dec: float,
+        start_time: datetime,
+        scan_duration: int,
+        num_scans: int,
+        scan_separation: int,
+        integration_time: int,
+        ref_frequency: float,
+        frequency_offsets: list,
+        bandwidths: list,
+        fov: float,
+        image_size: int,
+        array_layout: str,
+        corrupted: bool,
+        device: str,
+        dense: bool = False,
+        sensitivity_cut: float = 1e-6,
+        polarisation: str = None,
+        pol_kwargs: dict = DEFAULT_POL_KWARGS,
+        field_kwargs: dict = DEFAULT_FIELD_KWARGS,
+        show_progress: bool = False,
+    ) -> None:
+        """Sets up the observation class.
+
+        Parameters
+        ----------
+        src_ra : float
+            Source right ascension coordinate.
+        src_dec : float
+            Source declination coordinate.
+        start_time : datetime
+            Observation start time.
+        scan_duration : int
+            Scan duration.
+        num_scans : int
+            Number of scans.
+        scan_separation : int
+            Scan separation.
+        integration_time : int
+            Integration time.
+        ref_frequency : float
+            Reference frequency.
+        frequency_offsets : list
+            Frequency offsets.
+        bandwidths : list
+            Frequency bandwidth.
+        fov : float
+            Field of view.
+        image_size : int
+            Image size of the sky distribution.
+        array_layout : str
+            Name of an existing array layout. See `~pyvisgen.layouts`.
+        corrupted : bool
+            If `True`, apply corruption during the vis loop.
+        device : str
+            Torch device to select for computation.
+        dense : bool, optional
+            If `True`, apply dense baseline calculation of a perfect
+            interferometer. Default: `False`
+        sensitivity_cut : float, optional
+            Sensitivity threshold, where only pixels above the value
+            are kept. Default: 1e-6
+        polarisation : str, optional
+            Choose between `'linear'` or `'circular'` or `None` to
+            simulate different types of polarisations or disable
+            the simulation of polarisation. Default: `None`
+        pol_kwargs : dict, optional
+            Additional keyword arguments for the simulation
+            of polarisation. Default: `{
+                "delta": 0,
+                "amp_ratio": 0.5,
+                "random_state": 42,
+            }`
+        field_kwargs : dict, optional
+            Additional keyword arguments for the random polarisation
+            field that is applied when simulating polarisation.
+            Default: `{
+                "order": [1, 1],
+                "scale": [0, 1],
+                "threshold": None,
+                "random_state": 42
+            }`
+        show_progress : bool, optional
+            If `True`, show a progress bar during the iteration over the
+            scans. Default: False
+
+        Notes
+        -----
+        See `~pyvisgen.simulation.visibility.Polarisation` and
+        `~pyvisgen.simulation.visibility.Polarisation.rand_polarisation_field`
+        for more information on the keyword arguments in `pol_kwargs`
+        and `field_kwargs`, respectively.
+        """
         self.ra = torch.tensor(src_ra).double()
         self.dec = torch.tensor(src_dec).double()
 
@@ -181,10 +304,12 @@ class Observation:
         self.num_scans = num_scans
         self.int_time = integration_time
         self.scan_separation = scan_separation
+
         self.times, self.times_mjd = self.calc_time_steps()
         self.scans = torch.stack(
             torch.split(
-                torch.arange(len(self.times)), (len(self.times) // self.num_scans)
+                torch.arange(self.times.size),
+                (self.times.size // self.num_scans),
             ),
             dim=0,
         )
@@ -192,6 +317,7 @@ class Observation:
         self.ref_frequency = torch.tensor(ref_frequency)
         self.bandwidths = torch.tensor(bandwidths)
         self.frequency_offsets = torch.tensor(frequency_offsets)
+
         self.waves_low = (
             self.ref_frequency + self.frequency_offsets
         ) - self.bandwidths / 2
@@ -209,9 +335,14 @@ class Observation:
 
         self.layout = array_layout
         self.array = layouts.get_array_layout(array_layout)
+        self.array_earth_loc = EarthLocation.from_geocentric(
+            self.array.x, self.array.y, self.array.z, unit=un.m
+        )
         self.num_baselines = int(
             len(self.array.st_num) * (len(self.array.st_num) - 1) / 2
         )
+
+        self.show_progress = show_progress
 
         if dense:
             self.waves_low = [self.ref_frequency]
@@ -222,12 +353,41 @@ class Observation:
         else:
             self.calc_baselines()
             self.baselines.num = int(
-                len(self.array.st_num) * (len(self.array.st_num) - 1) / 2
+                self.array.st_num.size(dim=0) * (self.array.st_num.size(dim=0) - 1) / 2
             )
             self.baselines.times_unique = torch.unique(self.baselines.time)
 
         self.rd = self.create_rd_grid()
         self.lm = self.create_lm_grid()
+
+        # polarisation
+        self.polarisation = polarisation
+        self.pol_kwargs = pol_kwargs
+        self.field_kwargs = field_kwargs
+
+    def calc_time_steps(self):
+        """Computes the time steps of the observation.
+
+        Returns
+        -------
+        time : array_like
+            Array of time steps.
+        time.mjd : array_like
+            Time steps in mjd format.
+        """
+        time_lst = [
+            self.start
+            + self.scan_separation * i * un.second
+            + i * self.scan_duration * un.second
+            + j * self.int_time * un.second
+            for i in range(self.num_scans)
+            for j in range(int(self.scan_duration / self.int_time) + 1)
+        ]
+        # +1 because t_1 is the stop time of t_0
+        # in order to save computing power we take one time more to complete interval
+        time = Time(time_lst)
+
+        return time, time.mjd * (60 * 60 * 24)
 
     def calc_dense_baselines(self):
         N = self.img_size
@@ -271,44 +431,126 @@ class Observation:
         )
 
     def calc_baselines(self):
+        """Initializes Baselines dataclass object and
+        calls self.get_baselines to compute the contents of
+        the Baselines dataclass.
+        """
         self.baselines = Baselines(
-            torch.tensor([]),
-            torch.tensor([]),
-            torch.tensor([]),
-            torch.tensor([]),
-            torch.tensor([]),
-            torch.tensor([]),
-            torch.tensor([]),
+            torch.tensor([]),  # st1
+            torch.tensor([]),  # st2
+            torch.tensor([]),  # u
+            torch.tensor([]),  # v
+            torch.tensor([]),  # w
+            torch.tensor([]),  # valid
+            torch.tensor([]),  # time
+            torch.tensor([]),  # q1
+            torch.tensor([]),  # q2
         )
+
+        self.scans = tqdm(
+            self.scans,
+            disable=not self.show_progress,
+            desc="Computing scans",
+        )
+
         for scan in self.scans:
             bas = self.get_baselines(self.times[scan])
             self.baselines.add_baseline(bas)
 
-    def calc_time_steps(self):
-        time_lst = [
-            self.start
-            + self.scan_separation * i * un.second
-            + i * self.scan_duration * un.second
-            + j * self.int_time * un.second
-            for i in range(self.num_scans)
-            for j in range(int(self.scan_duration / self.int_time) + 1)
-        ]
-        # +1 because t_1 is the stop time of t_0
-        # in order to save computing power we take one time more to complete interval
-        time = Time(time_lst)
-        return time, time.mjd * (60 * 60 * 24)
+    def get_baselines(self, times):
+        """Calculates baselines from source coordinates and time of observation for
+        every antenna station in array_layout.
+
+        Parameters
+        ----------
+        times : time object
+            time of observation
+
+        Returns
+        -------
+        dataclass object
+            baselines between telescopes with visibility flags
+        """
+        # calculate GHA, local HA, and station elevation for all times.
+        GHA, ha_local, el_st_all = self.calc_ref_elev(time=times)
+
+        ar = Array(self.array)
+        delta_x, delta_y, delta_z = ar.calc_relative_pos
+        st_num_pairs, els_low_pairs, els_high_pairs = ar.calc_ant_pair_vals
+
+        baselines = Baselines(
+            torch.tensor([]),  # st1
+            torch.tensor([]),  # st2
+            torch.tensor([]),  # u
+            torch.tensor([]),  # v
+            torch.tensor([]),  # w
+            torch.tensor([]),  # valid
+            torch.tensor([]),  # time
+            torch.tensor([]),  # q1
+            torch.tensor([]),  # q2
+        )
+        q_all = self.calc_feed_rotation(ha_local)
+        q_comb = torch.vstack([torch.combinations(qi) for qi in q_all])
+        q_comb = q_comb.reshape(-1, int(q_comb.shape[0] / times.shape[0]), 2)
+
+        # Loop over ha, el_st, times, parallactic angles
+        for ha, el_st, time, q, qc in zip(GHA, el_st_all, times, q_all, q_comb):
+            u, v, w = self.calc_direction_cosines(ha, el_st, delta_x, delta_y, delta_z)
+
+            # calc current elevations
+            cur_el_st = torch.combinations(el_st)
+
+            # calc valid baselines
+            m1 = (cur_el_st < els_low_pairs).any(axis=1)
+            m2 = (cur_el_st > els_high_pairs).any(axis=1)
+
+            valid = torch.ones(u.shape).bool()
+            valid_mask = torch.logical_or(m1, m2)
+            valid[valid_mask] = False
+
+            time_mjd = torch.repeat_interleave(
+                torch.tensor(time.mjd) * (24 * 60 * 60), len(valid)
+            )
+
+            # collect baselines
+            base = Baselines(
+                st_num_pairs[..., 0],
+                st_num_pairs[..., 1],
+                u,
+                v,
+                w,
+                valid,
+                time_mjd,
+                qc[..., 0].ravel(),
+                qc[..., 1].ravel(),
+            )
+            baselines.add_baseline(base)
+
+        return baselines
 
     def calc_ref_elev(self, time=None):
         if time is None:
             time = self.times
         if time.shape == ():
             time = time[None]
+
         src_crd = SkyCoord(ra=self.ra, dec=self.dec, unit=(un.deg, un.deg))
         # Calculate for all times
         # calculate GHA, Greenwich as reference
-        ha_all = Angle(
+        GHA = Angle(
             [t.sidereal_time("apparent", "greenwich") - src_crd.ra for t in time]
         )
+
+        # calculate local sidereal time and HA at each antenna
+        lst = un.Quantity(
+            [
+                Time(time, location=loc).sidereal_time("mean")
+                for loc in self.array_earth_loc
+            ]
+        )
+        ha_local = torch.from_numpy(
+            (lst - Longitude(self.ra.item(), unit=un.deg)).radian
+        ).T
 
         # calculate elevations
         el_st_all = src_crd.transform_to(
@@ -322,17 +564,71 @@ class Observation:
                 ),
             )
         )
-        assert len(ha_all.value) == len(el_st_all)
-        return torch.tensor(ha_all.deg), torch.tensor(el_st_all.alt.degree)
+        if not len(GHA.value) == len(el_st_all):
+            raise ValueError(
+                "Expected GHA and el_st_all to have the same length"
+                f"{len(GHA.value)} and {len(el_st_all)}"
+            )
 
-    def test_active_telescopes(self):
-        _, el_st_0 = self.calc_ref_elev(self.times[0])
-        _, el_st_1 = self.calc_ref_elev(self.times[1])
-        el_min = 15
-        el_max = 85
-        active_telescopes_0 = np.sum((el_st_0 >= el_min) & (el_st_0 <= el_max))
-        active_telescopes_1 = np.sum((el_st_1 >= el_min) & (el_st_1 <= el_max))
-        return min(active_telescopes_0, active_telescopes_1)
+        return (
+            torch.tensor(GHA.deg),
+            ha_local,
+            torch.tensor(el_st_all.alt.degree),
+        )
+
+    def calc_feed_rotation(self, ha: Angle) -> Angle:
+        r"""Calculates feed rotation for every antenna at every time step.
+
+        Notes
+        -----
+        The calculation is based on Equation (13.1) of Meeus'
+        Astronomical Algorithms:
+
+        .. math::
+
+            q = \atan\left(\frac{\sin h}{\cos\delta \tan\varphi - \sin\delta \cos h\right),
+
+        where $h$ is the local hour angle, $\varphi$ the geographical latitude
+        of the observer, and $\delta$ the declination of the source.
+        """
+        # We need to create a tensor from the EarthLocation object
+        # and save only the geographical latitude of each antenna
+        ant_lat = torch.tensor(self.array_earth_loc.lat)
+
+        # Eqn (13.1) of Meeus' Astronomical Algorithms
+        q = torch.arctan2(
+            torch.sin(ha),
+            (
+                torch.tan(ant_lat) * torch.cos(self.dec)
+                - torch.sin(self.dec) * torch.cos(ha)
+            ),
+        )
+
+        return q
+
+    def calc_direction_cosines(self, ha, el_st, delta_x, delta_y, delta_z):
+        src_dec = torch.deg2rad(self.dec)
+        ha = torch.deg2rad(ha)
+
+        u = (torch.sin(ha) * delta_x + torch.cos(ha) * delta_y).reshape(-1)
+        v = (
+            -torch.sin(src_dec) * torch.cos(ha) * delta_x
+            + torch.sin(src_dec) * torch.sin(ha) * delta_y
+            + torch.cos(src_dec) * delta_z
+        ).reshape(-1)
+        w = (
+            torch.cos(src_dec) * torch.cos(ha) * delta_x
+            - torch.cos(src_dec) * torch.sin(ha) * delta_y
+            + torch.sin(src_dec) * delta_z
+        ).reshape(-1)
+
+        if not (u.shape == v.shape == w.shape):
+            raise ValueError(
+                "Expected u, v, and w to have the same shapes: "
+                f"{u.shape}, {v.shape}, {w.shape}"
+            )
+
+        return u, v, w
 
     def create_rd_grid(self):
         """Calculates RA and Dec values for a given fov around a source position
@@ -389,7 +685,7 @@ class Observation:
         Returns
         -------
         lm_grid : 3d array
-            Returns a 3d array with every pixel containing a l and m value
+            Returns a 3d array with every pixel containing an l and m value
         """
         dec = torch.deg2rad(self.dec)
 
@@ -400,81 +696,3 @@ class Observation:
         ) * torch.sin(dec) * torch.cos(self.rd[..., 0])
 
         return lm_grid
-
-    def get_baselines(self, times):
-        """Calculates baselines from source coordinates and time of observation for
-        every antenna station in array_layout.
-
-        Parameters
-        ----------
-        times : time object
-            time of observation
-
-        Returns
-        -------
-        dataclass object
-            baselines between telescopes with visibility flags
-        """
-        # Calculate for all times
-        # calculate GHA, Greenwich as reference
-        ha_all, el_st_all = self.calc_ref_elev(time=times)
-
-        ar = Array(self.array)
-        delta_x, delta_y, delta_z = ar.calc_relative_pos
-        st_num_pairs, els_low_pairs, els_high_pairs = ar.calc_ant_pair_vals
-
-        # Loop over ha and el_st
-        baselines = Baselines(
-            torch.tensor([]),
-            torch.tensor([]),
-            torch.tensor([]),
-            torch.tensor([]),
-            torch.tensor([]),
-            torch.tensor([]),
-            torch.tensor([]),
-        )
-        for ha, el_st, time in zip(ha_all, el_st_all, times):
-            u, v, w = self.calc_direction_cosines(ha, el_st, delta_x, delta_y, delta_z)
-
-            # calc current elevations
-            cur_el_st = torch.combinations(el_st)
-
-            # calc valid baselines
-            valid = torch.ones(u.shape).bool()
-            m1 = (cur_el_st < els_low_pairs).any(axis=1)
-            m2 = (cur_el_st > els_high_pairs).any(axis=1)
-            valid_mask = torch.logical_or(m1, m2)
-            valid[valid_mask] = False
-
-            time_mjd = torch.repeat_interleave(
-                torch.tensor(time.mjd) * (24 * 60 * 60), len(valid)
-            )
-            # collect baselines
-            base = Baselines(
-                st_num_pairs[:, 0],
-                st_num_pairs[:, 1],
-                u,
-                v,
-                w,
-                valid,
-                time_mjd,
-            )
-            baselines.add_baseline(base)
-        return baselines
-
-    def calc_direction_cosines(self, ha, el_st, delta_x, delta_y, delta_z):
-        src_dec = torch.deg2rad(self.dec)
-        ha = torch.deg2rad(ha)
-        u = (torch.sin(ha) * delta_x + torch.cos(ha) * delta_y).reshape(-1)
-        v = (
-            -torch.sin(src_dec) * torch.cos(ha) * delta_x
-            + torch.sin(src_dec) * torch.sin(ha) * delta_y
-            + torch.cos(src_dec) * delta_z
-        ).reshape(-1)
-        w = (
-            torch.cos(src_dec) * torch.cos(ha) * delta_x
-            - torch.cos(src_dec) * torch.sin(ha) * delta_y
-            + torch.sin(src_dec) * delta_z
-        ).reshape(-1)
-        assert u.shape == v.shape == w.shape
-        return u, v, w

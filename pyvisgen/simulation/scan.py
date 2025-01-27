@@ -6,7 +6,20 @@ from torch.special import bessel_j1
 
 
 @torch.compile
-def rime(img, bas, lm, rd, ra, dec, ant_diam, spw_low, spw_high, corrupted=False):
+def rime(
+    img,
+    bas,
+    lm,
+    rd,
+    ra,
+    dec,
+    ant_diam,
+    spw_low,
+    spw_high,
+    polarisation,
+    mode,
+    corrupted=False,
+):
     """Calculates visibilities using RIME
 
     Parameters
@@ -21,6 +34,8 @@ def rime(img, bas, lm, rd, ra, dec, ant_diam, spw_low, spw_high, corrupted=False
         lower wavelength
     spw_high : float
         higher wavelength
+    polarisation : str
+        Type of polarisation.
 
     Returns
     -------
@@ -29,8 +44,13 @@ def rime(img, bas, lm, rd, ra, dec, ant_diam, spw_low, spw_high, corrupted=False
     """
     with torch.no_grad():
         X1, X2 = calc_fourier(img, bas, lm, spw_low, spw_high)
+
+        if mode != "dense":
+            X1, X2 = calc_feed_rotation(X1, X2, bas, polarisation)
+
         if corrupted:
             X1, X2 = calc_beam(X1, X2, rd, ra, dec, ant_diam, spw_low, spw_high)
+
         vis = integrate(X1, X2)
     return vis
 
@@ -62,7 +82,7 @@ def calc_fourier(img, bas, lm, spw_low, spw_high):
     v_cmplt = torch.cat((bas[3], bas[4]))
     w_cmplt = torch.cat((bas[6], bas[7]))
 
-    l = lm[..., 0]
+    l = lm[..., 0]  # noqa: E741
     m = lm[..., 1]
     n = torch.sqrt(1 - l**2 - m**2)
 
@@ -75,6 +95,37 @@ def calc_fourier(img, bas, lm, spw_low, spw_high):
     K2 = torch.exp(-2 * pi * 1j * (ul + vm + wn) / c * spw_high)[..., None, None]
     del ul, vm, wn
     return img * K1, img * K2
+
+
+@torch.compile
+def calc_feed_rotation(X1, X2, bas, polarisation):
+    """ """
+    q1 = torch.cat((bas[11], bas[12]))[..., None]
+    q2 = torch.cat((bas[14], bas[15]))[..., None]
+
+    if polarisation == "linear":
+        X1[..., 0, 0] *= torch.cos(q1)
+        X1[..., 0, 1] *= torch.sin(q1)
+        X1[..., 1, 0] *= -torch.sin(q1)
+        X1[..., 1, 1] *= torch.cos(q1)
+
+        X2[..., 0, 0] *= torch.cos(q2)
+        X2[..., 0, 1] *= torch.sin(q2)
+        X2[..., 1, 0] *= -torch.sin(q2)
+        X2[..., 1, 1] *= torch.cos(q2)
+
+    if polarisation == "circular":
+        X1[..., 0, 0] *= torch.exp(1j * q1)
+        X1[..., 0, 1] *= 0
+        X1[..., 1, 0] *= 0
+        X1[..., 1, 1] *= torch.exp(-1j * q1)
+
+        X2[..., 0, 0] *= torch.exp(1j * q2)
+        X2[..., 0, 1] *= 0
+        X2[..., 1, 0] *= 0
+        X2[..., 1, 1] *= torch.exp(-1j * q2)
+
+    return X1, X2
 
 
 @torch.compile
