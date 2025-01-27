@@ -158,7 +158,13 @@ class ValidBaselineSubset:
             *[getattr(self, f.name).ravel() for f in fields(self)]
         )[(self.date >= t_start) & (self.date <= t_stop)]
 
-    def get_unique_grid(self, fov_size, ref_frequency, img_size, device):
+    def get_unique_grid(
+        self,
+        fov_size: float,
+        ref_frequency: float,
+        img_size: int,
+        device: str,
+    ):
         uv = torch.cat([self.u_valid[None], self.v_valid[None]], dim=0)
 
         fov = fov_size * pi / (3600 * 180)
@@ -696,3 +702,52 @@ class Observation:
         ) * torch.sin(dec) * torch.cos(self.rd[..., 0])
 
         return lm_grid
+
+    def calc_direction_cosines(
+        self,
+        ha: torch.tensor,
+        el_st: torch.tensor,
+        delta_x: torch.tensor,
+        delta_y: torch.tensor,
+        delta_z: torch.tensor,
+    ):
+        """Calculates direction cosines u, v, and w for
+        given hour angles and relative antenna positions.
+
+        Parameters
+        ----------
+        ha : :func:`torch.tensor`
+            Tensor containing hour angles for each time step.
+        el_st : :func:`torch.tensor`
+            Tensor containing station elevations.
+        delta_x : :func:`torch.tensor`
+            Tensor containing relative antenna x-postions.
+        delta_y : :func:`torch.tensor`
+            Tensor containing relative antenna y-postions.
+        delta_z : :func:`torch.tensor`
+            Tensor containing relative antenna z-postions.
+
+        Returns
+        -------
+        u : :func:`torch.tensor`
+            Tensor containing direction cosines in u-axis direction.
+        v : :func:`torch.tensor`
+            Tensor containing direction cosines in v-axis direction.
+        w : :func:`torch.tensor`
+            Tensor containing direction cosines in w-axis direction.
+        """
+        src_dec = torch.deg2rad(self.dec)
+        ha = torch.deg2rad(ha)
+        u = (torch.sin(ha) * delta_x + torch.cos(ha) * delta_y).reshape(-1)
+        v = (
+            -torch.sin(src_dec) * torch.cos(ha) * delta_x
+            + torch.sin(src_dec) * torch.sin(ha) * delta_y
+            + torch.cos(src_dec) * delta_z
+        ).reshape(-1)
+        w = (
+            torch.cos(src_dec) * torch.cos(ha) * delta_x
+            - torch.cos(src_dec) * torch.sin(ha) * delta_y
+            + torch.sin(src_dec) * delta_z
+        ).reshape(-1)
+        assert u.shape == v.shape == w.shape
+        return u, v, w
