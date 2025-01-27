@@ -2,7 +2,7 @@
 pyvisgen |ci| |codecov|
 =========================
 
-.. |ci| image:: https://github.com/radionets-project/pyvisgen/workflows/CI/badge.svg?branch=main
+.. |ci| image:: https://github.com/radionets-project/pyvisgen/actions/workflows/CI/badge.svg?branch=main
     :target: https://github.com/radionets-project/pyvisgen/actions/workflows/ci.yml?branch=main
     :alt: Test Status
 
