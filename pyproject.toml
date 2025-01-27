@@ -50,6 +50,34 @@ dependencies = [
   "tqdm",
 ]
 
+[project.optional-dependencies]
+
+tests = [
+    "h5py",
+    "pytest >= 7.0",
+    "pytest-cov",
+    "tomli",
+]
+
+docs = [
+    "graphviz",
+    "ipython",
+    "jupyter",
+    "nbsphinx",
+    "notebook",
+    "numpydoc",
+    "pydata_sphinx_theme",
+    "pyvisgen[all]",
+    "sphinx",
+    "sphinx-changelog",
+    "sphinx-copybutton"
+    "sphinx-design",
+    "sphinx-gallery >= 0.16.0",
+    "sphinx_automodapi",
+    "sphinxcontrib-bibtex",
+    "tomli; python_version < '3.11'",
+]
+
 [project.scripts]
 pyvisgen_create_dataset = "pyvisgen.simulation.scripts.create_dataset:main"
 
