@@ -28,7 +28,6 @@ classifiers = [
 requires-python = ">=3.10"
 
 dependencies = [
-  "astroplan",
   "astropy<=6.1.0",
   "click",
   "h5py",
@@ -36,16 +35,11 @@ dependencies = [
   "jupyter",
   "matplotlib",
   "natsort",
-  "numexpr",
   "numpy",
   "pandas",
-  "pre-commit",
-  "pytest",
-  "pytest-cov",
   "scipy",
   "toma",
   "toml",
-  "torch",
   "torch",
   "tqdm",
 ]
@@ -57,6 +51,10 @@ tests = [
   "pytest >= 7.0",
   "pytest-cov",
   "tomli",
+]
+
+dev = [
+  "pre-commit",
 ]
 
 docs = [
