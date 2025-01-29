@@ -1,154 +1,8 @@
-import os
-from pathlib import Path
-
 import astropy.constants as const
-import h5py
 import numpy as np
-from tqdm import tqdm
+from numpy import AxisError
 
-from pyvisgen.fits.data import fits_data
 from pyvisgen.gridding.alt_gridder import ms2dirty_python_fast
-from pyvisgen.utils.config import read_data_set_conf
-from pyvisgen.utils.data import load_bundles, open_bundles
-
-os.environ["HDF5_USE_FILE_LOCKING"] = "FALSE"
-
-
-def create_gridded_data_set(config):
-    conf = read_data_set_conf(config)
-    out_path_fits = Path(conf["out_path_fits"])
-    out_path = Path(conf["out_path_gridded"])
-    out_path.mkdir(parents=True, exist_ok=True)
-
-    sky_dist = load_bundles(conf["in_path"])
-    fits_files = fits_data(out_path_fits)
-    size = len(fits_files)
-    print(size)
-
-    ###################
-    # test
-    if conf["num_test_images"] > 0:
-        bundle_test = int(conf["num_test_images"] // conf["bundle_size"])
-        size -= conf["num_test_images"]
-
-        for i in tqdm(range(bundle_test)):
-            (
-                uv_data_test,
-                freq_data_test,
-                gridded_data_test,
-                sky_dist_test,
-            ) = open_data(fits_files, sky_dist, conf, i)
-
-            truth_fft_test = calc_truth_fft(sky_dist_test)
-
-            if conf["amp_phase"]:
-                gridded_data_test = convert_amp_phase(gridded_data_test, sky_sim=False)
-                truth_amp_phase_test = convert_amp_phase(truth_fft_test, sky_sim=True)
-            else:
-                gridded_data_test = convert_real_imag(gridded_data_test, sky_sim=False)
-                truth_amp_phase_test = convert_real_imag(truth_fft_test, sky_sim=True)
-            assert gridded_data_test.shape[1] == 2
-
-            out = out_path / Path("samp_test" + str(i) + ".h5")
-
-            save_fft_pair(out, gridded_data_test, truth_amp_phase_test)
-    #
-    ###################
-
-    size_train = int(size // (1 + conf["train_valid_split"]))
-    size_valid = size - size_train
-    print(f"Training size: {size_train}, Validation size: {size_valid}")
-    bundle_train = int(size_train // conf["bundle_size"])
-    bundle_valid = int(size_valid // conf["bundle_size"])
-
-    ###################
-    # train
-    for i in tqdm(range(bundle_train)):
-        i += bundle_test
-        uv_data_train, freq_data_train, gridded_data_train, sky_dist_train = open_data(
-            fits_files, sky_dist, conf, i
-        )
-
-        truth_fft_train = calc_truth_fft(sky_dist_train)
-
-        if conf["amp_phase"]:
-            gridded_data_train = convert_amp_phase(gridded_data_train, sky_sim=False)
-            truth_amp_phase_train = convert_amp_phase(truth_fft_train, sky_sim=True)
-        else:
-            gridded_data_train = convert_real_imag(gridded_data_train, sky_sim=False)
-            truth_amp_phase_train = convert_real_imag(truth_fft_train, sky_sim=True)
-
-        out = out_path / Path("samp_train" + str(i - bundle_test) + ".h5")
-
-        save_fft_pair(out, gridded_data_train, truth_amp_phase_train)
-        train_index_last = i
-    #
-    ###################
-
-    ###################
-    # valid
-    for i in tqdm(range(bundle_valid)):
-        i += train_index_last
-        uv_data_valid, freq_data_valid, gridded_data_valid, sky_dist_valid = open_data(
-            fits_files, sky_dist, conf, i
-        )
-
-        truth_fft_valid = calc_truth_fft(sky_dist_valid)
-
-        if conf["amp_phase"]:
-            gridded_data_valid = convert_amp_phase(gridded_data_valid, sky_sim=False)
-            truth_amp_phase_valid = convert_amp_phase(truth_fft_valid, sky_sim=True)
-        else:
-            gridded_data_valid = convert_real_imag(gridded_data_valid, sky_sim=False)
-            truth_amp_phase_valid = convert_real_imag(truth_fft_valid, sky_sim=True)
-
-        out = out_path / Path("samp_valid" + str(i - train_index_last) + ".h5")
-
-        save_fft_pair(out, gridded_data_valid, truth_amp_phase_valid)
-    #
-    ###################
-
-
-def open_data(fits_files, sky_dist, conf, i):
-    sky_sim_bundle_size = len(open_bundles(sky_dist[0]))
-    uv_data = [
-        fits_files.get_uv_data(n).copy()
-        for n in np.arange(
-            i * sky_sim_bundle_size, (i * sky_sim_bundle_size) + sky_sim_bundle_size
-        )
-    ]
-    freq_data = np.array(
-        [
-            fits_files.get_freq_data(n)
-            for n in np.arange(
-                i * sky_sim_bundle_size, (i * sky_sim_bundle_size) + sky_sim_bundle_size
-            )
-        ],
-        dtype="object",
-    )
-    gridded_data = np.array(
-        [grid_data(data, freq, conf).copy() for data, freq in zip(uv_data, freq_data)]
-    )
-    bundle = np.floor_divide(i * sky_sim_bundle_size, sky_sim_bundle_size)
-    gridded_truth = np.array(
-        [
-            open_bundles(sky_dist[bundle])[n]
-            for n in np.arange(
-                i * sky_sim_bundle_size - bundle * sky_sim_bundle_size,
-                (i * sky_sim_bundle_size)
-                + sky_sim_bundle_size
-                - bundle * sky_sim_bundle_size,
-            )
-        ]
-    )
-    return uv_data, freq_data, gridded_data, gridded_truth
-
-
-def calc_truth_fft(sky_dist):
-    truth_fft = np.fft.fftshift(
-        np.fft.fft2(np.fft.fftshift(sky_dist, axes=(1, 2)), axes=(1, 2)), axes=(1, 2)
-    )
-    return truth_fft
 
 
 def ducc0_gridding(uv_data, freq_data):
@@ -227,10 +81,10 @@ def grid_data(uv_data, freq_data, conf):
 
     samps = np.array(
         [
-            np.append(u, -u),
-            np.append(v, -v),
+            np.append(-u, u),
+            np.append(-v, v),
             np.append(real, real),
-            np.append(imag, -imag),
+            np.append(-imag, imag),
         ]
     )
     # Generate Mask
@@ -241,12 +95,7 @@ def grid_data(uv_data, freq_data, conf):
 
     # bins are shifted by delta/2 so that maximum in uv space matches maximum
     # in numpy fft
-    bins = (
-        np.arange(start=-(N / 2) * delta, stop=(N / 2 + 1) * delta, step=delta)
-        - delta / 2
-    )
-    # if len(bins) - 1 > N:
-    #   bins = np.delete(bins, -1)
+    bins = np.arange(start=-((N + 1) / 2) * delta, stop=(N / 2) * delta, step=delta)
 
     mask, *_ = np.histogram2d(samps[0], samps[1], bins=[bins, bins], density=False)
     mask[mask == 0] = 1
@@ -265,6 +114,79 @@ def grid_data(uv_data, freq_data, conf):
     gridded_vis = np.zeros((2, N, N))
     gridded_vis[0] = mask_real
     gridded_vis[1] = mask_imag
+
+    return gridded_vis
+
+
+def grid_vis_loop_data(uu, vv, vis_data, freq_bands, conf, stokes_comp=0):
+    """Grid data coming from the vis_loop."""
+    if vis_data.ndim != 7:
+        if vis_data.ndim == 3:
+            vis_data = np.stack(
+                [vis_data.real, vis_data.imag, np.ones(vis_data.shape)],
+                axis=3,
+            )[:, None, None, :, None, ...]
+    else:
+        raise ValueError("Expected vis_data to be of dimension 3 or 7")
+
+    if isinstance(freq_bands, float):
+        freq_bands = [freq_bands]
+
+    u = np.array([uu * np.array(freq) for freq in freq_bands]).ravel()
+    v = np.array([vv * np.array(freq) for freq in freq_bands]).ravel()
+
+    try:
+        stokes_vis = (
+            np.squeeze(
+                (vis_data[..., stokes_comp, 0] + 1j * vis_data[..., stokes_comp, 1])
+            )
+            .swapaxes(0, 1)
+            .ravel()
+        )
+    except AxisError:
+        stokes_vis = np.squeeze(
+            (vis_data[..., stokes_comp, 0] + 1j * vis_data[..., stokes_comp, 1])
+        ).ravel()
+
+    real = stokes_vis.real
+    imag = stokes_vis.imag
+
+    samps = np.array(
+        [
+            np.concatenate([-u, u]),
+            np.concatenate([-v, v]),
+            np.concatenate([real, real]),
+            np.concatenate([-imag, imag]),
+        ]
+    )
+    # Generate Mask
+    N = conf["grid_size"]  # image size
+    fov = conf["grid_fov"] * np.pi / (3600 * 180)
+
+    delta = 1 / fov
+
+    # bins are shifted by delta/2 so that maximum in uv space matches maximum
+    # in numpy fft
+    bins = np.arange(start=-((N + 1) / 2) * delta, stop=(N / 2) * delta, step=delta)
+
+    mask, *_ = np.histogram2d(samps[0], samps[1], bins=[bins, bins], density=False)
+    mask[mask == 0] = 1
+
+    mask_real, x_edges, y_edges = np.histogram2d(
+        samps[0], samps[1], bins=[bins, bins], weights=samps[2], density=False
+    )
+    mask_imag, x_edges, y_edges = np.histogram2d(
+        samps[0], samps[1], bins=[bins, bins], weights=samps[3], density=False
+    )
+
+    mask_real /= mask
+    mask_imag /= mask
+
+    assert mask_real.shape == (conf["grid_size"], conf["grid_size"])
+    gridded_vis = np.zeros((2, N, N))
+    gridded_vis[0] = mask_real
+    gridded_vis[1] = mask_imag
+
     return gridded_vis
 
 
@@ -293,22 +215,3 @@ def convert_real_imag(data, sky_sim=False):
 
         data = np.stack((real, imag), axis=1)
     return data
-
-
-def save_fft_pair(path, x, y, name_x="x", name_y="y"):
-    """
-    write fft_pairs created in second analysis step to h5 file
-    """
-    half_image = x.shape[2] // 2
-    x = x[:, :, : half_image + 1, :]
-    y = y[:, :, : half_image + 1, :]
-    with h5py.File(path, "w") as hf:
-        hf.create_dataset(name_x, data=x)
-        hf.create_dataset(name_y, data=y)
-        hf.close()
-
-
-if __name__ == "__main__":
-    create_gridded_data_set(
-        "/net/big-tank/POOL/projects/radio/test_rime/create_dataset.toml"
-    )
