@@ -132,6 +132,9 @@ def grid_vis_loop_data(uu, vv, vis_data, freq_bands, conf, stokes_comp=0):
     if isinstance(freq_bands, float):
         freq_bands = [freq_bands]
 
+    uu /= const.c
+    vv /= const.c
+
     u = np.array([uu * np.array(freq) for freq in freq_bands]).ravel()
     v = np.array([vv * np.array(freq) for freq in freq_bands]).ravel()
 
@@ -159,6 +162,7 @@ def grid_vis_loop_data(uu, vv, vis_data, freq_bands, conf, stokes_comp=0):
             np.concatenate([-imag, imag]),
         ]
     )
+
     # Generate Mask
     N = conf["grid_size"]  # image size
     fov = conf["grid_fov"] * np.pi / (3600 * 180)
@@ -182,7 +186,12 @@ def grid_vis_loop_data(uu, vv, vis_data, freq_bands, conf, stokes_comp=0):
     mask_real /= mask
     mask_imag /= mask
 
-    assert mask_real.shape == (conf["grid_size"], conf["grid_size"])
+    if mask_real.shape != (conf["grid_size"], conf["grid_size"]):
+        raise ValueError(
+            "shape mismatch: Expected mask_real to be "
+            f"of shape {(conf['grid_size'], conf['grid_size'])}"
+        )
+
     gridded_vis = np.zeros((2, N, N))
     gridded_vis[0] = mask_real
     gridded_vis[1] = mask_imag
