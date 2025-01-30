@@ -194,7 +194,7 @@ def convert_amp_phase(data, sky_sim=False):
     if sky_sim:
         amp = np.abs(data)
         phase = np.angle(data)
-        data = np.stack((amp, phase), axis=1)
+        data = np.concatenate((amp, phase), axis=1)
     else:
         test = data[:, 0] + 1j * data[:, 1]
         amp = np.abs(test)
@@ -208,7 +208,7 @@ def convert_real_imag(data, sky_sim=False):
         real = data.real
         imag = data.imag
 
-        data = np.stack((real, imag), axis=1)
+        data = np.concatenate((real, imag), axis=1)
     else:
         real = data[:, 0]
         imag = data[:, 1]

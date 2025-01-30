@@ -155,6 +155,9 @@ class SimulateDataSet:
                     sim_data = convert_real_imag(sim_data, sky_sim=False)
                     truth_fft = convert_real_imag(truth_fft, sky_sim=True)
 
+                if sim_data.shape[1] != 2:
+                    raise ValueError("Expected sim_data axis 1 to be 2!")
+
                 out = self.out_path / Path(
                     f"samp_{self.conf['file_prefix']}_" + str(i) + ".h5"
                 )

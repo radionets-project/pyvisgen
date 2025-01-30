@@ -141,14 +141,27 @@ def save_fft_pair(path, x, y, name_x="x", name_y="y"):
     half_image = x.shape[2] // 2
     x = x[:, :, : half_image + 1, :]
     y = y[:, :, : half_image + 1, :]
+
+    test_shapes(x)
+    test_shapes(y)
+
     with h5py.File(path, "w") as hf:
         hf.create_dataset(name_x, data=x)
         hf.create_dataset(name_y, data=y)
         hf.close()
 
 
+def test_shapes(array):
+    if array.shape[1] != 2:
+        raise ValueError("Expected array axis 1 to be 2!")
+
+    if len(array.shape) != 4:
+        raise ValueError("Expected array shape to be of len 4!")
+
+
 def calc_truth_fft(sky_dist):
     truth_fft = np.fft.fftshift(
-        np.fft.fft2(np.fft.fftshift(sky_dist, axes=(1, 2)), axes=(1, 2)), axes=(1, 2)
+        np.fft.fft2(np.fft.fftshift(sky_dist, axes=(2, 3)), axes=(2, 3)), axes=(2, 3)
     )
+
     return truth_fft
