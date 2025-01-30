@@ -138,11 +138,12 @@ class SimulateDataSet:
                 )
 
                 if self.grid:
-                    sim_data.append(
-                        grid_vis_loop_data(
-                            vis.u, vis.v, vis.get_values(), self.freq_bands, self.conf
-                        )
+                    gridded = grid_vis_loop_data(
+                        vis.u, vis.v, vis.get_values(), self.freq_bands, self.conf
                     )
+
+                    sim_data.append(gridded)
+
                 samp_ops_idx += 1
 
             sim_data = np.array(sim_data)
