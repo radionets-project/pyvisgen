@@ -78,9 +78,9 @@ def calc_fourier(img, bas, lm, spw_low, spw_high):
         Return Fourier Kernel for every pixel in lm grid and given baselines.
         Shape is given by lm axes and baseline axis
     """
-    u_cmplt = torch.cat((bas[0], bas[1]))
-    v_cmplt = torch.cat((bas[3], bas[4]))
-    w_cmplt = torch.cat((bas[6], bas[7]))
+    u_cmplt = bas[0]
+    v_cmplt = bas[3]
+    w_cmplt = bas[6]
 
     l = lm[..., 0]  # noqa: E741
     m = lm[..., 1]
@@ -219,10 +219,4 @@ def integrate(X1, X2):
     int_f = 0.5 * torch.sum(int_m, dim=0)
     del int_m
 
-    X_t = torch.stack(torch.split(int_f, int(int_f.shape[0] / 2), dim=0))
-    del int_f
-
-    int_t = 0.5 * torch.sum(X_t, dim=0)
-    del X_t
-
-    return int_t
+    return int_f

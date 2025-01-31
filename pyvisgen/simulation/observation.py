@@ -6,13 +6,12 @@ import astropy.constants as const
 import astropy.units as un
 import torch
 from astropy.constants import c
-from astropy.coordinates import AltAz, Angle, EarthLocation, SkyCoord, Longitude
+from astropy.coordinates import AltAz, Angle, EarthLocation, Longitude, SkyCoord
 from astropy.time import Time
 from tqdm.autonotebook import tqdm
 
 from pyvisgen.layouts import layouts
 from pyvisgen.simulation.array import Array
-
 
 DEFAULT_POL_KWARGS = {
     "delta": 0,
@@ -277,20 +276,20 @@ class Observation:
             the simulation of polarisation. Default: `None`
         pol_kwargs : dict, optional
             Additional keyword arguments for the simulation
-            of polarisation. Default: `{
+            of polarisation. Default: ``{
                 "delta": 0,
                 "amp_ratio": 0.5,
                 "random_state": 42,
-            }`
+            }``
         field_kwargs : dict, optional
             Additional keyword arguments for the random polarisation
             field that is applied when simulating polarisation.
-            Default: `{
+            Default: ``{
                 "order": [1, 1],
                 "scale": [0, 1],
                 "threshold": None,
                 "random_state": 42
-            }`
+            }``
         show_progress : bool, optional
             If `True`, show a progress bar during the iteration over the
             scans. Default: False
@@ -389,8 +388,9 @@ class Observation:
             for i in range(self.num_scans)
             for j in range(int(self.scan_duration / self.int_time) + 1)
         ]
-        # +1 because t_1 is the stop time of t_0
-        # in order to save computing power we take one time more to complete interval
+        # +1 because t_1 is the stop time of t_0.
+        # In order to save computing power we take
+        # one time more to complete interval
         time = Time(time_lst)
 
         return time, time.mjd * (60 * 60 * 24)
@@ -464,8 +464,9 @@ class Observation:
             self.baselines.add_baseline(bas)
 
     def get_baselines(self, times):
-        """Calculates baselines from source coordinates and time of observation for
-        every antenna station in array_layout.
+        """Calculates baselines from source coordinates
+        and time of observation for every antenna station
+        in array_layout.
 
         Parameters
         ----------
@@ -477,6 +478,10 @@ class Observation:
         dataclass object
             baselines between telescopes with visibility flags
         """
+        # catch rare case where dimension of times is 0
+        if times.ndim == 0:
+            times = Time([times])
+
         # calculate GHA, local HA, and station elevation for all times.
         GHA, ha_local, el_st_all = self.calc_ref_elev(time=times)
 
@@ -583,7 +588,8 @@ class Observation:
         )
 
     def calc_feed_rotation(self, ha: Angle) -> Angle:
-        r"""Calculates feed rotation for every antenna at every time step.
+        r"""Calculates feed rotation for every antenna at
+        every time step.
 
         Notes
         -----
@@ -592,10 +598,12 @@ class Observation:
 
         .. math::
 
-            q = \atan\left(\frac{\sin h}{\cos\delta \tan\varphi - \sin\delta \cos h\right),
+            q = \atan\left(\frac{\sin h}{\cos\delta \tan\varphi
+            - \sin\delta \cos h\right),
 
-        where $h$ is the local hour angle, $\varphi$ the geographical latitude
-        of the observer, and $\delta$ the declination of the source.
+        where $h$ is the local hour angle, $\varphi$ the geographical
+        latitude of the observer, and $\delta$ the declination of
+        the source.
         """
         # We need to create a tensor from the EarthLocation object
         # and save only the geographical latitude of each antenna
@@ -611,30 +619,6 @@ class Observation:
         )
 
         return q
-
-    def calc_direction_cosines(self, ha, el_st, delta_x, delta_y, delta_z):
-        src_dec = torch.deg2rad(self.dec)
-        ha = torch.deg2rad(ha)
-
-        u = (torch.sin(ha) * delta_x + torch.cos(ha) * delta_y).reshape(-1)
-        v = (
-            -torch.sin(src_dec) * torch.cos(ha) * delta_x
-            + torch.sin(src_dec) * torch.sin(ha) * delta_y
-            + torch.cos(src_dec) * delta_z
-        ).reshape(-1)
-        w = (
-            torch.cos(src_dec) * torch.cos(ha) * delta_x
-            - torch.cos(src_dec) * torch.sin(ha) * delta_y
-            + torch.sin(src_dec) * delta_z
-        ).reshape(-1)
-
-        if not (u.shape == v.shape == w.shape):
-            raise ValueError(
-                "Expected u, v, and w to have the same shapes: "
-                f"{u.shape}, {v.shape}, {w.shape}"
-            )
-
-        return u, v, w
 
     def create_rd_grid(self):
         """Calculates RA and Dec values for a given fov around a source position

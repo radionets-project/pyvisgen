@@ -1,297 +1,411 @@
-from datetime import datetime
+from datetime import datetime, timedelta
 from pathlib import Path
 
 import numpy as np
-import pandas as pd
 import torch
 from astropy import units as un
-from astropy.coordinates import AltAz, Angle, EarthLocation, SkyCoord
+from astropy.coordinates import AltAz, EarthLocation, SkyCoord
 from astropy.time import Time
-from tqdm import tqdm
+from tqdm.autonotebook import tqdm
 
-import pyvisgen.fits.writer as writer
 import pyvisgen.layouts.layouts as layouts
+from pyvisgen.gridding import (
+    calc_truth_fft,
+    convert_amp_phase,
+    convert_real_imag,
+    grid_vis_loop_data,
+    save_fft_pair,
+)
 from pyvisgen.simulation.observation import Observation
 from pyvisgen.simulation.visibility import vis_loop
 from pyvisgen.utils.config import read_data_set_conf
 from pyvisgen.utils.data import load_bundles, open_bundles
 
-
-def simulate_data_set(config, slurm=False, job_id=None, n=None):
-    """
-    Wrapper function for simulating visibilities.
-    Distinction between slurm and non-threaded simulation.
-
-    Parameters
-    ----------
-    config : toml file
-        path to config file
-    slurm : bool
-        True, if slurm is used
-    job_id : int
-        job_id, given by slurm
-    n : int
-        running index
-
-    """
-    conf = read_data_set_conf(config)
-    out_path = Path(conf["out_path_fits"])
-    out_path.mkdir(parents=True, exist_ok=True)
-    data = load_bundles(conf["in_path"])
-
-    if slurm:
-        job_id = int(job_id + n * 500)
-        out = out_path / Path("vis_" + str(job_id) + ".fits")
-        imgs_bundle = len(open_bundles(data[0]))
-        bundle = torch.div(job_id, imgs_bundle, rounding_mode="floor")
-        image = job_id - bundle * imgs_bundle
-        SI = torch.tensor(open_bundles(data[bundle])[image])
-        if len(SI.shape) == 2:
-            SI = SI.unsqueeze(0)
-
-        obs = create_observation(conf)
-        vis_data = vis_loop(obs, SI, noisy=conf["noisy"], mode=conf["mode"])
-        hdu_list = writer.create_hdu_list(vis_data, obs)
-        hdu_list.writeto(out, overwrite=True)
-
-    else:
-        for i in tqdm(range(len(data))):
-            SIs = get_images(data, i)
-
-            for j, SI in enumerate(tqdm(SIs)):
-                obs = create_observation(conf)
-                vis_data = vis_loop(obs, SI, noisy=conf["noisy"], mode=conf["mode"])
-
-                out = out_path / Path("vis_" + str(j + len(SIs) * i) + ".fits")
-                hdu_list = writer.create_hdu_list(vis_data, obs)
-                hdu_list.writeto(out, overwrite=True)
+DATEFMT = "%d-%m-%Y %H:%M:%S"
 
 
-def get_images(bundles, i):
-    SIs = torch.tensor(open_bundles(bundles[i]))
-    if len(SIs.shape) == 3:
-        SIs = SIs.unsqueeze(1)
-    return SIs
+class SimulateDataSet:
+    def __init__(self):
+        pass
 
+    @classmethod
+    def from_config(
+        cls,
+        config: str | Path,
+        /,
+        image_key: str = "y",
+        *,
+        grid: bool = True,
+        slurm: bool = False,
+        job_id: int | None = None,
+        n: int | None = None,
+        date_fmt: str = DATEFMT,
+        num_images: int | None = None,
+    ) -> None:
+        """Simulates data from parameters in a config file.
 
-def create_observation(conf):
-    rc = create_sampling_rc(conf)
-    dense = False
-    if rc["mode"] == "dense":
-        dense = True
+        Parameters
+        ----------
+        config : str or Path
+            Path to the config file.
+        image_key : str, optional
+            Key under which the true sky distributions are saved
+            in the HDF5 file. Default: ``'y'``
+        grid : bool, optional
+            If ``True``, apply gridding to visibility data and
+            save to HDF5 files. Default: ``True``
+        slurm : bool, optional
+            ``True``, if slurm is used, Default: ``False``
+        job_id : int or None, optional
+            ``job_id`` given by slurm. Default: ``None``
+        n : int or None, optional
+            Running index. Default: ``None``
+        date_fmt : str, optional
+            Format string for datetime objects.
+            Default: ``'%d-%m-%Y %H:%M:%S'``
+        num_images : int or None, optional
+            Number of combined total images in the bundles.
+            If not ``None``, will skip counting the images before
+            drawing the random parameters. Default: ``None``
+        """
+        cls = cls()
+        cls.key = image_key
+        cls.grid = grid
+        cls.slurm = slurm
+        cls.job_id = job_id
+        cls.n = n
+        cls.date_fmt = date_fmt
 
-    obs = Observation(
-        src_ra=rc["fov_center_ra"],
-        src_dec=rc["fov_center_dec"],
-        start_time=rc["scan_start"],
-        scan_duration=rc["scan_duration"],
-        num_scans=rc["num_scans"],
-        scan_separation=rc["scan_separation"],
-        integration_time=rc["corr_int_time"],
-        ref_frequency=rc["ref_frequency"],
-        frequency_offsets=rc["frequency_offsets"],
-        bandwidths=rc["bandwidths"],
-        fov=rc["fov_size"],
-        image_size=rc["img_size"],
-        array_layout=rc["layout"],
-        corrupted=rc["corrupted"],
-        device=rc["device"],
-        dense=dense,
-        sensitivity_cut=rc["sensitivity_cut"],
-    )
-    return obs
+        cls.conf = read_data_set_conf(config)
 
+        if grid:
+            cls.out_path = Path(cls.conf["out_path_gridded"])
+        else:
+            cls.out_path = Path(cls.conf["out_path_fits"])
 
-def create_sampling_rc(conf):
-    """
-    Draw sampling options and test if atleast half of the telescopes can see the source.
-    If not, then new parameters are drawn.
+        if not cls.out_path.is_dir():
+            cls.out_path.mkdir(parents=True)
 
-    Parameters
-    ----------
-    conf : dict
-        simulation options
+        cls.data = load_bundles(cls.conf["in_path"])
 
-    Returns
-    -------
-    dict
-        contains the observation parameters
-    """
+        if not num_images:
+            len_data = tqdm(
+                range(len(cls.data)),
+                position=0,
+                leave=False,
+                desc="Counting images",
+                colour="#754fc9",
+            )
+            # get number of random parameter draws from number of images in data
+            num_draws = np.sum([len(cls.get_images(i)) for i in len_data])
 
-    global rng
+        # draw parameters beforehand, i.e. outside the simulation loop
+        cls.create_sampling_rc(num_draws)
 
-    if conf["seed"] is not None:
-        rng = np.random.default_rng(conf["seed"])
-    else:
-        rng = np.random.default_rng()
+        if slurm:
+            cls._run_slurm()
+        else:
+            cls._run()
 
-    samp_ops = draw_sampling_opts(conf)
-    array_layout = layouts.get_array_layout(conf["layout"][0])
-    half_telescopes = array_layout.x.shape[0] // 2
+        return cls
 
-    while test_opts(samp_ops) <= half_telescopes:
-        samp_ops = draw_sampling_opts(conf)
-
-    return samp_ops
-
-
-def draw_sampling_opts(conf):
-    """
-    Draw observation options from given intervals.
-
-    Parameters
-    ----------
-    conf : dict
-        simulation options
-
-    Returns
-    -------
-    dict
-        contains randomly drawn observation options
-    """
-
-    if "rng" not in globals():
-        global rng
-        rng = np.random.default_rng(conf["seed"])
-
-    angles_ra = np.arange(
-        conf["fov_center_ra"][0][0], conf["fov_center_ra"][0][1], step=0.1
-    )
-    fov_center_ra = rng.choice(angles_ra)
-
-    angles_dec = np.arange(
-        conf["fov_center_dec"][0][0], conf["fov_center_dec"][0][1], step=0.1
-    )
-    fov_center_dec = rng.choice(angles_dec)
-    start_time_l = datetime.strptime(conf["scan_start"][0], "%d-%m-%Y %H:%M:%S")
-    start_time_h = datetime.strptime(conf["scan_start"][1], "%d-%m-%Y %H:%M:%S")
-    start_times = pd.date_range(start_time_l, start_time_h, freq="1h").strftime(
-        "%d-%m-%Y %H:%M:%S"
-    )
-    scan_start = rng.choice(
-        [datetime.strptime(time, "%d-%m-%Y %H:%M:%S") for time in start_times]
-    )
-    scan_duration = int(
-        rng.integers(conf["scan_duration"][0], conf["scan_duration"][1])
-    )
-    num_scans = int(rng.integers(conf["num_scans"][0], conf["num_scans"][1]))
-    opts = np.array(
-        [
-            conf["mode"],
-            conf["layout"][0],
-            conf["img_size"][0],
-            fov_center_ra,
-            fov_center_dec,
-            conf["fov_size"],
-            conf["corr_int_time"],
-            scan_start,
-            scan_duration,
-            num_scans,
-            conf["scan_separation"],
-            conf["ref_frequency"],
-            conf["frequency_offsets"],
-            conf["bandwidths"],
-            conf["corrupted"],
-            conf["device"],
-            conf["sensitivty_cut"],
-        ],
-        dtype="object",
-    )
-    samp_ops = {
-        "mode": opts[0],
-        "layout": opts[1],
-        "img_size": opts[2],
-        "fov_center_ra": opts[3],
-        "fov_center_dec": opts[4],
-        "fov_size": opts[5],
-        "corr_int_time": opts[6],
-        "scan_start": opts[7],
-        "scan_duration": opts[8],
-        "num_scans": opts[9],
-        "scan_separation": opts[10],
-        "ref_frequency": opts[11],
-        "frequency_offsets": opts[12],
-        "bandwidths": opts[13],
-        "corrupted": opts[14],
-        "device": opts[15],
-        "sensitivity_cut": opts[16],
-    }
-    return samp_ops
-
-
-def test_opts(rc):
-    """
-    Compute the number of telescopes that can observe the source given
-    certain randomly drawn parameters.
-
-    Parameters
-    ----------
-    rc : dict
-        randomly drawn observational parameters
-
-    Returns
-    -------
-
-    """
-    array_layout = layouts.get_array_layout(rc["layout"])
-    src_crd = SkyCoord(
-        ra=rc["fov_center_ra"], dec=rc["fov_center_dec"], unit=(un.deg, un.deg)
-    )
-    time = calc_time_steps(rc)
-    _, el_st_0 = calc_ref_elev(src_crd, time[0], array_layout)
-    _, el_st_1 = calc_ref_elev(src_crd, time[1], array_layout)
-    el_min = 15
-    el_max = 85
-    active_telescopes_0 = np.sum((el_st_0 >= el_min) & (el_st_0 <= el_max))
-    active_telescopes_1 = np.sum((el_st_1 >= el_min) & (el_st_1 <= el_max))
-    return min(active_telescopes_0, active_telescopes_1)
-
-
-def calc_ref_elev(src_crd, time, array_layout):
-    if time.shape == ():
-        time = time[None]
-    # Calculate for all times
-    # calculate GHA, Greenwich as reference for EHT
-    ha_all = Angle(
-        [t.sidereal_time("apparent", "greenwich") - src_crd.ra for t in time]
-    )
-
-    # calculate elevations
-    el_st_all = src_crd.transform_to(
-        AltAz(
-            obstime=time.reshape(len(time), -1),
-            location=EarthLocation.from_geocentric(
-                np.repeat([array_layout.x], len(time), axis=0),
-                np.repeat([array_layout.y], len(time), axis=0),
-                np.repeat([array_layout.z], len(time), axis=0),
-                unit=un.m,
-            ),
+    def _run(self):
+        data = tqdm(
+            range(len(self.data)),
+            position=0,
+            desc="Processing bundles",
+            colour="#52ba66",
         )
-    ).alt.degree
-    assert len(ha_all.value) == len(el_st_all)
-    return ha_all, el_st_all
 
+        samp_ops_idx = 0
+        for i in data:
+            SIs = self.get_images(i)
+            truth_fft = calc_truth_fft(SIs)
 
-def calc_time_steps(conf):
-    start_time = Time(conf["scan_start"].isoformat(), format="isot")
-    scan_separation = conf["scan_separation"]
-    num_scans = conf["num_scans"]
-    scan_duration = conf["scan_duration"]
-    int_time = conf["corr_int_time"]
+            SIs = tqdm(
+                SIs,
+                position=1,
+                desc=f"Bundle {i + 1}",
+                colour="#595cbd",
+                leave=False,
+            )
 
-    time_lst = [
-        start_time
-        + scan_separation * i * un.second
-        + i * scan_duration * un.second
-        + j * int_time * un.second
-        for i in range(num_scans)
-        for j in range(int(scan_duration / int_time) + 1)
-    ]
-    # +1 because t_1 is the stop time of t_0
-    # in order to save computing power we take one time more to complete interval
-    time = Time(time_lst)
-    return time
+            sim_data = []
+            for SI in SIs:
+                obs = self.create_observation(samp_ops_idx)
+                vis = vis_loop(
+                    obs, SI, noisy=self.conf["noisy"], mode=self.conf["mode"]
+                )
 
+                if self.grid:
+                    gridded = grid_vis_loop_data(
+                        vis.u, vis.v, vis.get_values(), self.freq_bands, self.conf
+                    )
 
-if __name__ == "__main__":
-    simulate_data_set()
+                    sim_data.append(gridded)
+
+                samp_ops_idx += 1
+
+            sim_data = np.array(sim_data)
+
+            if self.grid:
+                if self.conf["amp_phase"]:
+                    sim_data = convert_amp_phase(sim_data, sky_sim=False)
+                    truth_fft = convert_amp_phase(truth_fft, sky_sim=True)
+                else:
+                    sim_data = convert_real_imag(sim_data, sky_sim=False)
+                    truth_fft = convert_real_imag(truth_fft, sky_sim=True)
+
+                if sim_data.shape[1] != 2:
+                    raise ValueError("Expected sim_data axis 1 to be 2!")
+
+                out = self.out_path / Path(
+                    f"samp_{self.conf['file_prefix']}_" + str(i) + ".h5"
+                )
+
+                save_fft_pair(out, sim_data, truth_fft)
+
+                path_msg = self.conf["out_path_gridded"]
+            else:
+                path_msg = self.conf["out_path_fits"]
+
+        print(
+            f"Successfully simulated and saved {samp_ops_idx} images "
+            f"to '{path_msg}'!"
+        )
+
+    def _run_slurm():
+        raise NotImplementedError("Not implememented yet!")
+
+    def get_images(self, i):
+        SIs = torch.tensor(open_bundles(self.data[i], key=self.key))
+
+        if len(SIs.shape) == 3:
+            SIs = SIs.unsqueeze(1)
+
+        return SIs
+
+    def create_observation(self, i):
+        rc = self.samp_ops
+
+        # put the respective values inside the
+        # pol_kwargs and field_kwargs dicts.
+        pol_kwargs = dict(
+            delta=rc["delta"][i],
+            amp_ratio=rc["amp_ratio"][i],
+            random_state=self.conf["seed"],
+        )
+        field_kwargs = dict(
+            order=rc["order"][i],
+            scale=rc["scale"][i],
+            threshold=rc["threshold"],
+            random_state=self.conf["seed"],
+        )
+
+        dense = False
+        if self.conf["mode"] == "dense":
+            dense = True
+
+        obs = Observation(
+            **self.samp_ops_const,
+            src_ra=rc["src_ra"][i],
+            src_dec=rc["src_dec"][i],
+            start_time=rc["start_time"][i],
+            scan_duration=int(rc["scan_duration"][i]),
+            num_scans=int(rc["num_scans"][i]),
+            pol_kwargs=pol_kwargs,
+            field_kwargs=field_kwargs,
+            dense=dense,
+        )
+
+        return obs
+
+    def create_sampling_rc(self, size):
+        if self.conf["seed"]:
+            self.rng = np.random.default_rng(self.conf["seed"])
+        else:
+            self.rng = np.random.default_rng()
+
+        if self.conf["mode"] == "dense":
+            self.freq_bands = np.array(self.conf["ref_frequency"])
+        else:
+            self.freq_bands = np.array(self.conf["ref_frequency"]) + np.array(
+                self.conf["frequency_offsets"]
+            )
+
+        # Split sampling options into two dicts:
+        # samps_ops_const is always the same, values in
+        # samps_ops, however, will be drawn randomly.
+        self.samp_ops_const = dict(
+            array_layout=self.conf["layout"][0],
+            image_size=self.conf["img_size"][0],
+            fov=self.conf["fov_size"],
+            integration_time=self.conf["corr_int_time"],
+            scan_separation=self.conf["scan_separation"],
+            ref_frequency=self.conf["ref_frequency"],
+            frequency_offsets=self.conf["frequency_offsets"],
+            bandwidths=self.conf["bandwidths"],
+            corrupted=self.conf["corrupted"],
+            device=self.conf["device"],
+            sensitivity_cut=self.conf["sensitivty_cut"],
+            polarisation=self.conf["polarisation"],
+        )  # NOTE: scan_separation and integration_time may change in the future
+
+        # get second half of the sampling options;
+        # this is the randomly drawn, i.e. non-constant, part
+        self.samp_ops = self.draw_sampling_opts(size)
+
+        test_idx = tqdm(
+            range(self.samp_ops["src_ra"].size),
+            position=0,
+            desc="Pre-drawing and testing sample parameters",
+            colour="#00c1a2",
+            leave=False,
+        )
+
+        for i in test_idx:
+            self.test_rand_opts(i)
+
+    def draw_sampling_opts(self, size):
+        ra = self.rng.uniform(
+            self.conf["fov_center_ra"][0][0], self.conf["fov_center_ra"][0][1], size
+        )
+        dec = self.rng.uniform(
+            self.conf["fov_center_dec"][0][0], self.conf["fov_center_dec"][0][1], size
+        )
+
+        start_time_l = datetime.strptime(self.conf["scan_start"][0], self.date_fmt)
+        start_time_h = datetime.strptime(self.conf["scan_start"][1], self.date_fmt)
+        start_times = np.arange(start_time_l, start_time_h, timedelta(hours=1)).astype(
+            datetime
+        )
+
+        scan_start = self.rng.choice(start_times, size)
+        scan_duration = self.rng.integers(
+            self.conf["scan_duration"][0],
+            self.conf["scan_duration"][1],
+            size,
+        )
+        num_scans = self.rng.integers(
+            self.conf["num_scans"][0], self.conf["num_scans"][1], size
+        )
+
+        if scan_duration.size == 1:
+            scan_duration = scan_duration.astype(int)
+
+        if num_scans.size == 1:
+            num_scans = num_scans.astype(int)
+
+        # if polarisation is None, we don't need to enter the
+        # conditional below, so we set delta, amp_ratio, field_order,
+        # and field_scale to None.
+        delta, amp_ratio, field_order, field_scale = np.full((4, size), None)
+
+        if self.conf["polarisation"]:
+            if self.conf["pol_delta"]:
+                delta = np.repeat(self.conf["pol_delta"], size)
+            else:
+                delta = self.rng.uniform(0, 180, size)
+
+            if self.conf["pol_amp_ratio"]:
+                amp_ratio = np.repeat(self.conf["pol_amp_ratio"], size)
+            else:
+                amp_ratio = self.rng.uniform(0, 1, size)
+
+            if self.conf["field_order"]:
+                field_order = np.repeat(self.conf["field_order"], size).reshape(-1, 2)
+            else:
+                field_order = np.repeat(self.rng.uniform(0, 1, size), 2).reshape(-1, 2)
+
+            if self.conf["field_scale"]:
+                field_scale = np.stack(
+                    np.repeat(self.conf["field_scale"], size).reshape(2, -1), axis=1
+                )
+            else:
+                a = self.rng.uniform(0, 1 - 1e-6, size)
+                b = np.repeat(1, size, dtype=float)
+                field_scale = np.stack((a, b), axis=1)
+
+        samp_ops = dict(
+            src_ra=ra,
+            src_dec=dec,
+            start_time=scan_start,
+            scan_duration=scan_duration,
+            num_scans=num_scans,
+            delta=delta,
+            amp_ratio=amp_ratio,
+            order=field_order,
+            scale=field_scale,
+            threshold=self.conf["field_threshold"],
+        )
+        # NOTE: We don't need to draw random values for threshold
+        # as threshold=None should be suitable for almost all cases.
+        # However, since threshold has to be in the field_kwargs dict
+        # later, we need to include it here instead of inside the
+        # samp_ops_const dictionary.
+
+        return samp_ops
+
+    def test_rand_opts(self, i):
+        array = layouts.get_array_layout(self.samp_ops_const["array_layout"])
+
+        time_steps = self.calc_time_steps(i)
+        src_crd = SkyCoord(
+            self.samp_ops["src_ra"][i], self.samp_ops["src_dec"][i], unit=un.deg
+        )
+
+        total_stations = len(array.st_num)
+
+        locations = EarthLocation.from_geocentric(
+            x=array.x,
+            y=array.y,
+            z=array.z,
+            unit=un.m,
+        )
+
+        altaz_frames = AltAz(obstime=time_steps[:, None], location=locations[None])
+        src_alt = src_crd.transform_to(altaz_frames).alt.degree
+
+        # check which stations can see the source for each time step
+        visible = np.logical_and(
+            array.el_low.numpy() <= src_alt, src_alt <= array.el_high.numpy()
+        )
+
+        # We want at least half of the telescopes to see the source
+        visible_count_per_t = visible.sum(axis=1)
+        visible_half = visible_count_per_t > total_stations // 2
+
+        # If the source is not seen by half the telescopes half of the observation time,
+        # we redraw the source ra and dec and scan start times, duration,
+        # and number of scans. Then we test again by calling this function recursively.
+        if visible_half.sum() < time_steps.size // 2:
+            redrawn_samp_ops = self.draw_sampling_opts(1)
+            self.samp_ops["src_ra"][i] = redrawn_samp_ops["src_ra"][0]
+            self.samp_ops["src_dec"][i] = redrawn_samp_ops["src_dec"][0]
+            self.samp_ops["start_time"][i] = redrawn_samp_ops["start_time"][0]
+            self.samp_ops["scan_duration"][i] = redrawn_samp_ops["scan_duration"][0]
+            self.samp_ops["num_scans"][i] = redrawn_samp_ops["num_scans"][0]
+
+            self.test_rand_opts(i)
+
+    def calc_time_steps(self, i):
+        start_time = Time(self.samp_ops["start_time"][i].isoformat(), format="isot")
+        scan_separation = self.samp_ops_const["scan_separation"]
+        num_scans = self.samp_ops["num_scans"][i]
+        scan_duration = self.samp_ops["scan_duration"][i]
+        int_time = self.samp_ops_const["integration_time"]
+
+        time_lst = [
+            start_time
+            + scan_separation * i * un.second
+            + i * scan_duration * un.second
+            + j * int_time * un.second
+            for i in range(num_scans)
+            for j in range(int(scan_duration / int_time) + 1)
+        ]
+        # +1 because t_1 is the stop time of t_0.
+        # In order to save computing power we take
+        # one time more to complete interval
+        time = Time(time_lst)
+
+        return time
