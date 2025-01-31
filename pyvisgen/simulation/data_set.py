@@ -93,7 +93,7 @@ class SimulateDataSet:
                 range(len(cls.data)),
                 position=0,
                 leave=False,
-                desc="Counting Number of Images",
+                desc="Counting images",
                 colour="#754fc9",
             )
             # get number of random parameter draws from number of images in data
@@ -113,7 +113,7 @@ class SimulateDataSet:
         data = tqdm(
             range(len(self.data)),
             position=0,
-            desc="Processing Bundles",
+            desc="Processing bundles",
             colour="#52ba66",
         )
 
@@ -125,7 +125,7 @@ class SimulateDataSet:
             SIs = tqdm(
                 SIs,
                 position=1,
-                desc=f"Bundle {i}",
+                desc=f"Bundle {i + 1}",
                 colour="#595cbd",
                 leave=False,
             )
