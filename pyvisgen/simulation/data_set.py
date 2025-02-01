@@ -78,6 +78,8 @@ class SimulateDataSet:
 
         cls.conf = read_data_set_conf(config)
 
+        print("Simulation Config:\n", cls.conf)
+
         if grid:
             cls.out_path = Path(cls.conf["out_path_gridded"])
         else:
@@ -86,11 +88,11 @@ class SimulateDataSet:
         if not cls.out_path.is_dir():
             cls.out_path.mkdir(parents=True)
 
-        cls.data = load_bundles(cls.conf["in_path"])
+        cls.data_paths = load_bundles(cls.conf["in_path"])
 
         if not num_images:
             len_data = tqdm(
-                range(len(cls.data)),
+                range(len(cls.data_paths)),
                 position=0,
                 leave=False,
                 desc="Counting images",
@@ -111,7 +113,7 @@ class SimulateDataSet:
 
     def _run(self):
         data = tqdm(
-            range(len(self.data)),
+            range(len(self.data_paths)),
             position=0,
             desc="Processing bundles",
             colour="#52ba66",
@@ -163,7 +165,7 @@ class SimulateDataSet:
                     f"samp_{self.conf['file_prefix']}_" + str(i) + ".h5"
                 )
 
-                save_fft_pair(out, sim_data, truth_fft)
+                save_fft_pair(path=out, x=sim_data, y=truth_fft)
 
                 path_msg = self.conf["out_path_gridded"]
             else:
@@ -178,7 +180,7 @@ class SimulateDataSet:
         raise NotImplementedError("Not implememented yet!")
 
     def get_images(self, i):
-        SIs = torch.tensor(open_bundles(self.data[i], key=self.key))
+        SIs = torch.tensor(open_bundles(self.data_paths[i], key=self.key))
 
         if len(SIs.shape) == 3:
             SIs = SIs.unsqueeze(1)
