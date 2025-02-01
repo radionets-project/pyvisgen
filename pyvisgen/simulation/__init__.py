@@ -11,12 +11,13 @@ from .data_set import (
 )
 from .observation import Baselines, Observation, ValidBaselineSubset
 from .scan import angularDistance, calc_beam, calc_fourier, integrate, jinc, rime
-from .visibility import Visibilities, generate_noise, vis_loop
+from .visibility import Polarisation, Visibilities, generate_noise, vis_loop
 
 __all__ = [
     "Array",
     "Baselines",
     "Observation",
+    "Polarisation",
     "ValidBaselineSubset",
     "Visibilities",
     "angularDistance",

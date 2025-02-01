@@ -6,13 +6,12 @@ import astropy.constants as const
 import astropy.units as un
 import torch
 from astropy.constants import c
-from astropy.coordinates import AltAz, Angle, EarthLocation, SkyCoord, Longitude
+from astropy.coordinates import AltAz, Angle, EarthLocation, Longitude, SkyCoord
 from astropy.time import Time
 from tqdm.autonotebook import tqdm
 
 from pyvisgen.layouts import layouts
 from pyvisgen.simulation.array import Array
-
 
 DEFAULT_POL_KWARGS = {
     "delta": 0,
@@ -30,6 +29,21 @@ DEFAULT_FIELD_KWARGS = {
 
 @dataclass
 class Baselines:
+    """Baselines dataclass.
+
+    Attributes
+    ----------
+    st1 : :func:`~torch.tensor`
+    st2 : :func:`~torch.tensor`
+    u : :func:`~torch.tensor`
+    v : :func:`~torch.tensor`
+    w : :func:`~torch.tensor`
+    valid : :func:`~torch.tensor`
+    time : :func:`~torch.tensor`
+    q1 : :func:`~torch.tensor`
+    q2 : :func:`~torch.tensor`
+    """
+
     st1: torch.tensor
     st2: torch.tensor
     u: torch.tensor
@@ -112,6 +126,30 @@ class Baselines:
 
 @dataclass()
 class ValidBaselineSubset:
+    """Valid baselines subset dataclass.
+
+    Attributes
+    ----------
+    u_start : :func:`~torch.tensor`
+    u_stop : :func:`~torch.tensor`
+    u_valid : :func:`~torch.tensor`
+    v_start : :func:`~torch.tensor`
+    v_stop : :func:`~torch.tensor`
+    v_valid : :func:`~torch.tensor`
+    w_start : :func:`~torch.tensor`
+    w_stop : :func:`~torch.tensor`
+    w_valid : :func:`~torch.tensor`
+    baseline_nums : :func:`~torch.tensor`
+    date : :func:`~torch.tensor`
+    q1_start : :func:`~torch.tensor`
+    q1_stop : :func:`~torch.tensor`
+    q1_valid : :func:`~torch.tensor`
+    q2_start : :func:`~torch.tensor`
+    q2_stop : :func:`~torch.tensor`
+    q2_valid : :func:`~torch.tensor`
+
+    """
+
     u_start: torch.tensor
     u_stop: torch.tensor
     u_valid: torch.tensor
@@ -207,6 +245,74 @@ class ValidBaselineSubset:
 
 
 class Observation:
+    """Main observation simulation class.
+    The :class:`~pyvisgen.simulation.Observation` class
+    simulates the baselines and time steps during the
+    observation.
+
+    Parameters
+    ----------
+    src_ra : float
+        Source right ascension coordinate.
+    src_dec : float
+        Source declination coordinate.
+    start_time : datetime
+        Observation start time.
+    scan_duration : int
+        Scan duration.
+    num_scans : int
+        Number of scans.
+    scan_separation : int
+        Scan separation.
+    integration_time : int
+        Integration time.
+    ref_frequency : float
+        Reference frequency.
+    frequency_offsets : list
+        Frequency offsets.
+    bandwidths : list
+        Frequency bandwidth.
+    fov : float
+        Field of view.
+    image_size : int
+        Image size of the sky distribution.
+    array_layout : str
+        Name of an existing array layout. See :mod:`~pyvisgen.layouts`.
+    corrupted : bool
+        If ``True``, apply corruption during the vis loop.
+    device : str
+        Torch device to select for computation.
+    dense : bool, optional
+        If ``True``, apply dense baseline calculation of a perfect
+        interferometer. Default: ``False``
+    sensitivity_cut : float, optional
+        Sensitivity threshold, where only pixels above the value
+        are kept. Default: ``1e-6``
+    polarisation : str, optional
+        Choose between ``'linear'`` or ``'circular'`` or ``None`` to
+        simulate different types of polarisations or disable
+        the simulation of polarisation. Default: ``None``
+    pol_kwargs : dict, optional
+        Additional keyword arguments for the simulation
+        of polarisation. Default:
+        ``{'delta': 0,'amp_ratio': 0.5,'random_state': 42}``
+    field_kwargs : dict, optional
+        Additional keyword arguments for the random polarisation
+        field that is applied when simulating polarisation.
+        Default:
+        ``{'order': [1, 1],'scale': [0, 1],'threshold': None,'random_state': 42}``
+    show_progress : bool, optional
+        If ``True``, show a progress bar during the iteration over the
+        scans. Default: ``False``
+
+    Notes
+    -----
+    See :class:`~pyvisgen.simulation.Polarisation` and
+    :class:`~pyvisgen.simulation.Polarisation.rand_polarisation_field`
+    for more information on the keyword arguments in ``pol_kwargs``
+    and ``field_kwargs``, respectively.
+    """
+
     def __init__(
         self,
         src_ra: float,
@@ -260,21 +366,21 @@ class Observation:
         image_size : int
             Image size of the sky distribution.
         array_layout : str
-            Name of an existing array layout. See `~pyvisgen.layouts`.
+            Name of an existing array layout. See :mod:`~pyvisgen.layouts`.
         corrupted : bool
-            If `True`, apply corruption during the vis loop.
+            If ``True``, apply corruption during the vis loop.
         device : str
             Torch device to select for computation.
         dense : bool, optional
-            If `True`, apply dense baseline calculation of a perfect
-            interferometer. Default: `False`
+            If ``True``, apply dense baseline calculation of a perfect
+            interferometer. Default: ``False``
         sensitivity_cut : float, optional
             Sensitivity threshold, where only pixels above the value
-            are kept. Default: 1e-6
+            are kept. Default: ``1e-6``
         polarisation : str, optional
-            Choose between `'linear'` or `'circular'` or `None` to
+            Choose between ``'linear'`` or ``'circular'`` or ``None`` to
             simulate different types of polarisations or disable
-            the simulation of polarisation. Default: `None`
+            the simulation of polarisation. Default: ``None``
         pol_kwargs : dict, optional
             Additional keyword arguments for the simulation
             of polarisation. Default: `{
@@ -292,15 +398,15 @@ class Observation:
                 "random_state": 42
             }`
         show_progress : bool, optional
-            If `True`, show a progress bar during the iteration over the
-            scans. Default: False
+            If ``True``, show a progress bar during the iteration over the
+            scans. Default: ``False``
 
         Notes
         -----
-        See `~pyvisgen.simulation.visibility.Polarisation` and
-        `~pyvisgen.simulation.visibility.Polarisation.rand_polarisation_field`
-        for more information on the keyword arguments in `pol_kwargs`
-        and `field_kwargs`, respectively.
+        See :class:`~pyvisgen.simulation.Polarisation` and
+        :class:`~pyvisgen.simulation.Polarisation.rand_polarisation_field`
+        for more information on the keyword arguments in ``pol_kwargs``
+        and ``field_kwargs``, respectively.
         """
         self.ra = torch.tensor(src_ra).double()
         self.dec = torch.tensor(src_dec).double()
@@ -396,6 +502,10 @@ class Observation:
         return time, time.mjd * (60 * 60 * 24)
 
     def calc_dense_baselines(self):
+        """Calculates the baselines of a densely-built
+        antenna array, which would provide full coverage of the
+        uv space.
+        """
         N = self.img_size
         fov = self.fov * pi / (3600 * 180)
         delta = fov ** (-1) * c.value / self.ref_frequency
@@ -437,9 +547,11 @@ class Observation:
         )
 
     def calc_baselines(self):
-        """Initializes Baselines dataclass object and
-        calls self.get_baselines to compute the contents of
-        the Baselines dataclass.
+        """Initializes :class:`~pyvisgen.simulation.Baselines`
+        dataclass object and calls
+        :py:func:`~pyvisgen.simulation.Observation.get_baselines`
+        to compute the contents of the :class:`~pyvisgen.simulation.Baselines`
+        dataclass.
         """
         self.baselines = Baselines(
             torch.tensor([]),  # st1
@@ -534,7 +646,22 @@ class Observation:
 
         return baselines
 
-    def calc_ref_elev(self, time=None):
+    def calc_ref_elev(self, time=None) -> tuple:
+        """Calculates the station elevations for given
+        time steps.
+
+        Parameters
+        ----------
+        time : array_like or None, optional
+            Array containing observation time steps.
+            Default: ``None``
+
+        Returns
+        -------
+        tuple
+            Tuple containing tensors of the Greenwich hour angle,
+            antenna-local hour angles, and the elevations.
+        """
         if time is None:
             time = self.times
         if time.shape == ():
@@ -592,7 +719,8 @@ class Observation:
 
         .. math::
 
-            q = \atan\left(\frac{\sin h}{\cos\delta \tan\varphi - \sin\delta \cos h\right),
+            q = \atan\left(\frac{\sin h}{\cos\delta
+            \tan\varphi - \sin\delta \cos h\right),
 
         where $h$ is the local hour angle, $\varphi$ the geographical latitude
         of the observer, and $\delta$ the declination of the source.
@@ -611,30 +739,6 @@ class Observation:
         )
 
         return q
-
-    def calc_direction_cosines(self, ha, el_st, delta_x, delta_y, delta_z):
-        src_dec = torch.deg2rad(self.dec)
-        ha = torch.deg2rad(ha)
-
-        u = (torch.sin(ha) * delta_x + torch.cos(ha) * delta_y).reshape(-1)
-        v = (
-            -torch.sin(src_dec) * torch.cos(ha) * delta_x
-            + torch.sin(src_dec) * torch.sin(ha) * delta_y
-            + torch.cos(src_dec) * delta_z
-        ).reshape(-1)
-        w = (
-            torch.cos(src_dec) * torch.cos(ha) * delta_x
-            - torch.cos(src_dec) * torch.sin(ha) * delta_y
-            + torch.sin(src_dec) * delta_z
-        ).reshape(-1)
-
-        if not (u.shape == v.shape == w.shape):
-            raise ValueError(
-                "Expected u, v, and w to have the same shapes: "
-                f"{u.shape}, {v.shape}, {w.shape}"
-            )
-
-        return u, v, w
 
     def create_rd_grid(self):
         """Calculates RA and Dec values for a given fov around a source position

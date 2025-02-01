@@ -10,6 +10,24 @@ import pyvisgen.simulation.scan as scan
 
 @dataclass
 class Visibilities:
+    """Visibilities dataclass.
+
+    Attributes
+    ----------
+    V_11 : :func:`~torch.tensor`
+    V_22 : :func:`~torch.tensor`
+    V_12 : :func:`~torch.tensor`
+    V_21 : :func:`~torch.tensor`
+    num : :func:`~torch.tensor`
+    base_num : :func:`~torch.tensor`
+    u : :func:`~torch.tensor`
+    v : :func:`~torch.tensor`
+    w  : :func:`~torch.tensor`
+    date : :func:`~torch.tensor`
+    linear_dop : :func:`~torch.tensor`
+    circular_dop : :func:`~torch.tensor`
+    """
+
     V_11: torch.tensor
     V_22: torch.tensor
     V_12: torch.tensor
