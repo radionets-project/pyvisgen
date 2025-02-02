@@ -5,6 +5,10 @@ import numpy as np
 from astropy.io import fits
 from numpy.typing import ArrayLike
 
+__all__ = [
+    "fits_data",
+]
+
 
 class fits_data:
     """Class that handles h5 files simulated
@@ -12,7 +16,7 @@ class fits_data:
 
     Parameters
     ----------
-    data_path: str Path
+    data_path: str or :class:`~pathlib.Path`
         path to fits data directory
     """
 
