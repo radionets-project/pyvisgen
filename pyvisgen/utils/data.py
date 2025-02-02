@@ -5,6 +5,8 @@ import h5py
 import numpy as np
 from natsort import natsorted
 
+__all__ = ["load_bundles", "get_bundles", "open_bundles"]
+
 
 def load_bundles(data_path: str | Path) -> list:
     """Loads bundle paths, filters for HDF5 files, and
