@@ -1,6 +1,8 @@
 import torch
 from astropy.utils.decorators import lazyproperty
 
+__all__ = ["Array"]
+
 
 class Array:
     """Class that handles antenna array operations such
