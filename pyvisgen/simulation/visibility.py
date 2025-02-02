@@ -7,6 +7,13 @@ from tqdm.autonotebook import tqdm
 
 import pyvisgen.simulation.scan as scan
 
+__all__ = [
+    "Visibilities",
+    "vis_loop",
+    "Polarisation",
+    "generate_noise",
+]
+
 
 @dataclass
 class Visibilities:
@@ -61,7 +68,39 @@ class Visibilities:
 
 
 class Polarisation:
-    """Simulation of polarisation."""
+    r"""Simulation of polarisation.
+
+    Creates the :math:`2\times 2` stokes matrix and simulates
+    polarisation if ``polarisation`` is either ``'linear'``
+    or ``'circular'``. Also computes the degree of polarisation.
+
+    Parameters
+    ----------
+    SI : :func:`~torch.tensor`
+        Stokes I component, i.e. intensity distribution
+        of the sky.
+    sensitivity_cut : float
+        Sensitivity cut, where only pixels above the value
+        are kept.
+    amp_ratio : float
+        Sets the ratio of :math:`A_{X|R}`. The ratio of :math:`A_{Y|L}`
+        is calculated as ``1 - amp_ratio``. If set to ``None``,
+        a random value is drawn from a uniform distribution.
+        See also: ``random_state``.
+    delta : float
+        Sets the phase difference of the amplitudes :math:`A_{X|R}`
+        and :math:`A_{Y|L}`` of the sky distribution. Defines the
+        measure of ellipticity.
+    polarisation : str
+        Choose between ``'linear'`` or ``'circular'`` or ``None`` to
+        simulate different types of polarisations or disable
+        the simulation of polarisation entirely.
+    random_state : int
+        Random state used when drawing ``amp_ratio`` and during
+        the generation of the random polarisation field.
+    device : :class:`~torch.cuda.device`
+        Torch device to select for computation.
+    """
 
     def __init__(
         self,
@@ -74,33 +113,35 @@ class Polarisation:
         random_state: int,
         device: torch.device,
     ) -> None:
-        """Creates the 2 x 2 stokes matrix and simulates
-        polarisation if `polarisation` is either 'linear'
-        or 'circular'. Also computes the degree of polarisation.
+        """Creates the :math:`2\times 2` stokes matrix and simulates
+        polarisation if ``polarisation`` is either ``'linear'``
+        or ``'circular'``. Also computes the degree of polarisation.
 
         Parameters
         ----------
-        SI : torch.tensor
+        SI : :func:`~torch.tensor`
             Stokes I component, i.e. intensity distribution
             of the sky.
         sensitivity_cut : float
             Sensitivity cut, where only pixels above the value
             are kept.
         amp_ratio : float
-            Sets the ratio of $A_{x/r}$. The ratio of $A_{y/l}$ is calculated
-            as `1 - amp_ratio`. If set to `None`, a random value is drawn
-            from a uniform distribution. See also: `random_state`.
+            Sets the ratio of :math:`A_{X|R}`. The ratio of :math:`A_{Y|L}`
+            is calculated as ``1 - amp_ratio``. If set to ``None``,
+            a random value is drawn from a uniform distribution.
+            See also: ``random_state``.
         delta : float
-            Sets the phase difference of the amplitudes $A_x$ and $A_y$
-            of the sky distribution. Defines the measure of ellipticity.
+            Sets the phase difference of the amplitudes :math:`A_{X|R}`
+            and :math:`A_{Y|L}`` of the sky distribution. Defines the
+            measure of ellipticity.
         polarisation : str
-            Choose between `'linear'` or `'circular'` or `None` to
+            Choose between ``'linear'`` or ``'circular'`` or ``None`` to
             simulate different types of polarisations or disable
-            the simulation of polarisation.
+            the simulation of polarisation entirely.
         random_state : int
-            Random state used when drawing `amp_ratio` and during the generation
-            of the random polarisation field.
-        device : torch.device
+            Random state used when drawing ``amp_ratio`` and during
+            the generation of the random polarisation field.
+        device : :class:`~torch.cuda.device`
             Torch device to select for computation.
         """
         self.sensitivity_cut = sensitivity_cut
@@ -141,11 +182,13 @@ class Polarisation:
         r"""Computes the stokes parameters I, Q, U, and V
         for linear polarisation.
 
+        This is done using the following equations:
+
         .. math::
-            I = A_x^2 + A_y^2
-            Q = A_r^2 - A_l^2
-            U = 2A_x A_y \cos\delta_{xy}
-            V = -2A_x A_y \sin\delta_{xy}
+            I &= A_X^2 + A_Y^2 \\
+            Q &= A_X^2 - A_Y^2 \\
+            U &= 2A_X A_Y \cos\delta_{XY} \\
+            V &= -2A_X A_Y \sin\delta_{XY}
         """
         self.I[..., 0] = self.ax2 + self.ay2
         self.I[..., 1] = self.ax2 - self.ay2
@@ -166,11 +209,14 @@ class Polarisation:
         r"""Computes the stokes parameters I, Q, U, and V
         for circular polarisation.
 
+        This is done using the following equations:
+
         .. math::
-            I = A_r^2 + A_l^2
-            Q = 2A_r A_l \cos\delta_{rl}
-            U = -2A_r A_l \sin\delta_{rl}
-            V = A_r^2 - A_l^2
+
+            I &= A_R^2 + A_L^2 \\
+            Q &= 2A_R A_L \cos\delta_{RL} \\
+            U &= -2A_R A_L \sin\delta_{RL} \\
+            V &= A_R^2 - A_L^2
         """
         self.I[..., 0] = self.ax2 + self.ay2
         self.I[..., 1] = (
@@ -282,15 +328,15 @@ class Polarisation:
             The size of the sky image.
         order : array_like (M, N) or int, optional
             Morphology of the random noise. Higher values create
-            more and smaller fluctuations. Default: 1.
+            more and smaller fluctuations. Default: ``1``.
         random_state : int, optional
-            Random state for the random number generator. If None,
-            a random entropy is pulled from the OS. Default: None.
+            Random state for the random number generator. If ``None``,
+            a random entropy is pulled from the OS. Default: ``None``.
         scale : array_like, optional
-            Scaling of the distribution of the image. Default: [0, 1]
+            Scaling of the distribution of the image. Default: ``[0, 1]``
         threshold : float, optional
             If not None, an upper threshold is applied to the image.
-            Default: None
+            Default: ``None``
 
         Returns
         -------
