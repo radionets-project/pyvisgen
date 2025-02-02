@@ -10,7 +10,7 @@ from .data_set import (
     test_opts,
 )
 from .observation import Baselines, Observation, ValidBaselineSubset
-from .scan import angularDistance, calc_beam, calc_fourier, integrate, jinc, rime
+from .scan import angular_distance, calc_beam, calc_fourier, integrate, jinc, rime
 from .visibility import Polarisation, Visibilities, generate_noise, vis_loop
 
 __all__ = [
@@ -20,7 +20,7 @@ __all__ = [
     "Polarisation",
     "ValidBaselineSubset",
     "Visibilities",
-    "angularDistance",
+    "angular_distance",
     "calc_beam",
     "calc_fourier",
     "calc_ref_elev",

@@ -4,6 +4,16 @@ import torch
 from scipy.constants import c
 from torch.special import bessel_j1
 
+__all__ = [
+    "rime",
+    "calc_fourier",
+    "calc_feed_rotation",
+    "calc_beam",
+    "angular_distance",
+    "jinc",
+    "integrate",
+]
+
 
 @torch.compile
 def rime(
@@ -196,7 +206,7 @@ def calc_beam(
     tuple[torch.tensor, torch.tensor]
     """
     diameters = ant_diam.to(rd.device)
-    theta = angularDistance(rd, ra, dec)
+    theta = angular_distance(rd, ra, dec)
     tds = diameters * theta[..., None]
 
     E1 = jinc(2 * pi / c * spw_low * tds)
@@ -213,7 +223,7 @@ def calc_beam(
 
 
 @torch.compile
-def angularDistance(rd, ra, dec):
+def angular_distance(rd, ra, dec):
     """Calculates angular distance from source position
 
     Parameters
