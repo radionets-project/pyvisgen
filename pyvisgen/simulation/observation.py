@@ -13,6 +13,19 @@ from astropy.time import Time
 from pyvisgen.layouts import layouts
 from pyvisgen.simulation.array import Array
 
+DEFAULT_POL_KWARGS = {
+    "delta": 0,
+    "amp_ratio": 0.5,
+    "random_state": 42,
+}
+
+DEFAULT_FIELD_KWARGS = {
+    "order": [1, 1],
+    "scale": [0, 1],
+    "threshold": None,
+    "random_state": 42,
+}
+
 
 @dataclass
 class Baselines:
@@ -270,9 +283,9 @@ class Observation:
             dim=0,
         )
 
-        self.ref_frequency = torch.tensor(ref_frequency)
-        self.bandwidths = torch.tensor(bandwidths)
-        self.frequency_offsets = torch.tensor(frequency_offsets)
+        self.ref_frequency = torch.tensor(ref_frequency, dtype=torch.float64)
+        self.bandwidths = torch.tensor(bandwidths, dtype=torch.float64)
+        self.frequency_offsets = torch.tensor(frequency_offsets, dtype=torch.float64)
         self.waves_low = (
             self.ref_frequency + self.frequency_offsets
         ) - self.bandwidths / 2
