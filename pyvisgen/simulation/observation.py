@@ -875,9 +875,8 @@ class Observation:
         ) * res
         d = (
             torch.arange(self.img_size, device=self.device, dtype=torch.float64)
-            - self.img_size / 2 * res
-            + dec
-        )
+            - self.img_size / 2
+        ) * res + dec
 
         R, _ = torch.meshgrid((r, r), indexing="ij")
         _, D = torch.meshgrid((d, d), indexing="ij")
