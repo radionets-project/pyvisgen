@@ -18,7 +18,7 @@ def get_bundles(path):
     return bundles
 
 
-def open_bundles(path):
+def open_bundles(path, key="y"):
     f = h5py.File(path, "r")
-    bundle_y = np.array(f["y"])
+    bundle_y = np.array(f[key])
     return bundle_y
