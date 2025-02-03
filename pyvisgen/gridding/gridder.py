@@ -197,30 +197,3 @@ def grid_vis_loop_data(uu, vv, vis_data, freq_bands, conf, stokes_comp=0):
     gridded_vis[1] = mask_imag
 
     return gridded_vis
-
-
-def convert_amp_phase(data, sky_sim=False):
-    if sky_sim:
-        amp = np.abs(data)
-        phase = np.angle(data)
-        data = np.concatenate((amp, phase), axis=1)
-    else:
-        test = data[:, 0] + 1j * data[:, 1]
-        amp = np.abs(test)
-        phase = np.angle(test)
-        data = np.stack((amp, phase), axis=1)
-    return data
-
-
-def convert_real_imag(data, sky_sim=False):
-    if sky_sim:
-        real = data.real
-        imag = data.imag
-
-        data = np.concatenate((real, imag), axis=1)
-    else:
-        real = data[:, 0]
-        imag = data[:, 1]
-
-        data = np.stack((real, imag), axis=1)
-    return data
