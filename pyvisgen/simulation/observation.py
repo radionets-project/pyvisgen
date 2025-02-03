@@ -882,8 +882,8 @@ class Observation:
             + dec
         )
 
-        _, R = torch.meshgrid((r, r), indexing="ij")
-        D, _ = torch.meshgrid((d, d), indexing="ij")
+        R, _ = torch.meshgrid((r, r), indexing="ij")
+        _, D = torch.meshgrid((d, d), indexing="ij")
         rd_grid = torch.cat([R[..., None], D[..., None]], dim=2)
 
         return rd_grid
