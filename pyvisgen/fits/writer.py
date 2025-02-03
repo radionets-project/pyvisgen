@@ -6,11 +6,34 @@ import numpy as np
 from astropy import wcs
 from astropy.io import fits
 from astropy.time import Time
+from astropy.utils import iers
 
 import pyvisgen.layouts.layouts as layouts
 
 
-def create_vis_hdu(data, obs, layout="MeerKAT", source_name="sim-source-0"):
+def create_vis_hdu(data, obs, source_name="sim-source-0") -> fits.GroupsHDU:
+    """Creates the visibility HDU for the given visibility
+    data and observation.
+
+    Parameters
+    ----------
+    data : :class:`~pyvisgen.simulation.Visibilities`
+        :class:`~pyvisgen.simulation.Visibilities` object
+        containing visibility data.
+    obs : :class:`~pyvisgen.simulation.Observation`
+        :class:`~pyvisgen.simulation.Observation` class object
+        containing information on the observation, such as
+        baselines.
+    source_name : str, optional
+        Source name saved to the ``OBJECT`` key inside the
+        FITS file. Default: ``'sim-source-0'``
+
+    Returns
+    -------
+    hdu_vis : :class:`~astropy.io.fits.GroupsHDU`
+        :class:`~astropy.io.fits.GroupsHDU` containing visibility
+        data for the FITS file.
+    """
     u = data.u
 
     v = data.v
@@ -114,8 +137,8 @@ def create_vis_hdu(data, obs, layout="MeerKAT", source_name="sim-source-0"):
     hdu_vis.header["EXTNAME"] = ("AIPS UV", "AIPS UV")
     hdu_vis.header["EXTVER"] = (1, "Version number of table")
     hdu_vis.header["OBJECT"] = (source_name, "Source name")
-    hdu_vis.header["TELESCOP"] = (layout, "Telescope name")
-    hdu_vis.header["INSTRUME"] = (layout, "Instrument name (receiver or ?)")
+    hdu_vis.header["TELESCOP"] = (obs.layout, "Telescope name")
+    hdu_vis.header["INSTRUME"] = (obs.layout, "Instrument name (receiver or ?)")
     hdu_vis.header["DATE-OBS"] = (date_obs, "Observation date")
     hdu_vis.header["DATE-MAP"] = (date_map, "File processing date")
     hdu_vis.header["EPOCH"] = (2000.0, "")
@@ -129,7 +152,21 @@ def create_vis_hdu(data, obs, layout="MeerKAT", source_name="sim-source-0"):
     return hdu_vis
 
 
-def create_time_hdu(data):
+def create_time_hdu(data) -> fits.BinTableHDU:
+    """Creates the time HDU for the FITS file.
+
+    Parameters
+    ----------
+    data : :class:`~pyvisgen.simulation.Visibilities`
+        :class:`~pyvisgen.simulation.Visibilities` object
+        containing visibility and time data.
+
+    Returns
+    -------
+    hdu_vis : :class:`~astropy.io.fits.BinTableHDU`
+        :class:`~astropy.io.fits.BinTableHDU` containing time
+        data for the FITS file.
+    """
     TIME = np.array(
         [data.date.mean() - int(data.date.min())],
         dtype=">f4",
@@ -184,7 +221,22 @@ def create_time_hdu(data):
     return hdu_time
 
 
-def create_frequency_hdu(obs):
+def create_frequency_hdu(obs) -> fits.BinTableHDU:
+    """Creates the frequency HDU of the FITS file.
+
+    Parameters
+    ----------
+    obs : :class:`~pyvisgen.simulation.Observation`
+        :class:`~pyvisgen.simulation.Observation` class object
+        containing information on the observation, including
+        frequency data.
+
+    Returns
+    -------
+    hdu_freq : :class:`~astropy.io.fits.BinTableHDU`
+        :class:`~astropy.io.fits.BinTableHDU` containing
+        frequency data for the FITS file.
+    """
     FRQSEL = np.array([1], dtype=">i4")
     col1 = fits.Column(name="FRQSEL", format="1J", array=FRQSEL)
 
@@ -210,17 +262,12 @@ def create_frequency_hdu(obs):
     SIDEBAND = np.array([1])
     col5 = fits.Column(name="SIDEBAND", format="1J", unit=" ", array=SIDEBAND)
 
-    # RXCODE = np.chararray(1, itemsize=32, unicode=True)
-    # RXCODE[:] = ""
-    # col6 = fits.Column(name="RXCODE", format="32A", unit=" ", array=RXCODE)
-
     coldefs_freq = fits.ColDefs([col1, col2, col3, col4, col5])
     hdu_freq = fits.BinTableHDU.from_columns(coldefs_freq)
 
     # add additional keywords
     hdu_freq.header["EXTNAME"] = ("AIPS FQ", "AIPS FQ")
     hdu_freq.header["EXTVER"] = (1, "Version number of table")
-    # hdu_freq.header["NO_IF"] = (IF_FREQ.shape[-1], "Number IFs (n IF)")
 
     # add comments
     hdu_freq.header.comments["TTYPE1"] = "Frequency setup ID number"
@@ -228,12 +275,26 @@ def create_frequency_hdu(obs):
     hdu_freq.header.comments["TTYPE3"] = "Spectral channel separation"
     hdu_freq.header.comments["TTYPE4"] = "Total width of spectral window"
     hdu_freq.header.comments["TTYPE5"] = "Sideband"
-    # hdu_freq.header.comments["TTYPE6"] = "No one knows..."
 
     return hdu_freq
 
 
-def create_antenna_hdu(obs):
+def create_antenna_hdu(obs) -> fits.BinTableHDU:
+    """Creates the antenna HDU for the FITS file.
+
+    Parameters
+    ----------
+    obs : :class:`~pyvisgen.simulation.Observation`
+        :class:`~pyvisgen.simulation.Observation` class object
+        containing information on the observation, including
+        antenna data.
+
+    Returns
+    -------
+    hdu_ant : :class:`~astropy.io.fits.BinTableHDU`
+        :class:`~astropy.io.fits.BinTableHDU` containing
+        antenna data for the FITS file.
+    """
     array = layouts.get_array_layout(obs.layout, writer=True)
 
     ANNAME = np.chararray(len(array), itemsize=8, unicode=True)
@@ -298,11 +359,10 @@ def create_antenna_hdu(obs):
     hdu_ant = fits.BinTableHDU.from_columns(coldefs_ant)
 
     freq = (obs.ref_frequency.cpu().numpy() * un.Hz).value
+
     ref_date = Time(
         obs.start.isot.split("T")[0] + "T0:00:00.000", format="isot", scale="utc"
     )
-
-    from astropy.utils import iers
 
     iers_b = iers.IERS_B.open()
 
@@ -370,7 +430,26 @@ def create_antenna_hdu(obs):
     return hdu_ant
 
 
-def create_hdu_list(data, obs):
+def create_hdu_list(data, obs) -> fits.HDUList:
+    """Creates a :class:`~astropy.io.fits.HDUList` as the
+    top-level object for the FITS file.
+
+    Parameters
+    ----------
+    data : :class:`~pyvisgen.simulation.Visibilities`
+        :class:`~pyvisgen.simulation.Visibilities` object containing
+        data on visibilities and observation time.
+    obs : :class:`~pyvisgen.simulation.Observation`
+        :class:`~pyvisgen.simulation.Observation` object containing
+        data on the source position, baselines, antenna configuration,
+        and frequencies.
+
+    Returns
+    -------
+    hdu_list : :class:`~astropy.io.fits.HDUList`
+        :class:`~astropy.io.fits.HDUList` that comprises of
+        HDU objects.
+    """
     warnings.filterwarnings("ignore", module="astropy.io.fits")
     vis_hdu = create_vis_hdu(data, obs)
     time_hdu = create_time_hdu(data)

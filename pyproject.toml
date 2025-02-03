@@ -4,13 +4,13 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "pyvisgen"
-version = "0.2.0"
+dynamic = ["version"]
 description = "Simulate radio interferometer observations and visibility generation with the RIME formalism."
 readme = "README.md"
-authors = [{ name = "Kevin Schmidt, Felix Geyer, Stefan Fröse" }]
+authors = [{ name = "Kevin Schmitz, Felix Geyer, Stefan Fröse, Anno Knierim, Tom Groß" }]
 maintainers = [
-  { name = "Kevin Schmidt", email = "kevin3.schmidt@tu-dortmund.de" },
-  { name = "Felix Geyer", email = "felix.geyer@tu-dortmund.de" },
+  { name = "Kevin Schmitz", email = "kevin2.schmitz@tu-dortmund.de" },
+  { name = "Anno Knierim", email = "anno.knierim@tu-dortmund.de" },
 ]
 license = { text = "MIT" }
 classifiers = [
@@ -28,32 +28,74 @@ classifiers = [
 requires-python = ">=3.10"
 
 dependencies = [
-  "numpy",
-  "astropy<=6.1.0",
-  "torch",
-  "matplotlib",
-  "ipython",
-  "scipy",
-  "pandas",
-  "toml",
-  "pytest",
-  "pytest-cov",
-  "jupyter",
   "astroplan",
-  "torch",
-  "tqdm",
-  "numexpr",
+  "astropy<=6.1.0",
   "click",
   "h5py",
+  "ipython",
+  "jupyter",
+  "matplotlib",
   "natsort",
+  "numexpr",
+  "numpy",
+  "pandas",
   "pre-commit",
+  "pytest",
+  "pytest-cov",
+  "scipy",
+  "toma",
+  "toml",
+  "torch",
+  "torch",
+  "tqdm",
+]
+
+[project.optional-dependencies]
+
+tests = [
+  "h5py",
+  "pytest >= 7.0",
+  "pytest-cov",
+  "tomli",
+]
+
+docs = [
+  "graphviz",
+  "ipython",
+  "jupyter",
+  "nbsphinx",
+  "notebook",
+  "numpydoc",
+  "pydata_sphinx_theme",
+  "pyvisgen[all]",
+  "sphinx",
+  "sphinx-changelog",
+  "sphinx-copybutton",
+  "sphinx-design",
+  "sphinx-gallery >= 0.16.0",
+  "sphinx_automodapi",
+  "sphinxcontrib-bibtex",
+  "tomli; python_version < '3.11'",
 ]
 
 [project.scripts]
 pyvisgen_create_dataset = "pyvisgen.simulation.scripts.create_dataset:main"
 
+[tool.setuptools_scm]
+write_to = "pyvisgen/_version.py"
+
 [tool.setuptools.packages.find]
 where = ["."]
+
+[tool.coverage.run]
+omit = [
+  "pyvisgen/version.py",
+  "pyvisgen/_version.py",
+  "docs/*"
+]
+
+[tool.coverage.xml]
+output = "coverage.xml"
 
 [tool.towncrier]
 package = "pyvisgen"

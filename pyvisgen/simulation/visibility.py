@@ -1,14 +1,40 @@
 from dataclasses import dataclass, fields
 
 import scipy.ndimage
+import toma
 import torch
-from tqdm import tqdm
+from tqdm.autonotebook import tqdm
 
 import pyvisgen.simulation.scan as scan
+
+__all__ = [
+    "Visibilities",
+    "vis_loop",
+    "Polarisation",
+    "generate_noise",
+]
 
 
 @dataclass
 class Visibilities:
+    """Visibilities dataclass.
+
+    Attributes
+    ----------
+    V_11 : :func:`~torch.tensor`
+    V_22 : :func:`~torch.tensor`
+    V_12 : :func:`~torch.tensor`
+    V_21 : :func:`~torch.tensor`
+    num : :func:`~torch.tensor`
+    base_num : :func:`~torch.tensor`
+    u : :func:`~torch.tensor`
+    v : :func:`~torch.tensor`
+    w  : :func:`~torch.tensor`
+    date : :func:`~torch.tensor`
+    linear_dop : :func:`~torch.tensor`
+    circular_dop : :func:`~torch.tensor`
+    """
+
     V_11: torch.tensor
     V_22: torch.tensor
     V_12: torch.tensor
@@ -42,7 +68,39 @@ class Visibilities:
 
 
 class Polarisation:
-    """Simulation of polarisation."""
+    r"""Simulation of polarisation.
+
+    Creates the :math:`2\times 2` stokes matrix and simulates
+    polarisation if ``polarisation`` is either ``'linear'``
+    or ``'circular'``. Also computes the degree of polarisation.
+
+    Parameters
+    ----------
+    SI : :func:`~torch.tensor`
+        Stokes I component, i.e. intensity distribution
+        of the sky.
+    sensitivity_cut : float
+        Sensitivity cut, where only pixels above the value
+        are kept.
+    amp_ratio : float
+        Sets the ratio of :math:`A_{X|R}`. The ratio of :math:`A_{Y|L}`
+        is calculated as ``1 - amp_ratio``. If set to ``None``,
+        a random value is drawn from a uniform distribution.
+        See also: ``random_state``.
+    delta : float
+        Sets the phase difference of the amplitudes :math:`A_{X|R}`
+        and :math:`A_{Y|L}`` of the sky distribution. Defines the
+        measure of ellipticity.
+    polarisation : str
+        Choose between ``'linear'`` or ``'circular'`` or ``None`` to
+        simulate different types of polarisations or disable
+        the simulation of polarisation entirely.
+    random_state : int
+        Random state used when drawing ``amp_ratio`` and during
+        the generation of the random polarisation field.
+    device : :class:`~torch.cuda.device`
+        Torch device to select for computation.
+    """
 
     def __init__(
         self,
@@ -58,33 +116,35 @@ class Polarisation:
         int_time: float,
         bandwidths: list,
     ) -> None:
-        """Creates the 2 x 2 stokes matrix and simulates
-        polarisation if `polarisation` is either 'linear'
-        or 'circular'. Also computes the degree of polarisation.
+        """Creates the :math:`2\times 2` stokes matrix and simulates
+        polarisation if ``polarisation`` is either ``'linear'``
+        or ``'circular'``. Also computes the degree of polarisation.
 
         Parameters
         ----------
-        SI : torch.tensor
+        SI : :func:`~torch.tensor`
             Stokes I component, i.e. intensity distribution
             of the sky.
         sensitivity_cut : float
             Sensitivity cut, where only pixels above the value
             are kept.
         amp_ratio : float
-            Sets the ratio of $A_{x/r}$. The ratio of $A_{y/l}$ is calculated
-            as `1 - amp_ratio`. If set to `None`, a random value is drawn
-            from a uniform distribution. See also: `random_state`.
+            Sets the ratio of :math:`A_{X|R}`. The ratio of :math:`A_{Y|L}`
+            is calculated as ``1 - amp_ratio``. If set to ``None``,
+            a random value is drawn from a uniform distribution.
+            See also: ``random_state``.
         delta : float
-            Sets the phase difference of the amplitudes $A_x$ and $A_y$
-            of the sky distribution. Defines the measure of ellipticity.
+            Sets the phase difference of the amplitudes :math:`A_{X|R}`
+            and :math:`A_{Y|L}`` of the sky distribution. Defines the
+            measure of ellipticity.
         polarisation : str
-            Choose between `'linear'` or `'circular'` or `None` to
+            Choose between ``'linear'`` or ``'circular'`` or ``None`` to
             simulate different types of polarisations or disable
-            the simulation of polarisation.
+            the simulation of polarisation entirely.
         random_state : int
-            Random state used when drawing `amp_ratio` and during the generation
-            of the random polarisation field.
-        device : torch.device
+            Random state used when drawing ``amp_ratio`` and during
+            the generation of the random polarisation field.
+        device : :class:`~torch.cuda.device`
             Torch device to select for computation.
         """
         self.sensitivity_cut = sensitivity_cut
@@ -99,7 +159,7 @@ class Polarisation:
         if random_state:
             torch.manual_seed(random_state)
 
-        if self.polarisation:
+        if self.polarisation and self.polarisation in ["circular", "linear"]:
             self.polarisation_field = self.rand_polarisation_field(
                 [self.SI.shape[0], self.SI.shape[1]],
                 **field_kwargs,
@@ -128,11 +188,13 @@ class Polarisation:
         r"""Computes the stokes parameters I, Q, U, and V
         for linear polarisation.
 
+        This is done using the following equations:
+
         .. math::
-            I = A_x^2 + A_y^2
-            Q = A_r^2 - A_l^2
-            U = 2A_x A_y \cos\delta_{xy}
-            V = -2A_x A_y \sin\delta_{xy}
+            I &= A_X^2 + A_Y^2 \\
+            Q &= A_X^2 - A_Y^2 \\
+            U &= 2A_X A_Y \cos\delta_{XY} \\
+            V &= -2A_X A_Y \sin\delta_{XY}
         """
         self.I[..., 0] = self.ax2 + self.ay2
         self.I[..., 1] = self.ax2 - self.ay2
@@ -153,11 +215,14 @@ class Polarisation:
         r"""Computes the stokes parameters I, Q, U, and V
         for circular polarisation.
 
+        This is done using the following equations:
+
         .. math::
-            I = A_r^2 + A_l^2
-            Q = 2A_r A_l \cos\delta_{rl}
-            U = -2A_r A_l \sin\delta_{rl}
-            V = A_r^2 - A_l^2
+
+            I &= A_R^2 + A_L^2 \\
+            Q &= 2A_R A_L \cos\delta_{RL} \\
+            U &= -2A_R A_L \sin\delta_{RL} \\
+            V &= A_R^2 - A_L^2
         """
         self.I[..., 0] = self.ax2 + self.ay2
         self.I[..., 1] = (
@@ -279,15 +344,15 @@ class Polarisation:
             The size of the sky image.
         order : array_like (M, N) or int, optional
             Morphology of the random noise. Higher values create
-            more and smaller fluctuations. Default: 1.
+            more and smaller fluctuations. Default: ``1``.
         random_state : int, optional
-            Random state for the random number generator. If None,
-            a random entropy is pulled from the OS. Default: None.
+            Random state for the random number generator. If ``None``,
+            a random entropy is pulled from the OS. Default: ``None``.
         scale : array_like, optional
-            Scaling of the distribution of the image. Default: [0, 1]
+            Scaling of the distribution of the image. Default: ``[0, 1]``
         threshold : float, optional
             If not None, an upper threshold is applied to the image.
-            Default: None
+            Default: ``None``
 
         Returns
         -------
@@ -297,6 +362,9 @@ class Polarisation:
         """
         if random_state:
             torch.random.manual_seed(random_state)
+
+        if isinstance(shape, int):
+            shape = [shape]
 
         if not isinstance(shape, list):
             shape = list(shape)
@@ -344,8 +412,9 @@ def vis_loop(
     num_threads: int = 10,
     noisy: bool = True,
     mode: str = "full",
-    batch_size: int = 100,
+    batch_size: int = "auto",
     show_progress: bool = False,
+    normalize: bool = True,
 ) -> Visibilities:
     r"""Computes the visibilities of an observation.
 
@@ -378,6 +447,9 @@ def vis_loop(
     show_progress : bool, optional
         If `True`, show a progress bar during the iteration over the
         batches of baselines. Default: False
+    normalize : bool, optional
+        If ``True``, normalize stokes matrix ``B`` by a factor 0.5.
+        Default: ``True``
 
     Returns
     -------
@@ -386,6 +458,12 @@ def vis_loop(
     """
     torch.set_num_threads(num_threads)
     torch._dynamo.config.suppress_errors = True
+
+    if not (
+        isinstance(batch_size, int)
+        or (isinstance(batch_size, str) and batch_size == "auto")
+    ):
+        raise ValueError("Expected batch_size to be 'auto' or type int")
 
     pol = Polarisation(
         SI,  # torch.flip(SI, dims=[1]),
@@ -406,7 +484,8 @@ def vis_loop(
 
     # normalize visibilities to factor 0.5,
     # so that the Stokes I image is normalized to 1
-    # B *= 0.5
+    if normalize:
+        B *= 0.5
 
     # calculate vis
     visibilities = Visibilities(
@@ -423,7 +502,9 @@ def vis_loop(
         torch.tensor([]),
         torch.tensor([]),
     )
+
     vis_num = torch.zeros(1)
+
     if mode == "full":
         bas = obs.baselines.get_valid_subset(obs.num_baselines, obs.device)
     elif mode == "grid":
@@ -438,10 +519,83 @@ def vis_loop(
     else:
         raise ValueError("Unsupported mode!")
 
-    batches = torch.arange(bas[:].shape[1]).split(batch_size)
+    if batch_size == "auto":
+        batch_size = bas[:].shape[1]
 
-    if show_progress:
-        batches = tqdm(batches)
+    visibilities = toma.explicit.batch(
+        _batch_loop,
+        batch_size,
+        visibilities,
+        vis_num,
+        obs,
+        B,
+        bas,
+        lm,
+        rd,
+        noisy,
+        show_progress,
+        mode,
+    )
+
+    visibilities.linear_dop = lin_dop.cpu()
+    visibilities.circular_dop = circ_dop.cpu()
+
+    return visibilities
+
+
+def _batch_loop(
+    batch_size: int,
+    visibilities,
+    vis_num: int,
+    obs,
+    B: torch.tensor,
+    bas,
+    lm: torch.tensor,
+    rd: torch.tensor,
+    noisy: bool | float,
+    show_progress: bool,
+    mode: str,
+):
+    """Main simulation loop of pyvisgen. Computes visibilities
+    batchwise.
+
+    Parameters
+    ----------
+    batch_size : int
+        Batch size for loop over Baselines dataclass object.
+    visibilities : Visibilities
+        Visibilities dataclass object.
+    vis_num : int
+        Number of visibilities.
+    obs : Observation
+        Observation class object.
+    B : torch.tensor
+        Stokes matrix containing stokes visibilities.
+    bas : Baselines
+        Baselines dataclass object.
+    lm : torch.tensor
+        lm grid.
+    rd : torch.tensor
+        rd grid.
+    noisy : float or bool
+        Simulate noise as SEFD with given value. If set to False,
+        no noise is simulated.
+    show_progress :
+        If True, show a progress bar tracking the loop.
+
+    Returns
+    -------
+    visibilities : Visibilities
+        Visibilities dataclass object.
+    """
+    batches = torch.arange(bas[:].shape[1]).split(batch_size)
+    batches = tqdm(
+        batches,
+        position=0,
+        disable=not show_progress,
+        desc="Computing visibilities",
+        postfix=f"Batch size: {batch_size}",
+    )
 
     for p in batches:
         bas_p = bas[:][:, p]
@@ -458,6 +612,8 @@ def vis_loop(
                     torch.unique(obs.array.diam),
                     wave_low,
                     wave_high,
+                    obs.polarisation,
+                    mode=mode,
                     corrupted=obs.corrupted,
                 )[None]
                 for wave_low, wave_high in zip(obs.waves_low, obs.waves_high)
@@ -487,9 +643,6 @@ def vis_loop(
 
         visibilities.add(vis)
         del int_values
-
-    visibilities.linear_dop = lin_dop.cpu()
-    visibilities.circular_dop = circ_dop.cpu()
 
     return visibilities
 

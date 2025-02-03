@@ -1,0 +1,3 @@
+- Fix image rotation caused by bug in rd/lm grid computation in ``pyvisgen.simulation.observation.Obseravtion``
+- Fix field order in ``pyvisgen.simulation.observation.ValidBaselineSubset`` data class
+- Flip input image at the beginning of ``pyvisgen.simulation.visibility.vis_loop`` to ensure correct indexing, e.g. for plotting
