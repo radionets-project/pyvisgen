@@ -874,11 +874,8 @@ class Observation:
             - self.img_size / 2
         ) * res
         d = (
-            -(
-                torch.arange(self.img_size, device=self.device, dtype=torch.float64)
-                - self.img_size / 2
-            )
-            * res
+            torch.arange(self.img_size, device=self.device, dtype=torch.float64)
+            - self.img_size / 2 * res
             + dec
         )
 
