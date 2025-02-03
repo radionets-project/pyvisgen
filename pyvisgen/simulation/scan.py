@@ -4,6 +4,16 @@ import torch
 from scipy.constants import c
 from torch.special import bessel_j1
 
+__all__ = [
+    "rime",
+    "calc_fourier",
+    "calc_feed_rotation",
+    "calc_beam",
+    "angular_distance",
+    "jinc",
+    "integrate",
+]
+
 
 @torch.compile
 def rime(
@@ -56,27 +66,37 @@ def rime(
 
 
 @torch.compile
-def calc_fourier(img, bas, lm, spw_low, spw_high):
-    """Calculates Fouriertransformation Kernel for every baseline and pixel in lm grid.
+def calc_fourier(
+    img: torch.tensor,
+    bas,
+    lm: torch.tensor,
+    spw_low: float,
+    spw_high: float,
+) -> tuple[torch.tensor, torch.tensor]:
+    """Calculates Fourier transformation kernel for
+    every baseline and pixel in the lm grid.
 
     Parameters
     ----------
-    img: torch.tensor
-        sky distribution
-    bas : dataclass object
-        baseline information
-    lm : 2d array
-        lm grid for FOV
+    img : :func:`~torch.tensor`
+        Sky distribution.
+    bas : :class:`~pyvisgen.simulation.ValidBaselineSubset`
+        :class:`~pyvisgen.simulation.Baselines` dataclass
+        object containing information on u, v, and w coverage,
+        and observation times.
+    lm : :func:`~torch.tensor`
+        lm grid for FOV.
     spw_low : float
-        lower wavelength
+        Lower wavelength.
     spw_high : float
-        higher wavelength
+        Higher wavelength.
 
     Returns
     -------
-    3d tensor
-        Return Fourier Kernel for every pixel in lm grid and given baselines.
-        Shape is given by lm axes and baseline axis
+    tuple[torch.tensor, torch.tensor]
+        Fourier kernels for every pixel in the lm grid and
+        given baselines. Shape is given by lm axes and
+        baseline axis.
     """
     u_cmplt = torch.cat((bas[0], bas[1]))
     v_cmplt = torch.cat((bas[3], bas[4]))
@@ -98,8 +118,37 @@ def calc_fourier(img, bas, lm, spw_low, spw_high):
 
 
 @torch.compile
-def calc_feed_rotation(X1, X2, bas, polarisation):
-    """ """
+def calc_feed_rotation(
+    X1: torch.tensor,
+    X2: torch.tensor,
+    bas,
+    polarisation: str,
+) -> tuple[torch.tensor, torch.tensor]:
+    """Calculates the feed rotation due to the parallactic
+    angle rotation of the source over time.
+
+    Parameters
+    ----------
+    X1 : :func:`~torch.tensor`
+        Fourier kernel calculated via
+        :func:`~pyvisgen.simulation.calc_fourier`.
+    X2 : :func:`~torch.tensor`
+        Fourier kernel calculated via
+        :func:`~pyvisgen.simulation.calc_fourier`.
+    bas : :class:`~pyvisgen.simulation.ValidBaselineSubset`
+        :class:`~pyvisgen.simulation.Baselines` dataclass
+        object containing information on u, v, and w coverage,
+        observation times, and parallactic angles.
+    polarisation : str
+        Type of polarisation for the feed.
+
+    Returns
+    -------
+    X1 : :func:`~torch.tensor`
+        Fourier kernel with the applied feed rotation.
+    X2 : :func:`~torch.tensor`
+        Fourier kernel with the applied feed rotation.
+    """
     q1 = torch.cat((bas[11], bas[12]))[..., None]
     q2 = torch.cat((bas[14], bas[15]))[..., None]
 
@@ -129,9 +178,35 @@ def calc_feed_rotation(X1, X2, bas, polarisation):
 
 
 @torch.compile
-def calc_beam(X1, X2, rd, ra, dec, ant_diam, spw_low, spw_high):
+def calc_beam(
+    X1: torch.tensor,
+    X2: torch.tensor,
+    rd: torch.tensor,
+    ra: float,
+    dec: float,
+    ant_diam: torch.tensor,
+    spw_low: float,
+    spw_high: float,
+) -> tuple[torch.tensor, torch.tensor]:
+    """Computes the beam influence on the image.
+
+    Parameters
+    ----------
+    X1 : :func:`~torch.tensor`
+    X2 : :func:`~torch.tensor`
+    rd : :func:`~torch.tensor`
+    ra : float
+    dec : float
+    ant_diam : :func:`~torch.tensor`
+    spw_low :  float
+    spw_high :  float
+
+    Returns
+    -------
+    tuple[torch.tensor, torch.tensor]
+    """
     diameters = ant_diam.to(rd.device)
-    theta = angularDistance(rd, ra, dec)
+    theta = angular_distance(rd, ra, dec)
     tds = diameters * theta[..., None]
 
     E1 = jinc(2 * pi / c * spw_low * tds)
@@ -148,7 +223,7 @@ def calc_beam(X1, X2, rd, ra, dec, ant_diam, spw_low, spw_high):
 
 
 @torch.compile
-def angularDistance(rd, ra, dec):
+def angular_distance(rd, ra, dec):
     """Calculates angular distance from source position
 
     Parameters

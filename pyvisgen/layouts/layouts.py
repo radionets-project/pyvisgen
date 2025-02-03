@@ -10,40 +10,108 @@ file_dir = Path(__file__).parent.resolve()
 
 @dataclass
 class Stations:
-    st_num: [int]
-    x: [float]
-    y: [float]
-    z: [float]
-    diam: [float]
-    el_low: [float]
-    el_high: [float]
-    sefd: [int]
-    altitude: [float]
+    """Stores station ID, x, y, and z positions,
+    antenna diameter, minimum and maximum elevation,
+    system equivalent flux density (SEFD) and altitude.
 
-    def __getitem__(self, i):
+    Attributes
+    ----------
+    st_num : list[int]
+        Station IDs.
+    x : list[float]
+        Geocentric x positions of the antennas.
+    y : list[float]
+        Geocentric y positions of the antennas.
+    z : list[float]
+        Geocentric z positions of the antennas.
+    diam : list[float]
+        Antenna dish diameters.
+    el_low : list[float]
+        Minimum possible elevation of the antennas.
+    el_high : list[float]
+        Maximum possible elevation of the antennas.
+    sefd : list[int]
+        System equivalent flux density.
+    altitude : list[float]
+        Altitude of the antennas.
+    """
+
+    st_num: list[int]
+    x: list[float]
+    y: list[float]
+    z: list[float]
+    diam: list[float]
+    el_low: list[float]
+    el_high: list[float]
+    sefd: list[int]
+    altitude: list[float]
+
+    def __getitem__(self, i: int):
+        """Returns fields at index ``i``.
+
+        Parameters
+        ----------
+        i : int
+            Index of the items in the dataclass.
+
+        Returns
+        -------
+        Stations
+            :class:`~pyvisgen.layouts.Stations` dataclass object
+            containing elements at index ``i``.
+        """
         return Stations(*[getattr(self, f.name)[i] for f in fields(self)])
 
 
-def get_array_layout(array_layout: str | Path | pd.DataFrame, writer: bool = False):
-    """Reads telescope layout txt file and converts it into a dataclass.
-    Also allows a DataFrame to be passed that is then converted into a dataclass
-    object.
-    Available arrays:
-    - EHT
+def get_array_layout(
+    array_layout: str | Path | pd.DataFrame,
+    writer: bool = False,
+) -> Stations:
+    r"""Reads a telescope layout txt file and converts it
+    into a dataclass. Also allows a DataFrame to be passed
+    that is then converted into a dataclass object. This
+    allows custom layouts to be used in the simulation.
+
+    **Available built-in arrays:**
+
+    +-----------------+------------------+
+    | Experiment      | Layout Name      |
+    +=================+==================+
+    | ALMA            | ``alma``         |
+    +-----------------+------------------+
+    | ALMA (DSHARP)   | ``alma_dsharp``  |
+    +-----------------+------------------+
+    | EHT             | ``eht``          |
+    +-----------------+------------------+
+    | MeerKAT         | ``meerkat``      |
+    +-----------------+------------------+
+    | MeerKAT (test)* | ``meerkat_test`` |
+    +-----------------+------------------+
+    | VLA             | ``vla``          |
+    +-----------------+------------------+
+    | VLBA            | ``vlba``         |
+    +-----------------+------------------+
+    | VLBA (light)*   | ``vlba_light``   |
+    +-----------------+------------------+
+
+    \* reduced layouts for testing purposes
+
 
     Parameters
     ----------
-    array_layout : str or pathlib.Path or pd.DataFrame
+    array_layout : str or :class:`~pathlib.Path` or :class:`~pandas.DataFrame`
         Name of telescope array or pd.DataFrame containing
         the array layout.
     writer : bool, optional
-        If ``True``, return ``array`` DataFrame instead of
-        ``Stations`` dataclass object.
+        If ``True``, return ``array`` :class:`~pandas.DataFrame`
+        instead of :class:`~pyvisgen.layouts.Stations` dataclass
+        object.
 
     Returns
     -------
-    dataclass objects
-        Station infos combined in dataclass
+    Stations
+        :class:`~pyvisgen.layouts.Stations` dataclass comprising
+        information on all stations in the given array layout.
     """
     if isinstance(array_layout, str):
         f = array_layout + ".txt"
@@ -59,6 +127,8 @@ def get_array_layout(array_layout: str | Path | pd.DataFrame, writer: bool = Fal
 
     elif isinstance(array_layout, pd.DataFrame):
         array = array_layout
+    elif isinstance(array_layout, Path):
+        array = pd.read_csv(file_dir / f, sep=r"\s+")
     else:
         raise TypeError(
             "Expected array_layout to be of type str, "
@@ -81,9 +151,9 @@ def get_array_layout(array_layout: str | Path | pd.DataFrame, writer: bool = Fal
 
 
 def get_array_names() -> list[str]:
-    """Get list of names of arrays for use with
-    `~pyvisgen.simulation.Observation` and various
-    other methods.
+    """Get list of names of built-in arrays for use with
+    :class:`~pyvisgen.simulation.Observation` and
+    various other methods.
 
     Returns
     -------
@@ -92,7 +162,9 @@ def get_array_names() -> list[str]:
 
     See Also
     --------
-    get_array_layout : Gets the locations of the telescopes
-        for one of the array names this returns.
+    :func:`~pyvisgen.layouts.get_array_layout` : Returns
+        a :class:`~pyvisgen.layouts.Stations` dataclass object
+        containing station informations for any array names
+        returned by this function.
     """
     return list(file.stem for file in file_dir.glob("*.txt"))
