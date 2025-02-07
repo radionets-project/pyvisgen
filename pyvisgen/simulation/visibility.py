@@ -450,7 +450,7 @@ def vis_loop(
         raise ValueError("Expected batch_size to be 'auto' or type int")
 
     pol = Polarisation(
-        torch.flip(SI, dims=[1]),
+        SI,
         sensitivity_cut=obs.sensitivity_cut,
         polarisation=obs.polarisation,
         device=obs.device,

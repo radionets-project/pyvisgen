@@ -611,27 +611,27 @@ class Observation:
         """
         N = self.img_size
         fov = self.fov * pi / (3600 * 180)
-        delta = fov ** (-1) * c.value / self.ref_frequency
+        delta = fov ** (-1)
 
-        u_dense = torch.arange(
-            start=-(N / 2) * delta,
-            end=(N / 2) * delta,
+        u_dense = (torch.arange(
+            start=-(N / 2 - 1),
+            end=(N / 2 + 1),
+            step=1,
+            device=self.device,
+            dtype=torch.double,
+        ) - 1) * delta
+
+        v_dense = (torch.arange(
+            start=-(N / 2 - 1),
+            end=(N / 2 + 1),
             step=delta,
             device=self.device,
             dtype=torch.double,
-        )
-
-        v_dense = torch.arange(
-            start=-(N / 2) * delta,
-            end=(N / 2) * delta,
-            step=delta,
-            device=self.device,
-            dtype=torch.double,
-        )
+        ) - 1) * delta
 
         uu, vv = torch.meshgrid(u_dense, v_dense)
-        u = uu.flatten()
-        v = vv.flatten()
+        u = uu.flatten() * c.value / self.ref_frequency
+        v = vv.flatten() * c.value / self.ref_frequency
 
         self.dense_baselines_gpu = torch.stack(
             [
