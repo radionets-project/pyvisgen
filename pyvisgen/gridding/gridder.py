@@ -241,9 +241,11 @@ def grid_data(uv_data, freq_data, conf):
 
     # bins are shifted by delta/2 so that maximum in uv space matches maximum
     # in numpy fft
-    bins = (
-        np.arange(start=-(N / 2) * delta, stop=(N / 2 + 1) * delta, step=delta)
-        - delta / 2
+    bins = np.arange(
+        start=-(N / 2 + 1 / 2) * delta,
+        stop=(N / 2 + 1 / 2) * delta,
+        step=delta,
+        dtype=np.complex128,
     )
     # if len(bins) - 1 > N:
     #   bins = np.delete(bins, -1)
