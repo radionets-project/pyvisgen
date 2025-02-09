@@ -1,13 +1,16 @@
 # A conda environment with all useful packages for pyvisgen developers
-name: pyvisgen
+name: pyvisgen-dev
 channels:
     - pytorch
     - defaults
     - conda-forge
+    - nvidia
 dependencies:
   - python
   - astropy<=6.1.0
-  - pytorch
+  - pytorch-gpu
+  - pytorch-cuda=12.1
+  - torchvision
   - numpy
   - matplotlib
   - pip
