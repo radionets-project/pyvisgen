@@ -5,6 +5,7 @@ from math import pi
 import astropy.constants as const
 import astropy.units as un
 import torch
+import numpy as np
 from astropy.constants import c
 from astropy.coordinates import AltAz, Angle, EarthLocation, Longitude, SkyCoord
 from astropy.time import Time
@@ -12,6 +13,8 @@ from tqdm.autonotebook import tqdm
 
 from pyvisgen.layouts import layouts
 from pyvisgen.simulation.array import Array
+
+torch.set_default_dtype(torch.float64)
 
 __all__ = ["Baselines", "ValidBaselineSubset", "Observation"]
 
@@ -473,7 +476,7 @@ class Observation:
         bandwidths : list
             Frequency bandwidth.
         fov : float
-            Field of view.
+            Field of view in arcseconds.
         image_size : int
             Image size of the sky distribution.
         array_layout : str
@@ -610,24 +613,19 @@ class Observation:
         uv space.
         """
         N = self.img_size
-        fov = self.fov * pi / (3600 * 180)
+        fov = self.fov * pi / (3600 * 180)  # convert fov from asec to rad
         delta = fov ** (-1)
 
-        u_dense = (torch.arange(
-            start=-(N / 2 - 1),
-            end=(N / 2 + 1),
-            step=1,
-            device=self.device,
-            dtype=torch.double,
-        ) - 1) * delta
+        u_dense = torch.from_numpy(
+            np.arange(
+                start=-(N / 2) * delta,
+                stop=(N / 2) * delta,
+                step=delta,
+                dtype=np.float128,
+            ).astype(np.float64)
+        ).to(self.device)
 
-        v_dense = (torch.arange(
-            start=-(N / 2 - 1),
-            end=(N / 2 + 1),
-            step=delta,
-            device=self.device,
-            dtype=torch.double,
-        ) - 1) * delta
+        v_dense = u_dense
 
         uu, vv = torch.meshgrid(u_dense, v_dense)
         u = uu.flatten() * c.value / self.ref_frequency

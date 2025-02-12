@@ -4,6 +4,8 @@ import torch
 from scipy.constants import c
 from torch.special import bessel_j1
 
+torch.set_default_dtype(torch.float64)
+
 __all__ = [
     "rime",
     "calc_fourier",
