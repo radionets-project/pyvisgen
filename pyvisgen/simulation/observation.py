@@ -868,14 +868,15 @@ class Observation:
 
         dec = torch.deg2rad(self.dec)
 
-        r = (
-            torch.arange(self.img_size, device=self.device, dtype=torch.float64)
-            - self.img_size / 2
-        ) * res
-        d = (
-            torch.arange(self.img_size, device=self.device, dtype=torch.float64)
-            - self.img_size / 2
-        ) * res + dec
+        r = torch.from_numpy(
+            np.arange(
+                start=-(self.img_size / 2) * res,
+                stop=(self.img_size / 2) * res,
+                step=res,
+                dtype=np.float128,
+            ).astype(np.float64)
+        ).to(self.device)
+        d = r + dec
 
         R, _ = torch.meshgrid((r, r), indexing="ij")
         _, D = torch.meshgrid((d, d), indexing="ij")
@@ -898,15 +899,17 @@ class Observation:
         lm_grid : 3d array
             Returns a 3d array with every pixel containing an l and m value
         """
-        dec = torch.deg2rad(self.dec)
+        dec = np.deg2rad(self.dec.cpu().numpy()).astype(np.float128)
 
-        lm_grid = torch.zeros(self.rd.shape, device=self.device, dtype=torch.float64)
-        lm_grid[..., 0] = torch.cos(self.rd[..., 1]) * torch.sin(self.rd[..., 0])
-        lm_grid[..., 1] = torch.sin(self.rd[..., 1]) * torch.cos(dec) - torch.cos(
-            self.rd[..., 1]
-        ) * torch.sin(dec) * torch.cos(self.rd[..., 0])
+        rd = self.rd.cpu().numpy().astype(np.float128)
 
-        return lm_grid
+        lm_grid = np.zeros(rd.shape, dtype=np.float128)
+        lm_grid[..., 0] = np.cos(rd[..., 1]) * np.sin(rd[..., 0])
+        lm_grid[..., 1] = np.sin(rd[..., 1]) * np.cos(dec) - np.cos(
+            rd[..., 1]
+        ) * np.sin(dec) * np.cos(rd[..., 0])
+
+        return torch.from_numpy(lm_grid.astype(np.float64)).to(self.device)
 
     def calc_direction_cosines(
         self,
