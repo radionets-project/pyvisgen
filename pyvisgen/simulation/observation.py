@@ -606,9 +606,9 @@ class Observation:
         time = Time(time_lst)
 
         return time, time.mjd * (60 * 60 * 24)
+ 
 
-    # pragma: no cover
-    def calc_dense_baselines(self):
+    def calc_dense_baselines(self): # pragma: no cover
         """Calculates the baselines of a densely-built
         antenna array, which would provide full coverage of the
         uv space.
