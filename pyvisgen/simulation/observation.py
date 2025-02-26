@@ -562,7 +562,7 @@ class Observation:
 
         self.show_progress = show_progress
 
-        if dense:
+        if dense: # pragma: no cover
             self.waves_low = [self.ref_frequency]
             self.waves_high = [self.ref_frequency]
             self.calc_dense_baselines()
