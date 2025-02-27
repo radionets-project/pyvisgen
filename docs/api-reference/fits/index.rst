@@ -10,7 +10,10 @@ FITS Handler (:mod:`pyvisgen.fits`)
 Introduction
 ============
 
-This module include all the functions and classes needed for handling FITS files.
+:mod:`pyvisgen.fits` contains methods to handle FITS file operations.
+There are two submodules, :mod:`~pyvisgen.fits.data`, which provides
+methods to open and handle  ``.h5`` files, and :mod:`~pyvisgen.fits.writer`,
+which provides methods to create HDU objects for FITS files.
 
 
 Submodules
