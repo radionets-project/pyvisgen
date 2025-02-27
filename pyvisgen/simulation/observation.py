@@ -608,27 +608,39 @@ class Observation:
         antenna array, which would provide full coverage of the
         uv space.
         """
+        import numpy as np
+
         N = self.img_size
-        fov = self.fov * pi / (3600 * 180)
-        delta = fov ** (-1) * c.value / self.ref_frequency
+        fov = np.deg2rad(self.fov / 3600)
+        delta = fov ** (-1) * c.value / self.ref_frequency.numpy()
 
-        u_dense = torch.arange(
-            start=-(N / 2) * delta,
-            end=(N / 2) * delta,
+        # u_dense = torch.arange(
+        #     start=-(N / 2 - 1/2),
+        #     end=(N / 2 + 1/2),
+        #     step=1,
+        #     device=self.device,
+        #     dtype=torch.double,
+        # ) * delta
+        #
+        # v_dense = torch.arange(
+        #     start=-(N / 2 - 1/2),
+        #     end=(N / 2 + 1/2),
+        #     step=1,
+        #     device=self.device,
+        #     dtype=torch.double,
+        # ) * delta
+
+        u_dense = np.arange(
+            start=-((N / 2)) * delta,
+            stop=((N / 2)) * delta,
             step=delta,
-            device=self.device,
-            dtype=torch.double,
+            dtype=np.float128,
         )
+        u_dense = torch.from_numpy(u_dense.astype(np.float64)).to(self.device)
 
-        v_dense = torch.arange(
-            start=-(N / 2) * delta,
-            end=(N / 2) * delta,
-            step=delta,
-            device=self.device,
-            dtype=torch.double,
-        )
+        v_dense = u_dense
 
-        uu, vv = torch.meshgrid(u_dense, v_dense)
+        uu, vv = torch.meshgrid((u_dense, v_dense), indexing="ij")
         u = uu.flatten()
         v = vv.flatten()
 
