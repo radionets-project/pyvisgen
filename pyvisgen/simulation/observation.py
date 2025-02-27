@@ -1,8 +1,6 @@
 from dataclasses import dataclass, fields
 from datetime import datetime
-from math import pi
 
-import astropy.constants as const
 import astropy.units as un
 import numpy as np
 import torch
@@ -281,7 +279,7 @@ class ValidBaselineSubset:
 
     def get_unique_grid(
         self,
-        fov_size: float,
+        fov: float,
         ref_frequency: float,
         img_size: int,
         device: str,
@@ -291,7 +289,7 @@ class ValidBaselineSubset:
 
         Parameters
         ----------
-        fov_size : float
+        fov : float
             Size of the FOV.
         ref_frequency : float
             Reference frequency.
@@ -309,17 +307,17 @@ class ValidBaselineSubset:
         """
         uv = torch.cat([self.u_valid[None], self.v_valid[None]], dim=0)
 
-        fov = fov_size * pi / (3600 * 180)
-        delta = 1 / fov * const.c.value.item() / ref_frequency
-        bins = (
-            torch.arange(
-                start=-(img_size / 2) * delta,
-                end=(img_size / 2 + 1) * delta,
+        fov = np.deg2rad(fov / 3600, dtype=np.float128)
+        delta = fov ** (-1) * c.value / ref_frequency
+
+        bins = torch.from_numpy(
+            np.arange(
+                start=-(img_size / 2 + 1 / 2) * delta,
+                stop=(img_size / 2 + 1 / 2) * delta,
                 step=delta,
-                device=device,
-            )
-            + delta / 2
-        )
+                dtype=np.float128,
+            ).astype(np.float64)
+        ).to(self.device)
 
         if len(bins) - 1 > img_size:
             bins = bins[:-1]
@@ -613,8 +611,8 @@ class Observation:
         uv space.
         """
         N = self.img_size
-        fov = self.fov * pi / (3600 * 180)  # convert fov from asec to rad
-        delta = fov ** (-1)
+        fov = np.deg2rad(self.fov / 3600, dtype=np.float128)
+        delta = fov ** (-1) * c.value / self.ref_frequency
 
         u_dense = torch.from_numpy(
             np.arange(
@@ -628,8 +626,8 @@ class Observation:
         v_dense = u_dense
 
         uu, vv = torch.meshgrid(u_dense, v_dense)
-        u = uu.flatten() * c.value / self.ref_frequency
-        v = vv.flatten() * c.value / self.ref_frequency
+        u = uu.flatten()
+        v = vv.flatten()
 
         self.dense_baselines_gpu = torch.stack(
             [
@@ -861,7 +859,7 @@ class Observation:
             Returns a 3d array with every pixel containing a RA and Dec value
         """
         # transform to rad
-        fov = self.fov / 3600 * (pi / 180)
+        fov = np.deg2rad(self.fov / 3600, dtype=np.float128)
 
         # define resolution
         res = fov / self.img_size
