@@ -1,18 +1,21 @@
+from pathlib import Path
+
 import toml
 
 
-def read_data_set_conf(conf_toml):
-    """Read toml data set configuration file and convert it into a dictionary.
+def read_data_set_conf(conf_toml: str | Path) -> dict:
+    """Read toml data set configuration file and convert
+    it into a dictionary.
 
     Parameters
     ----------
-    conf : toml file
-        path to config file
+    conf_toml : str or Path
+        Path to config file.
 
     Returns
     -------
-    sim_conf : dictionary
-        simulation configuration
+    conf : dict
+        Simulation configuration.
     """
     config = toml.load(conf_toml)
     conf = {}

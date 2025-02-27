@@ -4,9 +4,34 @@ import torch
 from scipy.constants import c
 from torch.special import bessel_j1
 
+torch.set_default_dtype(torch.float64)
+
+__all__ = [
+    "rime",
+    "calc_fourier",
+    "calc_feed_rotation",
+    "calc_beam",
+    "angular_distance",
+    "jinc",
+    "integrate",
+]
+
 
 @torch.compile
-def rime(img, bas, lm, rd, ra, dec, ant_diam, spw_low, spw_high, corrupted=False):
+def rime(
+    img,
+    bas,
+    lm,
+    rd,
+    ra,
+    dec,
+    ant_diam,
+    spw_low,
+    spw_high,
+    polarisation,
+    mode,
+    corrupted=False,
+):
     """Calculates visibilities using RIME
 
     Parameters
@@ -21,6 +46,8 @@ def rime(img, bas, lm, rd, ra, dec, ant_diam, spw_low, spw_high, corrupted=False
         lower wavelength
     spw_high : float
         higher wavelength
+    polarisation : str
+        Type of polarisation.
 
     Returns
     -------
@@ -29,40 +56,56 @@ def rime(img, bas, lm, rd, ra, dec, ant_diam, spw_low, spw_high, corrupted=False
     """
     with torch.no_grad():
         X1, X2 = calc_fourier(img, bas, lm, spw_low, spw_high)
+
+        if mode != "dense":
+            X1, X2 = calc_feed_rotation(X1, X2, bas, polarisation)
+
         if corrupted:
             X1, X2 = calc_beam(X1, X2, rd, ra, dec, ant_diam, spw_low, spw_high)
+
         vis = integrate(X1, X2)
     return vis
 
 
 @torch.compile
-def calc_fourier(img, bas, lm, spw_low, spw_high):
-    """Calculates Fouriertransformation Kernel for every baseline and pixel in lm grid.
+def calc_fourier(
+    img: torch.tensor,
+    bas,
+    lm: torch.tensor,
+    spw_low: float,
+    spw_high: float,
+) -> tuple[torch.tensor, torch.tensor]:
+    """Calculates Fourier transformation kernel for
+    every baseline and pixel in the lm grid.
 
     Parameters
     ----------
-    img: torch.tensor
-        sky distribution
-    bas : dataclass object
-        baseline information
-    lm : 2d array
-        lm grid for FOV
+    img : :func:`~torch.tensor`
+        Sky distribution.
+    bas : :class:`~pyvisgen.simulation.ValidBaselineSubset`
+        :class:`~pyvisgen.simulation.Baselines` dataclass
+        object containing information on u, v, and w coverage,
+        and observation times.
+    lm : :func:`~torch.tensor`
+        lm grid for FOV.
     spw_low : float
-        lower wavelength
+        Lower wavelength.
     spw_high : float
-        higher wavelength
+        Higher wavelength.
 
     Returns
     -------
-    3d tensor
-        Return Fourier Kernel for every pixel in lm grid and given baselines.
-        Shape is given by lm axes and baseline axis
+    tuple[torch.tensor, torch.tensor]
+        Fourier kernels for every pixel in the lm grid and
+        given baselines. Shape is given by lm axes and
+        baseline axis.
     """
-    u_cmplt = torch.cat((bas[0], bas[1]))
-    v_cmplt = torch.cat((bas[3], bas[4]))
-    w_cmplt = torch.cat((bas[6], bas[7]))
+    # only use u, v, w valid
+    u_cmplt = bas[2]
+    v_cmplt = bas[5]
+    w_cmplt = bas[8]
 
-    l = lm[..., 0]
+    l = lm[..., 0]  # noqa: E741
     m = lm[..., 1]
     n = torch.sqrt(1 - l**2 - m**2)
 
@@ -78,9 +121,95 @@ def calc_fourier(img, bas, lm, spw_low, spw_high):
 
 
 @torch.compile
-def calc_beam(X1, X2, rd, ra, dec, ant_diam, spw_low, spw_high):
+def calc_feed_rotation(
+    X1: torch.tensor,
+    X2: torch.tensor,
+    bas,
+    polarisation: str,
+) -> tuple[torch.tensor, torch.tensor]:
+    """Calculates the feed rotation due to the parallactic
+    angle rotation of the source over time.
+
+    Parameters
+    ----------
+    X1 : :func:`~torch.tensor`
+        Fourier kernel calculated via
+        :func:`~pyvisgen.simulation.calc_fourier`.
+    X2 : :func:`~torch.tensor`
+        Fourier kernel calculated via
+        :func:`~pyvisgen.simulation.calc_fourier`.
+    bas : :class:`~pyvisgen.simulation.ValidBaselineSubset`
+        :class:`~pyvisgen.simulation.Baselines` dataclass
+        object containing information on u, v, and w coverage,
+        observation times, and parallactic angles.
+    polarisation : str
+        Type of polarisation for the feed.
+
+    Returns
+    -------
+    X1 : :func:`~torch.tensor`
+        Fourier kernel with the applied feed rotation.
+    X2 : :func:`~torch.tensor`
+        Fourier kernel with the applied feed rotation.
+    """
+    q1 = torch.cat((bas[11], bas[12]))[..., None]
+    q2 = torch.cat((bas[14], bas[15]))[..., None]
+
+    if polarisation == "linear":
+        X1[..., 0, 0] *= torch.cos(q1)
+        X1[..., 0, 1] *= torch.sin(q1)
+        X1[..., 1, 0] *= -torch.sin(q1)
+        X1[..., 1, 1] *= torch.cos(q1)
+
+        X2[..., 0, 0] *= torch.cos(q2)
+        X2[..., 0, 1] *= torch.sin(q2)
+        X2[..., 1, 0] *= -torch.sin(q2)
+        X2[..., 1, 1] *= torch.cos(q2)
+
+    if polarisation == "circular":
+        X1[..., 0, 0] *= torch.exp(1j * q1)
+        X1[..., 0, 1] *= 0
+        X1[..., 1, 0] *= 0
+        X1[..., 1, 1] *= torch.exp(-1j * q1)
+
+        X2[..., 0, 0] *= torch.exp(1j * q2)
+        X2[..., 0, 1] *= 0
+        X2[..., 1, 0] *= 0
+        X2[..., 1, 1] *= torch.exp(-1j * q2)
+
+    return X1, X2
+
+
+@torch.compile
+def calc_beam(
+    X1: torch.tensor,
+    X2: torch.tensor,
+    rd: torch.tensor,
+    ra: float,
+    dec: float,
+    ant_diam: torch.tensor,
+    spw_low: float,
+    spw_high: float,
+) -> tuple[torch.tensor, torch.tensor]:
+    """Computes the beam influence on the image.
+
+    Parameters
+    ----------
+    X1 : :func:`~torch.tensor`
+    X2 : :func:`~torch.tensor`
+    rd : :func:`~torch.tensor`
+    ra : float
+    dec : float
+    ant_diam : :func:`~torch.tensor`
+    spw_low :  float
+    spw_high :  float
+
+    Returns
+    -------
+    tuple[torch.tensor, torch.tensor]
+    """
     diameters = ant_diam.to(rd.device)
-    theta = angularDistance(rd, ra, dec)
+    theta = angular_distance(rd, ra, dec)
     tds = diameters * theta[..., None]
 
     E1 = jinc(2 * pi / c * spw_low * tds)
@@ -97,7 +226,7 @@ def calc_beam(X1, X2, rd, ra, dec, ant_diam, spw_low, spw_high):
 
 
 @torch.compile
-def angularDistance(rd, ra, dec):
+def angular_distance(rd, ra, dec):
     """Calculates angular distance from source position
 
     Parameters
@@ -157,21 +286,15 @@ def integrate(X1, X2):
     Returns visibility for every baseline
     """
     X_f = torch.stack((X1, X2))
-    int_m = torch.sum(X_f, dim=2)
 
-    del X_f
-
+    # sum over all sky pixels
     # only integrate for 1 sky dimension
     # 2d sky is reshaped to 1d by sensitivity mask
-    # int_l = torch.sum(int_m, dim=2)
-    # del int_m
-    int_f = 0.5 * torch.sum(int_m, dim=0)
-    del int_m
+    int_lm = torch.sum(X_f, dim=2)
+    del X_f
 
-    X_t = torch.stack(torch.split(int_f, int(int_f.shape[0] / 2), dim=0))
-    del int_f
+    # average two bandwidth edges
+    int_f = 0.5 * torch.sum(int_lm, dim=0)
+    del int_lm
 
-    int_t = 0.5 * torch.sum(X_t, dim=0)
-    del X_t
-
-    return int_t
+    return int_f

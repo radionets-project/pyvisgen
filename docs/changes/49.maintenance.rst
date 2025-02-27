@@ -1,0 +1,3 @@
+- drop integration time in fits writer (also missing fits files which are converted from ms files)
+- update saving of visibility dates to modern standards
+- use infos from observation class
