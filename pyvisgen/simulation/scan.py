@@ -152,27 +152,35 @@ def calc_feed_rotation(
     q1 = torch.cat((bas[11], bas[12]))[..., None]
     q2 = torch.cat((bas[14], bas[15]))[..., None]
 
-    if polarisation == "linear":
-        X1[..., 0, 0] *= torch.cos(q1)
-        X1[..., 0, 1] *= torch.sin(q1)
-        X1[..., 1, 0] *= -torch.sin(q1)
-        X1[..., 1, 1] *= torch.cos(q1)
+    xa = torch.zeros_like(X1)
+    xb = torch.zeros_like(X2)
 
-        X2[..., 0, 0] *= torch.cos(q2)
-        X2[..., 0, 1] *= torch.sin(q2)
-        X2[..., 1, 0] *= -torch.sin(q2)
-        X2[..., 1, 1] *= torch.cos(q2)
+    if polarisation == "linear":
+        xa[..., 0, 0] = X1[..., 0, 0] * torch.cos(q1) - X1[..., 0, 1] * torch.sin(q1)
+        xa[..., 0, 1] = X1[..., 0, 0] * torch.sin(q1) + X1[..., 0, 1] * torch.cos(q1)
+        xa[..., 1, 0] = X1[..., 1, 0] * torch.cos(q1) - X1[..., 1, 1] * torch.sin(q1)
+        xa[..., 1, 1] = X1[..., 1, 0] * torch.sin(q1) + X1[..., 1, 1] * torch.cos(q1)
+
+        xb[..., 0, 0] = X2[..., 0, 0] * torch.cos(q2) - X2[..., 0, 1] * torch.sin(q2)
+        xb[..., 0, 1] = X2[..., 0, 0] * torch.sin(q2) + X2[..., 0, 1] * torch.cos(q2)
+        xb[..., 1, 0] = X2[..., 1, 0] * torch.cos(q2) - X2[..., 1, 1] * torch.sin(q2)
+        xb[..., 1, 1] = X2[..., 1, 0] * torch.sin(q2) + X2[..., 1, 1] * torch.cos(q2)
 
     if polarisation == "circular":
-        X1[..., 0, 0] *= torch.exp(1j * q1)
-        X1[..., 0, 1] *= 0
-        X1[..., 1, 0] *= 0
-        X1[..., 1, 1] *= torch.exp(-1j * q1)
+        xa[..., 0, 0] = X1[..., 0, 0] * torch.exp(1j * q1)
+        xa[..., 0, 1] = X1[..., 0, 1] * torch.exp(-1j * q1)
+        xa[..., 1, 0] = X1[..., 1, 0] * torch.exp(1j * q1)
+        xa[..., 1, 1] = X1[..., 1, 1] * torch.exp(-1j * q1)
 
-        X2[..., 0, 0] *= torch.exp(1j * q2)
-        X2[..., 0, 1] *= 0
-        X2[..., 1, 0] *= 0
-        X2[..., 1, 1] *= torch.exp(-1j * q2)
+        xb[..., 0, 0] = X2[..., 0, 0] * torch.exp(1j * q2)
+        xb[..., 0, 1] = X2[..., 0, 1] * torch.exp(-1j * q2)
+        xb[..., 1, 0] = X2[..., 1, 0] * torch.exp(1j * q2)
+        xb[..., 1, 1] = X2[..., 1, 1] * torch.exp(-1j * q2)
+
+    X1 = xa.clone()
+    X2 = xb.clone()
+
+    del xa, xb
 
     return X1, X2
 
