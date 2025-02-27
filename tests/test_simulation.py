@@ -59,7 +59,7 @@ def test_vis_loop():
     assert (vis_data[0].V_22[0]).dtype == torch.complex128
     assert (vis_data[0].V_12[0]).dtype == torch.complex128
     assert (vis_data[0].V_21[0]).dtype == torch.complex128
-    assert (vis_data[0].num).dtype == torch.float32
+    assert (vis_data[0].num).dtype == torch.float64
     assert (vis_data[0].base_num).dtype == torch.float64
     assert torch.is_tensor(vis_data[0].u)
     assert torch.is_tensor(vis_data[0].v)
@@ -98,7 +98,7 @@ def test_vis_loop_grid():
     assert (vis_data[0].V_22[0]).dtype == torch.complex128
     assert (vis_data[0].V_12[0]).dtype == torch.complex128
     assert (vis_data[0].V_21[0]).dtype == torch.complex128
-    assert (vis_data[0].num).dtype == torch.float32
+    assert (vis_data[0].num).dtype == torch.float64
     assert (vis_data[0].base_num).dtype == torch.float64
     assert torch.is_tensor(vis_data[0].u)
     assert torch.is_tensor(vis_data[0].v)
@@ -142,7 +142,7 @@ def test_vis_loop_batch_size_auto():
     assert (vis_data[0].V_22[0]).dtype == torch.complex128
     assert (vis_data[0].V_12[0]).dtype == torch.complex128
     assert (vis_data[0].V_21[0]).dtype == torch.complex128
-    assert (vis_data[0].num).dtype == torch.float32
+    assert (vis_data[0].num).dtype == torch.float64
     assert (vis_data[0].base_num).dtype == torch.float64
     assert torch.is_tensor(vis_data[0].u)
     assert torch.is_tensor(vis_data[0].v)

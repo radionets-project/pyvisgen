@@ -1,9 +1,8 @@
 from dataclasses import dataclass, fields
 from datetime import datetime
-from math import pi
 
-import astropy.constants as const
 import astropy.units as un
+import numpy as np
 import torch
 from astropy.constants import c
 from astropy.coordinates import AltAz, Angle, EarthLocation, Longitude, SkyCoord
@@ -12,6 +11,8 @@ from tqdm.autonotebook import tqdm
 
 from pyvisgen.layouts import layouts
 from pyvisgen.simulation.array import Array
+
+torch.set_default_dtype(torch.float64)
 
 __all__ = ["Baselines", "ValidBaselineSubset", "Observation"]
 
@@ -278,7 +279,7 @@ class ValidBaselineSubset:
 
     def get_unique_grid(
         self,
-        fov_size: float,
+        fov: float,
         ref_frequency: float,
         img_size: int,
         device: str,
@@ -288,7 +289,7 @@ class ValidBaselineSubset:
 
         Parameters
         ----------
-        fov_size : float
+        fov : float
             Size of the FOV.
         ref_frequency : float
             Reference frequency.
@@ -306,17 +307,17 @@ class ValidBaselineSubset:
         """
         uv = torch.cat([self.u_valid[None], self.v_valid[None]], dim=0)
 
-        fov = fov_size * pi / (3600 * 180)
-        delta = 1 / fov * const.c.value.item() / ref_frequency
-        bins = (
-            torch.arange(
-                start=-(img_size / 2) * delta,
-                end=(img_size / 2 + 1) * delta,
+        fov = np.deg2rad(fov / 3600, dtype=np.float128)
+        delta = fov ** (-1) * c.value / ref_frequency
+
+        bins = torch.from_numpy(
+            np.arange(
+                start=-(img_size / 2 + 1 / 2) * delta,
+                stop=(img_size / 2 + 1 / 2) * delta,
                 step=delta,
-                device=device,
-            )
-            + delta / 2
-        )
+                dtype=np.float128,
+            ).astype(np.float64)
+        ).to(device)
 
         if len(bins) - 1 > img_size:
             bins = bins[:-1]
@@ -473,7 +474,7 @@ class Observation:
         bandwidths : list
             Frequency bandwidth.
         fov : float
-            Field of view.
+            Field of view in arcseconds.
         image_size : int
             Image size of the sky distribution.
         array_layout : str
@@ -559,7 +560,7 @@ class Observation:
 
         self.show_progress = show_progress
 
-        if dense:
+        if dense:  # pragma: no cover
             self.waves_low = [self.ref_frequency]
             self.waves_high = [self.ref_frequency]
             self.calc_dense_baselines()
@@ -604,30 +605,25 @@ class Observation:
 
         return time, time.mjd * (60 * 60 * 24)
 
-    def calc_dense_baselines(self):
+    def calc_dense_baselines(self):  # pragma: no cover
         """Calculates the baselines of a densely-built
         antenna array, which would provide full coverage of the
         uv space.
         """
         N = self.img_size
-        fov = self.fov * pi / (3600 * 180)
+        fov = np.deg2rad(self.fov / 3600, dtype=np.float128)
         delta = fov ** (-1) * c.value / self.ref_frequency
 
-        u_dense = torch.arange(
-            start=-(N / 2) * delta,
-            end=(N / 2) * delta,
-            step=delta,
-            device=self.device,
-            dtype=torch.double,
-        )
+        u_dense = torch.from_numpy(
+            np.arange(
+                start=-(N / 2) * delta,
+                stop=(N / 2) * delta,
+                step=delta,
+                dtype=np.float128,
+            ).astype(np.float64)
+        ).to(self.device)
 
-        v_dense = torch.arange(
-            start=-(N / 2) * delta,
-            end=(N / 2) * delta,
-            step=delta,
-            device=self.device,
-            dtype=torch.double,
-        )
+        v_dense = u_dense
 
         uu, vv = torch.meshgrid(u_dense, v_dense)
         u = uu.flatten()
@@ -863,21 +859,22 @@ class Observation:
             Returns a 3d array with every pixel containing a RA and Dec value
         """
         # transform to rad
-        fov = self.fov / 3600 * (pi / 180)
+        fov = np.deg2rad(self.fov / 3600, dtype=np.float128)
 
         # define resolution
         res = fov / self.img_size
 
         dec = torch.deg2rad(self.dec)
 
-        r = (
-            torch.arange(self.img_size, device=self.device, dtype=torch.float64)
-            - self.img_size / 2
-        ) * res
-        d = (
-            torch.arange(self.img_size, device=self.device, dtype=torch.float64)
-            - self.img_size / 2
-        ) * res + dec
+        r = torch.from_numpy(
+            np.arange(
+                start=-(self.img_size / 2) * res,
+                stop=(self.img_size / 2) * res,
+                step=res,
+                dtype=np.float128,
+            ).astype(np.float64)
+        ).to(self.device)
+        d = r + dec
 
         R, _ = torch.meshgrid((r, r), indexing="ij")
         _, D = torch.meshgrid((d, d), indexing="ij")
@@ -900,15 +897,17 @@ class Observation:
         lm_grid : 3d array
             Returns a 3d array with every pixel containing an l and m value
         """
-        dec = torch.deg2rad(self.dec)
+        dec = np.deg2rad(self.dec.cpu().numpy()).astype(np.float128)
 
-        lm_grid = torch.zeros(self.rd.shape, device=self.device, dtype=torch.float64)
-        lm_grid[..., 0] = torch.cos(self.rd[..., 1]) * torch.sin(self.rd[..., 0])
-        lm_grid[..., 1] = torch.sin(self.rd[..., 1]) * torch.cos(dec) - torch.cos(
-            self.rd[..., 1]
-        ) * torch.sin(dec) * torch.cos(self.rd[..., 0])
+        rd = self.rd.cpu().numpy().astype(np.float128)
 
-        return lm_grid
+        lm_grid = np.zeros(rd.shape, dtype=np.float128)
+        lm_grid[..., 0] = np.cos(rd[..., 1]) * np.sin(rd[..., 0])
+        lm_grid[..., 1] = np.sin(rd[..., 1]) * np.cos(dec) - np.cos(
+            rd[..., 1]
+        ) * np.sin(dec) * np.cos(rd[..., 0])
+
+        return torch.from_numpy(lm_grid.astype(np.float64)).to(self.device)
 
     def calc_direction_cosines(
         self,
