@@ -4,8 +4,8 @@ from math import pi
 
 import astropy.constants as const
 import astropy.units as un
-import torch
 import numpy as np
+import torch
 from astropy.constants import c
 from astropy.coordinates import AltAz, Angle, EarthLocation, Longitude, SkyCoord
 from astropy.time import Time
@@ -562,7 +562,7 @@ class Observation:
 
         self.show_progress = show_progress
 
-        if dense: # pragma: no cover
+        if dense:  # pragma: no cover
             self.waves_low = [self.ref_frequency]
             self.waves_high = [self.ref_frequency]
             self.calc_dense_baselines()
@@ -606,9 +606,8 @@ class Observation:
         time = Time(time_lst)
 
         return time, time.mjd * (60 * 60 * 24)
- 
 
-    def calc_dense_baselines(self): # pragma: no cover
+    def calc_dense_baselines(self):  # pragma: no cover
         """Calculates the baselines of a densely-built
         antenna array, which would provide full coverage of the
         uv space.

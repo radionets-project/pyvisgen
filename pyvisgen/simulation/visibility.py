@@ -6,6 +6,7 @@ import torch
 from tqdm.autonotebook import tqdm
 
 import pyvisgen.simulation.scan as scan
+
 torch.set_default_dtype(torch.float64)
 
 __all__ = [
