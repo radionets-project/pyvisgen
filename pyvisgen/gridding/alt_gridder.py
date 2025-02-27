@@ -1,7 +1,7 @@
-from scipy.special.orthogonal import p_roots
-import scipy
-import numpy as np
 import astropy.constants as const
+import numpy as np
+import scipy
+from scipy.special.orthogonal import p_roots
 
 speedoflight = const.c.value
 
