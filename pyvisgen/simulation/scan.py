@@ -53,15 +53,15 @@ def rime(
         Returns visibility for every baseline
     """
     with torch.no_grad():
-        X1, X2 = calc_fourier(img, bas, lm, spw_low, spw_high)
+        X1 = calc_fourier(img, bas, lm, spw_low, spw_high)
 
         # if mode != "dense":
         #    X1, X2 = calc_feed_rotation(X1, X2, bas, polarisation)
 
-        if corrupted:
-            X1, X2 = calc_beam(X1, X2, rd, ra, dec, ant_diam, spw_low, spw_high)
+        # if corrupted:
+        #     X1, X2 = calc_beam(X1, X2, rd, ra, dec, ant_diam, spw_low, spw_high)
 
-        vis = integrate(X1, X2)
+        vis = integrate(X1)
     return vis
 
 
@@ -98,9 +98,9 @@ def calc_fourier(
         given baselines. Shape is given by lm axes and
         baseline axis.
     """
-    u_cmplt = bas[0]  # torch.cat((bas[0], bas[1]))
-    v_cmplt = bas[3]  # torch.cat((bas[3], bas[4]))
-    w_cmplt = bas[6]  # torch.cat((bas[6], bas[7]))
+    u_cmplt = bas[0]  # (bas[0] + bas[1]) / 2  # torch.cat((bas[0], bas[1]))
+    v_cmplt = bas[3]  # (bas[3] + bas[4]) / 2  # torch.cat((bas[3], bas[4]))
+    w_cmplt = bas[6]  # (bas[6] + bas[5]) / 2  # torch.cat((bas[6], bas[7]))
 
     l = lm[..., 0]  # noqa: E741
     m = lm[..., 1]
@@ -109,12 +109,17 @@ def calc_fourier(
     ul = u_cmplt[..., None] * l
     vm = v_cmplt[..., None] * m
     wn = w_cmplt[..., None] * (n - 1)
+
     del l, m, n, u_cmplt, v_cmplt, w_cmplt
 
-    K1 = torch.exp(-2 * pi * 1j * (ul + vm + wn) / c * spw_low)[..., None, None]
-    K2 = torch.exp(-2 * pi * 1j * (ul + vm + wn) / c * spw_high)[..., None, None]
+    # K1 = torch.exp(-2 * pi * 1j * (ul + vm + wn))[..., None, None]
+    # print((1/c) * ((spw_low + spw_high) / 2))
+    # print(ul + vm)
+    # print(-2 * pi * 1j *(ul + vm).real /c * ((spw_low + spw_high) / 2))
+    K1 = torch.exp(-2 * pi * 1j * (ul + vm) * spw_low / c)[..., None, None]
+    # K2 = torch.exp(-2 * pi * 1j * (ul + vm + wn) / c * (spw_low))[..., None, None]
     del ul, vm, wn
-    return img * K1, img * K2
+    return img * K1  # , img * K2
 
 
 @torch.compile
@@ -267,7 +272,7 @@ def jinc(x):
 
 
 @torch.compile
-def integrate(X1, X2):
+def integrate(X1):
     """Summation over (l,m) and avering over time and freq
 
     Parameters
@@ -282,22 +287,22 @@ def integrate(X1, X2):
     2d tensor
     Returns visibility for every baseline
     """
-    X_f = torch.stack((X1, X2))
-    int_m = torch.sum(X_f, dim=2)
+    # X_f = torch.stack((X1, X2))
+    int_m = torch.sum(X1, dim=1)
 
-    del X_f
+    # del X_f
 
     # only integrate for 1 sky dimension
     # 2d sky is reshaped to 1d by sensitivity mask
     # int_l = torch.sum(int_m, dim=2)
     # del int_m
-    int_f = 0.5 * torch.sum(int_m, dim=0)
-    del int_m
+    # int_f = 0.5 * torch.sum(int_m, dim=0)
+    # del int_m
 
     # X_t = torch.stack(torch.split(int_f, int(int_f.shape[0] / 2), dim=0))
     # del int_f
 
-    int_t = int_f  # 0.5 * torch.sum(X_t, dim=0)
+    # int_t = int_f  # 0.5 * torch.sum(X_t, dim=0)
     # del X_t
 
-    return int_t
+    return int_m
