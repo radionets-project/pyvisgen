@@ -4,6 +4,8 @@ import torch
 from scipy.constants import c
 from torch.special import bessel_j1
 
+torch.set_default_dtype(torch.float64)
+
 __all__ = [
     "rime",
     "calc_fourier",
@@ -98,9 +100,11 @@ def calc_fourier(
         given baselines. Shape is given by lm axes and
         baseline axis.
     """
-    u_cmplt = bas[0]
-    v_cmplt = bas[3]
-    w_cmplt = bas[6]
+    # only use u, v, w valid
+    u_cmplt = bas[2]
+    v_cmplt = bas[5]
+    w_cmplt = bas[8]
+
 
     l = lm[..., 0]  # noqa: E741
     m = lm[..., 1]
@@ -283,15 +287,15 @@ def integrate(X1, X2):
     Returns visibility for every baseline
     """
     X_f = torch.stack((X1, X2))
-    int_m = torch.sum(X_f, dim=2)
 
-    del X_f
-
+    # sum over all sky pixels
     # only integrate for 1 sky dimension
     # 2d sky is reshaped to 1d by sensitivity mask
-    # int_l = torch.sum(int_m, dim=2)
-    # del int_m
-    int_f = 0.5 * torch.sum(int_m, dim=0)
-    del int_m
+    int_lm = torch.sum(X_f, dim=2)
+    del X_f
+
+    # average two bandwidth edges
+    int_f = 0.5 * torch.sum(int_lm, dim=0)
+    del int_lm
 
     return int_f
