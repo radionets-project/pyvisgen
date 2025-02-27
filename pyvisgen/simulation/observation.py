@@ -317,7 +317,7 @@ class ValidBaselineSubset:
                 step=delta,
                 dtype=np.float128,
             ).astype(np.float64)
-        ).to(self.device)
+        ).to(device)
 
         if len(bins) - 1 > img_size:
             bins = bins[:-1]
