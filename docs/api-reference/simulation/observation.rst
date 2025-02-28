@@ -63,12 +63,15 @@ Field Of View   ``fov``        1       arcsec    The Field Of View of the test i
 
 .. code-block:: python
 
-  # define the preset values
+  # define the preset values and import model image
 
-  fov = 1
+  img = h5py.File("test_model.h5", "r")["model"][()] # import the test model
+  img_size = img.shape[0] # 60
+  fov = np.deg2rad(6000 / 3600) # fov / 3600 to convert from asec to deg
   freq = 230e9
   wavelength = c / freq
- 
+
+  delta_uv = fov ** (-1) 
 
 2. Creating the Ideal :math:`(u,v)` Coverage
 --------------------------------------------
@@ -80,7 +83,7 @@ This is given by the reciprocal value of the ``fov`` in the unit radians.
 
 .. code-block:: python
 
-  delta_uv = np.deg2rad(fov / 3600) ** (-1)
+  delta_uv = np.deg2rad(fov / 3600) ** (-1) # fov / 3600 to convert from asec to deg
 
 This ``delta_uv`` is now a manifold of the wavelength.
 
@@ -88,7 +91,8 @@ To create our grid of :math:`(u,v)` points, we will have to create two linear ax
 Since the scale of both is the same, we will only create one and copy it to the other one.
 Additionally we want their values to be in the center of their respective pixel. This means that one pair should be exactly at the
 Coordinate :math:`(u,v) = (0, 0)`. To achieve this we will also have to choose our binning correctly later on.
-Since every pixel should contain one point, we can simply use ``numpy.arange`` to create our :math:`u` and :math:`v` axes:
+Since every pixel should contain one point, we can simply use ``numpy.arange`` to create our :math:`u` and :math:`v` axes.
+Of these we then can create a 2-dimensional grid using ``numpy.meshgrid``.
 
 .. code-block:: python
 
@@ -99,6 +103,9 @@ Since every pixel should contain one point, we can simply use ``numpy.arange`` t
       ).astype(np.float64)
 
   vv = np.copy(uu)
+
+  uv_grid = np.meshgrid(uu, vv)
+
 
 The values are in the range from :math:`\left[-\frac{N_{\text{image}}}{2} \cdot \delta_{uv},\,\frac{N_{\text{image}}}{2} \cdot \delta_{uv}\right]`
 where :math:`N_{\text{image}}` is ``img_size`` and :math:`\delta_{uv}` is ``delta_uv``.
@@ -159,10 +166,136 @@ These points can now be plotted in the created grid with the following code:
 
 Since this seems to be working, we can now proceed to combine our now generated :math:`(u,v)` coverage and our image.
 
-2. Simulating the Observation
+3. Simulating the Observation
 -----------------------------
 
+The next step is to calculate the visiblities our interferometer measures. To do this we need to use the *RIME formalism* as described by [SMIRN2011]_,
+which uses a Jones formalism to model the path of the radio signal using a sum of matrix multiplications.
+The full-sky RIME is given by the following fomula:
 
+.. math::
+
+  V_{pq}(u_{pq}, v_{pq}) = \int_l\int_m \mathrm{\overline{E}}_p(l, m)\mathrm{K}_p(l, m)
+  \mathrm{B}(l, m)
+  \mathrm{K}_q^\dagger(l, m)\mathrm{\overline{E}}_q^\dagger(l, m) 
+  \frac{\symup{d}m\;\symup{d}l}{n}
+
+The 2-dimensional intensity distribution of the observed source, in our case our test image, is described by the :math:`\mathrm{B}` matrix.
+We integrate over the direction cosines :math:`l` and :math:`m`, which describe the position of the source on the tangential plane projection of our sky.
+Since the telescopes :math:`p` and :math:`q` are at seperate positions, the signal arrives with a geometrically based time delay between them.
+This creates a phase delay between the received signals. This is described by the :math:`\mathrm{K}_{p, q}`, which are combined by multiplication to form the
+:math:`\mathrm{K_{pq}}` matrix, which takes the form
+
+.. math::
+
+   K_{pq} = \exp\left[-2\pi i\left( u_{pq} l + v_{pq} m + w_{pq}\left(\sqrt{1 - l^2 - m^2} - 1\right)\right)\right]
+
+There our :math:`u` and :math:`v` coordinates are used to describe the positions of the telescopes normalized to the wavelength of our signal wave.
+The :math:`\mathrm{\overline{E}}` matrix describes the direction dependent effects of the telescope response.
+It is convention to define the :math:`w_{pq}` dependent part of the :math:`\mathrm{K}` matrix and the :math:`1/n` into the :math:`\mathrm{\overline{E}}` matrix
+which then becomes the :math:`\mathrm{\overline{E}}` matrix.
+Since we are looking at a perfect interferometer, we assume that we can neglect direction dependent effects which means that :math:`\mathrm{E} = \mathbb{1}`.
+
+This means that our needed equation to describe the visiblities of a pair of telescopes :math:`pq` looks like this:
+
+.. math::
+
+  \mathrm{V}_{pq}(u_{pq},v_{pq}) = \int_l\int_m \mathrm{B}(l,m)
+  \exp\left( -2\pi i \left( u_{pq}l + v_{pq}m \right)\right)
+  \symup{d}m\;\symup{d}l
+
+
+This is nothing less but the 2-dimensional Fourier transform of our model intensity distribution. Since we are in a discrete case, since our distribution is
+divided into pixels, the integral transitions to a discrete sum over the :math:`(l, m)` coordinates of each pixel.
+
+What's special about this Fourier transform is, that the real space coordinates are *not equidistant*. This is a problem if one is using a typical
+Fast Fourier Transform (FFT) algorithm like `numpy.fft.fft` since these assume a homogenous real space.
+For this reason we will have to use a *Nonuniform Fast Fourier Transform* (NUFFT) like the python implementation
+FINUFFT_ by the Flatiron Institute [BARN2019]_.
+
+In this the following formula is used to calculate the 2-dimensional Fourier transform for nonuniform coordinates:
+
+.. math::
+
+  f_{kl} = \sum_{i, j=1}^M c_{ij} e^{i (kx_j + ly_i)}~, \qquad \mbox{ for } \; k, l\in\mathbb{Z}, \quad -N/2 \le k,l \le N/2-1 ~.
+
+If we look at their coefficients, we can see, that we will need to modify our :math:`(l, m)` coordinates, since
+they are the :math:`x` parameters in this transform. Because the formula assumes the Fourier space coordinates :math:`(k, l)` to
+be whole numbers, we will need to put their scaling (the scaling of :math:`(u, v)`) into our :math:`(l, m)` coordinates as well.
+The formula also assumes the real space coordinates to be a manifold of :math:`2\pi`, which means this we will have to move into our
+coordinates as well.
+
+All in all we end up with the substitution:
+
+.. math::
+   (x_i, y_j) = (l, m) \to \frac{2\pi}{\Theta}(l, m),
+
+with :math:`\Theta` being the Field of View.
+Since the calculations of ``pyvisgen`` are done using ``pytorch`` to enable GPU-based calculations, we will use the FINUFFT wrapper
+`pytorch-finufft`_.
+
+To perform this calculation in our code, we will first need to create the values of :math:`(l, m)`. These are the direction cosines of
+a uniform grid in an equatorial coordinate system with coordinates RA (Right Ascension) and DEC (Declination). This grid will be called
+``rd_grid``. The code to calculate this grid is taken from :py:meth:`~pyvisgen.simulation.Observation.create_rd_grid` and 
+:py:meth:`~pyvisgen.simulation.Observation.create_lm_grid`.
+
+.. code-block::
+
+  def create_rd_grid(fov, img_size, dec):
+    res = fov / img_size
+    r = torch.from_numpy(
+        np.arange(
+            start=-(img_size / 2) * res,
+            stop=(img_size / 2) * res,
+            step=res,
+            dtype=np.float128,
+        ).astype(np.float64)
+    ).to(device)
+    d = r + dec
+
+    R, _ = torch.meshgrid((r, r), indexing="ij")
+    _, D = torch.meshgrid((d, d), indexing="ij")
+    rd_grid = torch.cat([R[..., None], D[..., None]], dim=2)
+
+    return rd_grid
+
+  def create_lm_grid(fov, img_size, dec):
+    
+    dec = np.deg2rad(dec).astype(np.float128)
+    
+    rd = create_rd_grid(fov=fov, 
+                        img_size=img_size, 
+                        dec=dec).cpu().numpy().astype(np.float128)
+
+    lm_grid = np.zeros(rd.shape, dtype=np.float128)
+    lm_grid[..., 0] = np.cos(rd[..., 1]) * np.sin(rd[..., 0])
+    lm_grid[..., 1] = np.sin(rd[..., 1]) * np.cos(dec) - np.cos(
+        rd[..., 1]
+    ) * np.sin(dec) * np.cos(rd[..., 0])
+
+    return torch.from_numpy(lm_grid.astype(np.float64)).to(device)
+
+We will assume that the center of our model is located at the declination :math:`0 \symup{deg}`.
+
+.. code-block::
+
+  lm_grid = create_lm_grid(fov=fov, img_size=img_size, dec=0)
+
+Now we have our :math:`(l, m)` grid and we can get to calculating our Fourier transform.
+
+.. [SMIRN2011] O. M. Smirnov. *Revisiting the radio interferometer measurement equation: I. A full-
+   sky Jones formalism*. A&A 527, 2011. DOI: `10.1051/0004-6361/201016082`_
+
+.. [BARN2019] A. Barnett, J. Magland and L. Klinteberg. *A parallel nonuniform fast Fourier transform library based
+   on an "exponential of semicircle" kernel*. SIAM Journal on Scientific Computing 41, 2019. DOI: `10.1137/18M120885X`_
+
+.. _10.1051/0004-6361/201016082: http://dx.doi.org/10.1051/0004-6361/201016082
+
+.. _10.1137/18M120885X: https://doi.org/10.1137/18M120885X
+
+.. _FINUFFT: https://finufft.readthedocs.io/en/latest/index.html
+
+.. _pytorch-finufft: https://flatironinstitute.github.io/pytorch-finufft/index.html
 
 Reference/API
 =============
