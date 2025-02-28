@@ -6,8 +6,10 @@ import torch
 from astropy import units as un
 from astropy.coordinates import AltAz, EarthLocation, SkyCoord
 from astropy.time import Time
+from joblib import Parallel, delayed
 from tqdm.autonotebook import tqdm
 
+import pyvisgen.fits.writer as writer
 import pyvisgen.layouts.layouts as layouts
 from pyvisgen.gridding import (
     calc_truth_fft,
@@ -37,11 +39,12 @@ class SimulateDataSet:
         *,
         grid: bool = True,
         slurm: bool = False,
-        job_id: int | None = None,
-        n: int | None = None,
+        slurm_job_id: int | None = None,
+        slurm_n: int | None = None,
         date_fmt: str = DATEFMT,
         num_images: int | None = None,
-    ) -> None:
+        multiprocess: int | str = 1,
+    ):
         """Simulates data from parameters in a config file.
 
         Parameters
@@ -56,9 +59,9 @@ class SimulateDataSet:
             save to HDF5 files. Default: ``True``
         slurm : bool, optional
             ``True``, if slurm is used, Default: ``False``
-        job_id : int or None, optional
+        slurm_job_id : int or None, optional
             ``job_id`` given by slurm. Default: ``None``
-        n : int or None, optional
+        slurm_n : int or None, optional
             Running index. Default: ``None``
         date_fmt : str, optional
             Format string for datetime objects.
@@ -67,14 +70,23 @@ class SimulateDataSet:
             Number of combined total images in the bundles.
             If not ``None``, will skip counting the images before
             drawing the random parameters. Default: ``None``
+        multiprocess : int or str, optional
+            Number of jobs to use in multiprocessing during the
+            sampling and testing phase. If -1 or ``'all'``,
+            use all available cores. Default: 1
         """
         cls = cls()
         cls.key = image_key
         cls.grid = grid
         cls.slurm = slurm
-        cls.job_id = job_id
-        cls.n = n
+        cls.job_id = slurm_job_id
+        cls.n = slurm_n
         cls.date_fmt = date_fmt
+        cls.num_images = num_images
+        cls.multiprocess = multiprocess
+
+        if multiprocess in ["all"]:
+            cls.multiprocess = -1
 
         cls.conf = read_data_set_conf(config)
 
@@ -90,8 +102,8 @@ class SimulateDataSet:
 
         cls.data_paths = load_bundles(cls.conf["in_path"])
 
-        if not num_images:
-            len_data = tqdm(
+        if not cls.num_images:
+            data_bundles = tqdm(
                 range(len(cls.data_paths)),
                 position=0,
                 leave=False,
@@ -99,19 +111,23 @@ class SimulateDataSet:
                 colour="#754fc9",
             )
             # get number of random parameter draws from number of images in data
-            num_draws = np.sum([len(cls.get_images(i)) for i in len_data])
-
-        # draw parameters beforehand, i.e. outside the simulation loop
-        cls.create_sampling_rc(num_draws)
+            cls.num_images = np.sum(
+                [len(cls.get_images(bundle)) for bundle in data_bundles]
+            )
 
         if slurm:
             cls._run_slurm()
         else:
+            # draw parameters beforehand, i.e. outside the simulation loop
+            cls.create_sampling_rc(cls.num_images)
             cls._run()
 
         return cls
 
-    def _run(self):
+    def _run(self) -> None:
+        """Runs the simulation and saves visibility data either as
+        bundled HDF5 files or as individual FITS files.
+        """
         data = tqdm(
             range(len(self.data_paths)),
             position=0,
@@ -167,19 +183,62 @@ class SimulateDataSet:
 
                 save_fft_pair(path=out, x=sim_data, y=truth_fft)
 
-                path_msg = self.conf["out_path_gridded"]
+                path_msg = Path(self.conf["out_path_gridded"]) / Path(
+                    f"samp_{self.conf['file_prefix']}_<id>.h5"
+                )
             else:
-                path_msg = self.conf["out_path_fits"]
+                for i, vis_data in enumerate(sim_data):
+                    out = self.out_path / Path(
+                        f"vis_{self.conf['file_prefix']}_" + str(i) + ".fits"
+                    )
+                    hdu_list = writer.create_hdu_list(vis_data, obs)
+                    hdu_list.writeto(out, overwrite=True)
+
+                path_msg = self.conf["out_path_fits"] / Path(
+                    f"samp_{self.conf['file_prefix']}_<id>.fits"
+                )
 
         print(
             f"Successfully simulated and saved {samp_ops_idx} images "
             f"to '{path_msg}'!"
         )
 
-    def _run_slurm():
-        raise NotImplementedError("Not implememented yet!")
+    def _run_slurm(self) -> None:
+        """Runs the simulation in slurm and saves visibility data
+        as individual FITS files.
+        """
+        job_id = int(self.slurm_job_id + self.slurm_n * 500)
+        out = self.conf["out_path_fits"] / Path("vis_" + str(job_id) + ".fits")
 
-    def get_images(self, i):
+        bundle = torch.div(job_id, self.num_images, rounding_mode="floor")
+        image = job_id - bundle * self.num_images
+
+        SI = torch.tensor(open_bundles(self.data_paths[bundle])[image])
+
+        if len(SI.shape) == 2:
+            SI = SI.unsqueeze(0)
+
+        self.create_sampling_rc(1)
+        obs = self.create_observation(0)
+        vis_data = vis_loop(obs, SI, noisy=self.conf["noisy"], mode=self.conf["mode"])
+
+        hdu_list = writer.create_hdu_list(vis_data, obs)
+        hdu_list.writeto(out, overwrite=True)
+
+    def get_images(self, i: int) -> torch.tensor:
+        """Opens bundle with index i and returns :func:`~torch.tensor`
+        of images.
+
+        Parameters
+        ----------
+        i : int
+            Bundle index.
+
+        Returns
+        -------
+        SIs : :func:`~torch.tensor`
+            :func:`~torch.tensor` of images from bundle ``i``.
+        """
         SIs = torch.tensor(open_bundles(self.data_paths[i], key=self.key))
 
         if len(SIs.shape) == 3:
@@ -187,7 +246,21 @@ class SimulateDataSet:
 
         return SIs
 
-    def create_observation(self, i):
+    def create_observation(self, i: int) -> Observation:
+        """Creates :class:`~pyvisgen.simulation.Observation`
+        dataclass object for image ``i``.
+
+        Parameters
+        ----------
+        i : int
+            Index of image for which the observation is created.
+
+        Returns
+        -------
+        obs : Observation
+            :class:`~pyvisgen.simulation.Observation` dataclass
+            object for image ``i``.
+        """
         rc = self.samp_ops
 
         # put the respective values inside the
@@ -222,7 +295,15 @@ class SimulateDataSet:
 
         return obs
 
-    def create_sampling_rc(self, size):
+    def create_sampling_rc(self, size: int) -> None:
+        """Creates sampling runtime configuration containing
+        all relevant parameters for the simulation.
+
+        Parameters
+        ----------
+        size : int
+            Number of parameters to draw, equal to number of images.
+        """
         if self.conf["seed"]:
             self.rng = np.random.default_rng(self.conf["seed"])
         else:
@@ -265,10 +346,25 @@ class SimulateDataSet:
             leave=False,
         )
 
-        for i in test_idx:
-            self.test_rand_opts(i)
+        self.array = layouts.get_array_layout(self.samp_ops_const["array_layout"])
 
-    def draw_sampling_opts(self, size):
+        Parallel(n_jobs=self.multiprocess)(
+            delayed(self.test_rand_opts)(i) for i in test_idx
+        )
+
+    def draw_sampling_opts(self, size: int) -> dict:
+        """Draws randomized sampling parameters for the simulation.
+
+        Parameters
+        ----------
+        size : int
+            Number of parameters to draw, equal to number of images.
+
+        Returns
+        -------
+        samp_opts : dict
+            Sampling options/parameters stored inside a dictionary.
+        """
         ra = self.rng.uniform(
             self.conf["fov_center_ra"][0][0], self.conf["fov_center_ra"][0][1], size
         )
@@ -328,7 +424,7 @@ class SimulateDataSet:
                 b = np.repeat(1, size, dtype=float)
                 field_scale = np.stack((a, b), axis=1)
 
-        samp_ops = dict(
+        samp_opts = dict(
             src_ra=ra,
             src_dec=dec,
             start_time=scan_start,
@@ -346,22 +442,31 @@ class SimulateDataSet:
         # later, we need to include it here instead of inside the
         # samp_ops_const dictionary.
 
-        return samp_ops
+        return samp_opts
 
-    def test_rand_opts(self, i):
-        array = layouts.get_array_layout(self.samp_ops_const["array_layout"])
+    def test_rand_opts(self, i: int) -> None:
+        """Tests randomized sampling parameters by checking
+        if the source is visible for 50% of the telescopes in
+        the array for 50% of the observation time. If that
+        condition is not fullfilled, the parameters are redrawn
+        and tested again.
 
+        Parameters
+        ----------
+        i : int
+            Index of the current set of sampling parameters.
+        """
         time_steps = self.calc_time_steps(i)
         src_crd = SkyCoord(
             self.samp_ops["src_ra"][i], self.samp_ops["src_dec"][i], unit=un.deg
         )
 
-        total_stations = len(array.st_num)
+        total_stations = len(self.array.st_num)
 
         locations = EarthLocation.from_geocentric(
-            x=array.x,
-            y=array.y,
-            z=array.z,
+            x=self.array.x,
+            y=self.array.y,
+            z=self.array.z,
             unit=un.m,
         )
 
@@ -370,7 +475,7 @@ class SimulateDataSet:
 
         # check which stations can see the source for each time step
         visible = np.logical_and(
-            array.el_low.numpy() <= src_alt, src_alt <= array.el_high.numpy()
+            self.array.el_low.numpy() <= src_alt, src_alt <= self.array.el_high.numpy()
         )
 
         # We want at least half of the telescopes to see the source
@@ -390,7 +495,20 @@ class SimulateDataSet:
 
             self.test_rand_opts(i)
 
-    def calc_time_steps(self, i):
+    def calc_time_steps(self, i: int) -> Time:
+        """Calculates time steps for given sampling
+        parameter set. Used in testing.
+
+        Parameters
+        ----------
+        i : int
+            Index of the current set of sampling parameters.
+
+        See Also
+        --------
+        pyvisgen.simulation.data_set.SimulateDataSet.test_rand_opts :
+            Tests randomized sampling parameters.
+        """
         start_time = Time(self.samp_ops["start_time"][i].isoformat(), format="isot")
         scan_separation = self.samp_ops_const["scan_separation"]
         num_scans = self.samp_ops["num_scans"][i]
