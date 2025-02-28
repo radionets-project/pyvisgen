@@ -32,6 +32,7 @@ dependencies = [
   "click",
   "h5py",
   "ipython",
+  "joblib",
   "jupyter",
   "matplotlib",
   "natsort",
