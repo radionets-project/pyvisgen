@@ -105,7 +105,6 @@ def calc_fourier(
     v_cmplt = bas[5]
     w_cmplt = bas[8]
 
-
     l = lm[..., 0]  # noqa: E741
     m = lm[..., 1]
     n = torch.sqrt(1 - l**2 - m**2)

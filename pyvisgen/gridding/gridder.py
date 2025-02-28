@@ -118,8 +118,29 @@ def grid_data(uv_data, freq_data, conf):
     return gridded_vis
 
 
-def grid_vis_loop_data(uu, vv, vis_data, freq_bands, conf, stokes_comp=0):
-    """Grid data coming from the vis_loop."""
+def grid_vis_loop_data(uu, vv, vis_data, freq_bands, conf, stokes_comp=0) -> np.array:
+    """Grid data returned by :func:`~pyvisgen.simulation.vis_loop`.
+
+    Parameters
+    ----------
+    uu : :func:`~torch.tensor`
+    vv : :func:`~torch.tensor`
+    vis_data : :class:`~pyvisgen.simulation.Visibilities`
+        :class:`~pyvisgen.simulation.Visibilities` dataclass object
+        containing the visibilities measured by the array.
+    freq_bands : list
+        List of frequency bands of the observation.
+    conf : dict
+        Dictionary containing the configuration of the observation.
+    stokes_comp : int, optional
+        Index of the stokes component to grid. Defaults to stokes I.
+        Default: 0
+
+    Returns
+    -------
+    gridded_vis : :func:`~np.array`
+        Array of gridded visibilities.
+    """
     if vis_data.ndim != 7:
         if vis_data.ndim == 3:
             vis_data = np.stack(
@@ -165,13 +186,17 @@ def grid_vis_loop_data(uu, vv, vis_data, freq_bands, conf, stokes_comp=0):
 
     # Generate Mask
     N = conf["grid_size"]  # image size
-    fov = conf["grid_fov"] * np.pi / (3600 * 180)
-
+    fov = np.deg2rad(conf["grid_fov"] / 3600)
     delta = 1 / fov
 
     # bins are shifted by delta/2 so that maximum in uv space matches maximum
     # in numpy fft
-    bins = np.arange(start=-((N + 1) / 2) * delta, stop=(N / 2) * delta, step=delta)
+    bins = np.arange(
+        start=-((N + 1) / 2) * delta,
+        stop=((N + 1) / 2) * delta,
+        step=delta,
+        dtype=np.float128,
+    )
 
     mask, *_ = np.histogram2d(samps[0], samps[1], bins=[bins, bins], density=False)
     mask[mask == 0] = 1

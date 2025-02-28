@@ -28,8 +28,8 @@ from pyvisgen.simulation.data_set import SimulateDataSet
     default="y",
     help="Key under which the images are saved in the HDF5 file",
 )
-@click.option("-j", "--job_id", required=False, type=int, default=None)
-@click.option("--n", required=False, type=int, default=None)
+@click.option("--slurm_job_id", required=False, type=int, default=None)
+@click.option("--slurm_n", required=False, type=int, default=None)
 @click.option(
     "--num_images",
     required=False,
@@ -40,14 +40,25 @@ from pyvisgen.simulation.data_set import SimulateDataSet
         Will skip the automatic count.
     """,
 )
+@click.option(
+    "-p",
+    "--multiprocess",
+    required=False,
+    help="""
+        Number of processes to run in parallel while
+        sampling and testing parameters. If -1 or
+        'all', will use all available cores.
+    """,
+)
 def main(
     configuration_path: str | click.Path,
     mode: str,
     key: str = "y",
-    job_id=None,
-    n=None,
+    slurm_job_id=None,
+    slurm_n=None,
     date_fmt="%d-%m-%Y %H:%M:%S",
     num_images: int | None = None,
+    multiprocess: int | str = 1,
 ):
     if mode == "simulate":
         SimulateDataSet.from_config(
@@ -56,14 +67,15 @@ def main(
             grid=False,
             date_fmt=date_fmt,
             num_images=num_images,
+            multiprocess=multiprocess,
         )
     if mode == "slurm":
         SimulateDataSet.from_config(
             configuration_path,
             image_key=key,
             slurm=True,
-            job_id=job_id,
-            n=n,
+            slurm_job_id=slurm_job_id,
+            slurm_n=slurm_n,
             date_fmt=date_fmt,
             num_images=num_images,
         )
@@ -74,6 +86,7 @@ def main(
             grid=True,
             date_fmt=date_fmt,
             num_images=num_images,
+            multiprocess=multiprocess,
         )
 
 
