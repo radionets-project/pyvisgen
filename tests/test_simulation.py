@@ -6,8 +6,10 @@ from numpy.testing import assert_array_equal, assert_raises
 from pyvisgen.utils.config import read_data_set_conf
 
 torch.manual_seed(1)
-config = "tests/test_conf.toml"
-conf = read_data_set_conf(config)
+
+CONFIG = "tests/test_conf.toml"
+
+conf = read_data_set_conf(CONFIG)
 out_path = Path(conf["out_path_fits"])
 out_path.mkdir(parents=True, exist_ok=True)
 
@@ -19,168 +21,162 @@ def test_get_data():
     assert len(data) > 0
 
 
-def test_create_sampling_rc():
-    from pyvisgen.simulation.data_set import create_sampling_rc, test_opts
+class TestSimulateDataSet:
+    """Unit test class for :class:``pyvisgen.simulation.SimulateDataSet``."""
 
-    samp_ops = create_sampling_rc(conf)
-    assert len(samp_ops) == 17
+    def setup_class(self):
+        """Set up common objects and variables for the following tests."""
+        from pyvisgen.simulation.data_set import SimulateDataSet
 
-    test_opts(samp_ops)
+        self.s = SimulateDataSet
 
+    def test_run_no_slurm(self):
+        self.s.from_config(CONFIG)
 
-def test_create_sampling_rc_no_seed():
-    from pyvisgen.simulation.data_set import create_sampling_rc, test_opts
+    def test_run_no_slurm_multiprocess(self):
+        self.s.from_config(CONFIG, multiprocess="all")
 
-    mod_conf = conf.copy()
-    mod_conf["seed"] = None
-
-    samp_ops = create_sampling_rc(mod_conf)
-    assert len(samp_ops) == 17
-
-    test_opts(samp_ops)
+    def test_run_no_slurm_num_images(self):
+        self.s.from_config(CONFIG, num_images=50)
 
 
-def test_vis_loop():
-    import torch
+class TestVisLoop:
+    """Unit test class for :func:``pyvisgen.simulation.vis_loop``."""
 
-    import pyvisgen.fits.writer as writer
-    from pyvisgen.simulation.data_set import create_observation
-    from pyvisgen.simulation.visibility import vis_loop
-    from pyvisgen.utils.data import load_bundles, open_bundles
+    def setup_class(self):
+        """Set up common objects and variables for the following tests."""
+        from pyvisgen.simulation.data_set import SimulateDataSet
 
-    bundles = load_bundles(conf["in_path"])
-    obs = create_observation(conf)
-    # num_active_telescopes = test_opts(samp_ops)
-    data = open_bundles(bundles[0])
-    SI = torch.tensor(data[0])[None]
-    vis_data = vis_loop(obs, SI, noisy=conf["noisy"], mode=conf["mode"])
+        self.s = SimulateDataSet
 
-    assert (vis_data[0].V_11[0]).dtype == torch.complex128
-    assert (vis_data[0].V_22[0]).dtype == torch.complex128
-    assert (vis_data[0].V_12[0]).dtype == torch.complex128
-    assert (vis_data[0].V_21[0]).dtype == torch.complex128
-    assert (vis_data[0].num).dtype == torch.float64
-    assert (vis_data[0].base_num).dtype == torch.float64
-    assert torch.is_tensor(vis_data[0].u)
-    assert torch.is_tensor(vis_data[0].v)
-    assert torch.is_tensor(vis_data[0].w)
-    assert (vis_data[0].date).dtype == torch.float64
+    def test_vis_loop(self):
+        import pyvisgen.fits.writer as writer
+        from pyvisgen.simulation.visibility import vis_loop
+        from pyvisgen.utils.data import load_bundles, open_bundles
 
-    # test num vis for time step 0
-    # num_vis_theory = num_active_telescopes * (num_active_telescopes - 1) / 2
-    # num_vis_calc = vis_data.base_num[vis_data.date == vis_data.date[0]].shape[0]
-    # dunno what's going on here
-    # assert num_vis_theory == num_vis_calc
-    #
+        bundles = load_bundles(conf["in_path"])
+        _, obs = self.s._get_obs_test(CONFIG)
 
-    out_path = Path(conf["out_path_fits"])
-    out = out_path / Path("vis_0.fits")
-    hdu_list = writer.create_hdu_list(vis_data, obs)
-    hdu_list.writeto(out, overwrite=True)
+        data = open_bundles(bundles[0])
+        SI = torch.tensor(data[0])[None]
+        vis_data = vis_loop(obs, SI, noisy=conf["noisy"], mode=conf["mode"])
 
+        assert (vis_data[0].V_11[0]).dtype == torch.complex128
+        assert (vis_data[0].V_22[0]).dtype == torch.complex128
+        assert (vis_data[0].V_12[0]).dtype == torch.complex128
+        assert (vis_data[0].V_21[0]).dtype == torch.complex128
+        assert (vis_data[0].num).dtype == torch.float64
+        assert (vis_data[0].base_num).dtype == torch.float64
+        assert torch.is_tensor(vis_data[0].u)
+        assert torch.is_tensor(vis_data[0].v)
+        assert torch.is_tensor(vis_data[0].w)
+        assert (vis_data[0].date).dtype == torch.float64
 
-def test_vis_loop_grid():
-    import torch
+        # test num vis for time step 0
+        # num_vis_theory = num_active_telescopes * (num_active_telescopes - 1) / 2
+        # num_vis_calc = vis_data.base_num[vis_data.date == vis_data.date[0]].shape[0]
+        # dunno what's going on here
+        # assert num_vis_theory == num_vis_calc
+        #
 
-    import pyvisgen.fits.writer as writer
-    from pyvisgen.simulation.data_set import create_observation
-    from pyvisgen.simulation.visibility import vis_loop
-    from pyvisgen.utils.data import load_bundles, open_bundles
+        out_path = Path(conf["out_path_fits"])
+        out = out_path / Path("vis_0.fits")
+        hdu_list = writer.create_hdu_list(vis_data, obs)
+        hdu_list.writeto(out, overwrite=True)
 
-    bundles = load_bundles(conf["in_path"])
-    obs = create_observation(conf)
-    # num_active_telescopes = test_opts(samp_ops)
-    data = open_bundles(bundles[0])
-    SI = torch.tensor(data[0])[None]
-    vis_data = vis_loop(obs, SI, noisy=conf["noisy"], mode="grid")
+    def test_vis_loop_grid(self):
+        import pyvisgen.fits.writer as writer
+        from pyvisgen.simulation.visibility import vis_loop
+        from pyvisgen.utils.data import load_bundles, open_bundles
 
-    assert (vis_data[0].V_11[0]).dtype == torch.complex128
-    assert (vis_data[0].V_22[0]).dtype == torch.complex128
-    assert (vis_data[0].V_12[0]).dtype == torch.complex128
-    assert (vis_data[0].V_21[0]).dtype == torch.complex128
-    assert (vis_data[0].num).dtype == torch.float64
-    assert (vis_data[0].base_num).dtype == torch.float64
-    assert torch.is_tensor(vis_data[0].u)
-    assert torch.is_tensor(vis_data[0].v)
-    assert torch.is_tensor(vis_data[0].w)
-    assert (vis_data[0].date).dtype == torch.float64
+        bundles = load_bundles(conf["in_path"])
+        _, obs = self.s._get_obs_test(CONFIG)
 
-    # test num vis for time step 0
-    # num_vis_theory = num_active_telescopes * (num_active_telescopes - 1) / 2
-    # num_vis_calc = vis_data.base_num[vis_data.date == vis_data.date[0]].shape[0]
-    # dunno what's going on here
-    # assert num_vis_theory == num_vis_calc
-    #
+        data = open_bundles(bundles[0])
+        SI = torch.tensor(data[0])[None]
+        vis_data = vis_loop(obs, SI, noisy=conf["noisy"], mode="grid")
 
-    out_path = Path(conf["out_path_fits"])
-    out = out_path / Path("vis_0.fits")
-    hdu_list = writer.create_hdu_list(vis_data, obs)
-    hdu_list.writeto(out, overwrite=True)
+        assert (vis_data[0].V_11[0]).dtype == torch.complex128
+        assert (vis_data[0].V_22[0]).dtype == torch.complex128
+        assert (vis_data[0].V_12[0]).dtype == torch.complex128
+        assert (vis_data[0].V_21[0]).dtype == torch.complex128
+        assert (vis_data[0].num).dtype == torch.float64
+        assert (vis_data[0].base_num).dtype == torch.float64
+        assert torch.is_tensor(vis_data[0].u)
+        assert torch.is_tensor(vis_data[0].v)
+        assert torch.is_tensor(vis_data[0].w)
+        assert (vis_data[0].date).dtype == torch.float64
 
+        # test num vis for time step 0
+        # num_vis_theory = num_active_telescopes * (num_active_telescopes - 1) / 2
+        # num_vis_calc = vis_data.base_num[vis_data.date == vis_data.date[0]].shape[0]
+        # dunno what's going on here
+        # assert num_vis_theory == num_vis_calc
+        #
 
-def test_vis_loop_batch_size_auto():
-    import torch
+        out_path = Path(conf["out_path_fits"])
+        out = out_path / Path("vis_0.fits")
+        hdu_list = writer.create_hdu_list(vis_data, obs)
+        hdu_list.writeto(out, overwrite=True)
 
-    from pyvisgen.simulation.data_set import create_observation
-    from pyvisgen.simulation.visibility import vis_loop
-    from pyvisgen.utils.data import load_bundles, open_bundles
+    def test_vis_loop_batch_size_auto(self):
+        from pyvisgen.simulation.visibility import vis_loop
+        from pyvisgen.utils.data import load_bundles, open_bundles
 
-    bundles = load_bundles(conf["in_path"])
-    obs = create_observation(conf)
-    data = open_bundles(bundles[0])
-    SI = torch.tensor(data[0])[None]
+        bundles = load_bundles(conf["in_path"])
+        _, obs = self.s._get_obs_test(CONFIG)
 
-    vis_data = vis_loop(
-        obs,
-        SI,
-        noisy=conf["noisy"],
-        mode=conf["mode"],
-        batch_size="auto",
-    )
+        data = open_bundles(bundles[0])
+        SI = torch.tensor(data[0])[None]
 
-    assert (vis_data[0].V_11[0]).dtype == torch.complex128
-    assert (vis_data[0].V_22[0]).dtype == torch.complex128
-    assert (vis_data[0].V_12[0]).dtype == torch.complex128
-    assert (vis_data[0].V_21[0]).dtype == torch.complex128
-    assert (vis_data[0].num).dtype == torch.float64
-    assert (vis_data[0].base_num).dtype == torch.float64
-    assert torch.is_tensor(vis_data[0].u)
-    assert torch.is_tensor(vis_data[0].v)
-    assert torch.is_tensor(vis_data[0].w)
-    assert (vis_data[0].date).dtype == torch.float64
+        vis_data = vis_loop(
+            obs,
+            SI,
+            noisy=conf["noisy"],
+            mode=conf["mode"],
+            batch_size="auto",
+        )
 
+        assert (vis_data[0].V_11[0]).dtype == torch.complex128
+        assert (vis_data[0].V_22[0]).dtype == torch.complex128
+        assert (vis_data[0].V_12[0]).dtype == torch.complex128
+        assert (vis_data[0].V_21[0]).dtype == torch.complex128
+        assert (vis_data[0].num).dtype == torch.float64
+        assert (vis_data[0].base_num).dtype == torch.float64
+        assert torch.is_tensor(vis_data[0].u)
+        assert torch.is_tensor(vis_data[0].v)
+        assert torch.is_tensor(vis_data[0].w)
+        assert (vis_data[0].date).dtype == torch.float64
 
-def test_vis_loop_batch_size_invalid():
-    import torch
+    def test_vis_loop_batch_size_invalid(self):
+        from pyvisgen.simulation.visibility import vis_loop
+        from pyvisgen.utils.data import load_bundles, open_bundles
 
-    from pyvisgen.simulation.data_set import create_observation
-    from pyvisgen.simulation.visibility import vis_loop
-    from pyvisgen.utils.data import load_bundles, open_bundles
+        bundles = load_bundles(conf["in_path"])
+        _, obs = self.s._get_obs_test(CONFIG)
 
-    bundles = load_bundles(conf["in_path"])
-    obs = create_observation(conf)
-    data = open_bundles(bundles[0])
-    SI = torch.tensor(data[0])[None]
+        data = open_bundles(bundles[0])
+        SI = torch.tensor(data[0])[None]
 
-    assert_raises(
-        ValueError,
-        vis_loop,
-        obs,
-        SI,
-        noisy=conf["noisy"],
-        mode=conf["mode"],
-        batch_size="abc",
-    )
+        assert_raises(
+            ValueError,
+            vis_loop,
+            obs,
+            SI,
+            noisy=conf["noisy"],
+            mode=conf["mode"],
+            batch_size="abc",
+        )
 
-    assert_raises(
-        ValueError,
-        vis_loop,
-        obs,
-        SI,
-        noisy=conf["noisy"],
-        mode=conf["mode"],
-        batch_size=20.0,
-    )
+        assert_raises(
+            ValueError,
+            vis_loop,
+            obs,
+            SI,
+            noisy=conf["noisy"],
+            mode=conf["mode"],
+            batch_size=20.0,
+        )
 
 
 class TestPolarisation:
@@ -188,10 +184,19 @@ class TestPolarisation:
 
     def setup_class(self):
         """Set up common objects and variables for the following tests."""
-        from pyvisgen.simulation.data_set import create_observation
+        from pyvisgen.simulation.data_set import SimulateDataSet
+        from pyvisgen.simulation.observation import (
+            DEFAULT_FIELD_KWARGS,
+            DEFAULT_POL_KWARGS,
+        )
         from pyvisgen.simulation.visibility import Polarisation
 
-        self.obs = create_observation(conf)
+        _, self.obs = SimulateDataSet._get_obs_test(conf)
+
+        # set to default kwargs for tests, otherwise
+        # some parameters of the config would be None
+        self.obs.field_kwargs = DEFAULT_FIELD_KWARGS
+        self.obs.pol_kwargs = DEFAULT_POL_KWARGS
 
         self.SI = torch.zeros((100, 100))
         self.SI[25::25, 25::25] = 1
@@ -408,9 +413,3 @@ class TestPolarisation:
 
         # expected to raise an AssertionError
         assert_raises(AssertionError, assert_array_equal, pf, pf_ref)
-
-
-def test_simulate_data_set_no_slurm():
-    from pyvisgen.simulation.data_set import simulate_data_set
-
-    simulate_data_set(config)

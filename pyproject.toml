@@ -28,24 +28,19 @@ classifiers = [
 requires-python = ">=3.10"
 
 dependencies = [
-  "astroplan",
   "astropy<=6.1.0",
   "click",
   "h5py",
   "ipython",
+  "joblib",
   "jupyter",
   "matplotlib",
   "natsort",
-  "numexpr",
   "numpy",
   "pandas",
-  "pre-commit",
-  "pytest",
-  "pytest-cov",
   "scipy",
   "toma",
   "toml",
-  "torch",
   "torch",
   "tqdm",
 ]
@@ -57,6 +52,10 @@ tests = [
   "pytest >= 7.0",
   "pytest-cov",
   "tomli",
+]
+
+dev = [
+  "pre-commit",
 ]
 
 docs = [
@@ -79,7 +78,7 @@ docs = [
 ]
 
 [project.scripts]
-pyvisgen_create_dataset = "pyvisgen.simulation.scripts.create_dataset:main"
+pyvisgen-simulate = "pyvisgen.simulation.scripts.create_dataset:main"
 
 [tool.setuptools_scm]
 write_to = "pyvisgen/_version.py"

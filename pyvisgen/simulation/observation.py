@@ -16,6 +16,7 @@ torch.set_default_dtype(torch.float64)
 
 __all__ = ["Baselines", "ValidBaselineSubset", "Observation"]
 
+
 DEFAULT_POL_KWARGS = {
     "delta": 0,
     "amp_ratio": 0.5,
@@ -599,8 +600,9 @@ class Observation:
             for i in range(self.num_scans)
             for j in range(int(self.scan_duration / self.int_time) + 1)
         ]
-        # +1 because t_1 is the stop time of t_0
-        # in order to save computing power we take one time more to complete interval
+        # +1 because t_1 is the stop time of t_0.
+        # In order to save computing power we take
+        # one time more to complete interval
         time = Time(time_lst)
 
         return time, time.mjd * (60 * 60 * 24)
@@ -675,8 +677,9 @@ class Observation:
             self.baselines.add_baseline(bas)
 
     def get_baselines(self, times):
-        """Calculates baselines from source coordinates and time of observation for
-        every antenna station in array_layout.
+        """Calculates baselines from source coordinates
+        and time of observation for every antenna station
+        in array_layout.
 
         Parameters
         ----------
@@ -688,6 +691,10 @@ class Observation:
         dataclass object
             baselines between telescopes with visibility flags
         """
+        # catch rare case where dimension of times is 0
+        if times.ndim == 0:
+            times = Time([times])
+
         # calculate GHA, local HA, and station elevation for all times.
         GHA, ha_local, el_st_all = self.calc_ref_elev(time=times)
 
@@ -809,7 +816,8 @@ class Observation:
         )
 
     def calc_feed_rotation(self, ha: Angle) -> Angle:
-        r"""Calculates feed rotation for every antenna at every time step.
+        r"""Calculates feed rotation for every antenna at
+        every time step.
 
         Notes
         -----
@@ -821,8 +829,9 @@ class Observation:
             q = \atan\left(\frac{\sin h}{\cos\delta
             \tan\varphi - \sin\delta \cos h\right),
 
-        where $h$ is the local hour angle, $\varphi$ the geographical latitude
-        of the observer, and $\delta$ the declination of the source.
+        where $h$ is the local hour angle, $\varphi$ the geographical
+        latitude of the observer, and $\delta$ the declination of
+        the source.
         """
         # We need to create a tensor from the EarthLocation object
         # and save only the geographical latitude of each antenna
