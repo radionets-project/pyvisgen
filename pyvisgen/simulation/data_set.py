@@ -135,7 +135,7 @@ class SimulateDataSet:
             colour="#52ba66",
         )
 
-        samp_ops_idx = 0
+        samp_opts_idx = 0
         for i in data:
             SIs = self.get_images(i)
             truth_fft = calc_truth_fft(SIs)
@@ -150,7 +150,7 @@ class SimulateDataSet:
 
             sim_data = []
             for SI in SIs:
-                obs = self.create_observation(samp_ops_idx)
+                obs = self.create_observation(samp_opts_idx)
                 vis = vis_loop(
                     obs, SI, noisy=self.conf["noisy"], mode=self.conf["mode"]
                 )
@@ -162,7 +162,7 @@ class SimulateDataSet:
 
                     sim_data.append(gridded)
 
-                samp_ops_idx += 1
+                samp_opts_idx += 1
 
             sim_data = np.array(sim_data)
 
@@ -199,7 +199,7 @@ class SimulateDataSet:
                 )
 
         print(
-            f"Successfully simulated and saved {samp_ops_idx} images "
+            f"Successfully simulated and saved {samp_opts_idx} images "
             f"to '{path_msg}'!"
         )
 
@@ -261,7 +261,7 @@ class SimulateDataSet:
             :class:`~pyvisgen.simulation.Observation` dataclass
             object for image ``i``.
         """
-        rc = self.samp_ops
+        rc = self.samp_opts
 
         # put the respective values inside the
         # pol_kwargs and field_kwargs dicts.
@@ -282,7 +282,7 @@ class SimulateDataSet:
             dense = True
 
         obs = Observation(
-            **self.samp_ops_const,
+            **self.samp_opts_const,
             src_ra=rc["src_ra"][i],
             src_dec=rc["src_dec"][i],
             start_time=rc["start_time"][i],
@@ -319,7 +319,7 @@ class SimulateDataSet:
         # Split sampling options into two dicts:
         # samps_ops_const is always the same, values in
         # samps_ops, however, will be drawn randomly.
-        self.samp_ops_const = dict(
+        self.samp_opts_const = dict(
             array_layout=self.conf["layout"][0],
             image_size=self.conf["img_size"][0],
             fov=self.conf["fov_size"],
@@ -336,19 +336,19 @@ class SimulateDataSet:
 
         # get second half of the sampling options;
         # this is the randomly drawn, i.e. non-constant, part
-        self.samp_ops = self.draw_sampling_opts(size)
+        self.samp_opts = self.draw_sampling_opts(size)
 
         test_idx = tqdm(
-            range(self.samp_ops["src_ra"].size),
+            range(self.samp_opts["src_ra"].size),
             position=0,
             desc="Pre-drawing and testing sample parameters",
             colour="#00c1a2",
             leave=False,
         )
 
-        self.array = layouts.get_array_layout(self.samp_ops_const["array_layout"])
+        self.array = layouts.get_array_layout(self.samp_opts_const["array_layout"])
 
-        Parallel(n_jobs=self.multiprocess)(
+        Parallel(n_jobs=self.multiprocess, backend="threading")(
             delayed(self.test_rand_opts)(i) for i in test_idx
         )
 
@@ -440,7 +440,7 @@ class SimulateDataSet:
         # as threshold=None should be suitable for almost all cases.
         # However, since threshold has to be in the field_kwargs dict
         # later, we need to include it here instead of inside the
-        # samp_ops_const dictionary.
+        # samp_opts_const dictionary.
 
         return samp_opts
 
@@ -458,7 +458,7 @@ class SimulateDataSet:
         """
         time_steps = self.calc_time_steps(i)
         src_crd = SkyCoord(
-            self.samp_ops["src_ra"][i], self.samp_ops["src_dec"][i], unit=un.deg
+            self.samp_opts["src_ra"][i], self.samp_opts["src_dec"][i], unit=un.deg
         )
 
         total_stations = len(self.array.st_num)
@@ -486,12 +486,12 @@ class SimulateDataSet:
         # we redraw the source ra and dec and scan start times, duration,
         # and number of scans. Then we test again by calling this function recursively.
         if visible_half.sum() < time_steps.size // 2:
-            redrawn_samp_ops = self.draw_sampling_opts(1)
-            self.samp_ops["src_ra"][i] = redrawn_samp_ops["src_ra"][0]
-            self.samp_ops["src_dec"][i] = redrawn_samp_ops["src_dec"][0]
-            self.samp_ops["start_time"][i] = redrawn_samp_ops["start_time"][0]
-            self.samp_ops["scan_duration"][i] = redrawn_samp_ops["scan_duration"][0]
-            self.samp_ops["num_scans"][i] = redrawn_samp_ops["num_scans"][0]
+            redrawn_samp_opts = self.draw_sampling_opts(1)
+            self.samp_opts["src_ra"][i] = redrawn_samp_opts["src_ra"][0]
+            self.samp_opts["src_dec"][i] = redrawn_samp_opts["src_dec"][0]
+            self.samp_opts["start_time"][i] = redrawn_samp_opts["start_time"][0]
+            self.samp_opts["scan_duration"][i] = redrawn_samp_opts["scan_duration"][0]
+            self.samp_opts["num_scans"][i] = redrawn_samp_opts["num_scans"][0]
 
             self.test_rand_opts(i)
 
@@ -509,11 +509,11 @@ class SimulateDataSet:
         pyvisgen.simulation.data_set.SimulateDataSet.test_rand_opts :
             Tests randomized sampling parameters.
         """
-        start_time = Time(self.samp_ops["start_time"][i].isoformat(), format="isot")
-        scan_separation = self.samp_ops_const["scan_separation"]
-        num_scans = self.samp_ops["num_scans"][i]
-        scan_duration = self.samp_ops["scan_duration"][i]
-        int_time = self.samp_ops_const["integration_time"]
+        start_time = Time(self.samp_opts["start_time"][i].isoformat(), format="isot")
+        scan_separation = self.samp_opts_const["scan_separation"]
+        num_scans = self.samp_opts["num_scans"][i]
+        scan_duration = self.samp_opts["scan_duration"][i]
+        int_time = self.samp_opts_const["integration_time"]
 
         time_lst = [
             start_time
@@ -529,3 +529,51 @@ class SimulateDataSet:
         time = Time(time_lst)
 
         return time
+
+    @classmethod
+    def _get_obs_test(
+        cls,
+        config: str | Path,
+        /,
+        image_key: str = "y",
+        *,
+        date_fmt: str = DATEFMT,
+    ) -> tuple:  # pragma: no cover
+        """Creates an :class:`~pyvisgen.simulation.Observation` class
+        object for tests.
+
+        Parameters
+        ----------
+        config : str or Path
+            Path to the config file.
+        image_key : str, optional
+            Key under which the true sky distributions are saved
+            in the HDF5 file. Default: ``'y'``
+        date_fmt : str, optional
+            Format string for datetime objects.
+            Default: ``'%d-%m-%Y %H:%M:%S'``
+
+        Returns
+        -------
+        self : SimulateDataSet
+            Class object.
+        obs : :class:`~pyvisgen.simulation.Observation`
+            :class:`~pyvisgen.simulation.Observation` class object.
+        """
+        cls = cls()
+        cls.key = image_key
+        cls.date_fmt = date_fmt
+        cls.multiprocess = 1
+
+        if isinstance(config, (str, Path)):
+            cls.conf = read_data_set_conf(config)
+        elif isinstance(config, dict):
+            cls.conf = config
+        else:
+            raise ValueError("Expected config to be one of str, Path or dict!")
+
+        cls.data_paths = load_bundles(cls.conf["in_path"])[0]
+        cls.create_sampling_rc(1)
+        obs = cls.create_observation(0)
+
+        return cls, obs
