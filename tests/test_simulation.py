@@ -39,6 +39,11 @@ class TestSimulateDataSet:
     def test_run_no_slurm_num_images(self):
         self.s.from_config(CONFIG, num_images=50)
 
+    def test_run_no_slurm_amp_phase_false(self):
+        config = conf
+        config["amp_phase"] = False
+        self.s.from_config(config, multiprocess="all")
+
 
 class TestVisLoop:
     """Unit test class for :func:``pyvisgen.simulation.vis_loop``."""
