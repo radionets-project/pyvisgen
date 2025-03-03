@@ -57,7 +57,7 @@ def rime(
     with torch.no_grad():
         X1, X2 = calc_fourier(img, bas, lm, spw_low, spw_high)
 
-        if mode != "dense":
+        if polarisation and mode != "dense":
             X1, X2 = calc_feed_rotation(X1, X2, bas, polarisation)
 
         if corrupted:
@@ -159,6 +159,7 @@ def calc_feed_rotation(
     xb = torch.zeros_like(X2)
 
     if polarisation == "linear":
+        print("lin")
         xa[..., 0, 0] = X1[..., 0, 0] * torch.cos(q1) - X1[..., 0, 1] * torch.sin(q1)
         xa[..., 0, 1] = X1[..., 0, 0] * torch.sin(q1) + X1[..., 0, 1] * torch.cos(q1)
         xa[..., 1, 0] = X1[..., 1, 0] * torch.cos(q1) - X1[..., 1, 1] * torch.sin(q1)
@@ -170,6 +171,7 @@ def calc_feed_rotation(
         xb[..., 1, 1] = X2[..., 1, 0] * torch.sin(q2) + X2[..., 1, 1] * torch.cos(q2)
 
     if polarisation == "circular":
+        print("circ")
         xa[..., 0, 0] = X1[..., 0, 0] * torch.exp(1j * q1)
         xa[..., 0, 1] = X1[..., 0, 1] * torch.exp(-1j * q1)
         xa[..., 1, 0] = X1[..., 1, 0] * torch.exp(1j * q1)
