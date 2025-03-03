@@ -126,8 +126,9 @@ def test_vis_loop_linear():
     from pyvisgen.utils.data import load_bundles, open_bundles
 
     bundles = load_bundles(conf["in_path"])
-    conf["polarisation"] = "linear"
     obs = create_observation(conf)
+
+    obs.polarisation = "linear"
 
     data = open_bundles(bundles[0])
     SI = torch.tensor(data[0])[None]
@@ -153,8 +154,11 @@ def test_vis_loop_circular():
     from pyvisgen.utils.data import load_bundles, open_bundles
 
     bundles = load_bundles(conf["in_path"])
-    conf["polarisation"] = "circular"
     obs = create_observation(conf)
+
+    obs.polarisation = "circular"
+
+    assert obs.polarisation == "circular"
 
     data = open_bundles(bundles[0])
     SI = torch.tensor(data[0])[None]
