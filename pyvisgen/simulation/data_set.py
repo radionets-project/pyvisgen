@@ -33,7 +33,7 @@ class SimulateDataSet:
     @classmethod
     def from_config(
         cls,
-        config: str | Path,
+        config: str | Path | dict,
         /,
         image_key: str = "y",
         *,
@@ -49,8 +49,9 @@ class SimulateDataSet:
 
         Parameters
         ----------
-        config : str or Path
-            Path to the config file.
+        config : str or Path or dict
+            Path to the config file or dict containing the configuration
+            parameters.
         image_key : str, optional
             Key under which the true sky distributions are saved
             in the HDF5 file. Default: ``'y'``
@@ -88,7 +89,12 @@ class SimulateDataSet:
         if multiprocess in ["all"]:
             cls.multiprocess = -1
 
-        cls.conf = read_data_set_conf(config)
+        if isinstance(config, (str, Path)):
+            cls.conf = read_data_set_conf(config)
+        elif isinstance(config, dict):
+            cls.conf = config
+        else:
+            raise ValueError("Expected config to be one of str, Path or dict!")
 
         print("Simulation Config:\n", cls.conf)
 
