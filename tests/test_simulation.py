@@ -40,9 +40,25 @@ class TestSimulateDataSet:
         self.s.from_config(CONFIG, num_images=50)
 
     def test_run_no_slurm_amp_phase_false(self):
-        config = conf
+        config = conf.copy()
         config["amp_phase"] = False
-        self.s.from_config(config, multiprocess="all")
+        self.s.from_config(config)
+
+    def test_raise_valerr_conf_path(self):
+        assert_raises(ValueError, self.s.from_config, 42)
+
+    def test_run_dense(self):
+        config = conf.copy()
+        config["mode"] = "dense"
+        assert_raises(ValueError, self.s.from_config, config)
+
+    def test_run_polarisation(self):
+        config = conf.copy()
+        config["polarisation"] = "linear"
+        self.s.from_config(config)
+
+    def test_run_no_gridding(self):
+        self.s.from_config(CONFIG, grid=False)
 
 
 class TestVisLoop:

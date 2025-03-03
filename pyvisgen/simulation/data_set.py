@@ -121,7 +121,7 @@ class SimulateDataSet:
                 [len(cls.get_images(bundle)) for bundle in data_bundles]
             )
 
-        if slurm:
+        if slurm:  # pragma: no cover
             cls._run_slurm()
         else:
             # draw parameters beforehand, i.e. outside the simulation loop
@@ -209,7 +209,7 @@ class SimulateDataSet:
             f"to '{path_msg}'!"
         )
 
-    def _run_slurm(self) -> None:
+    def _run_slurm(self) -> None:  # pragma: no cover
         """Runs the simulation in slurm and saves visibility data
         as individual FITS files.
         """
