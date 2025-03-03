@@ -152,8 +152,8 @@ def calc_feed_rotation(
     X2 : :func:`~torch.tensor`
         Fourier kernel with the applied feed rotation.
     """
-    q1 = torch.cat((bas[11], bas[12]))[..., None]
-    q2 = torch.cat((bas[14], bas[15]))[..., None]
+    q1 = bas[13][..., None]
+    q2 = bas[16][..., None]
 
     if polarisation == "linear":
         X1[..., 0, 0] *= torch.cos(q1)
