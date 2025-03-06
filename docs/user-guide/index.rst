@@ -9,3 +9,5 @@ User Guide
 
    getting-started
    about
+   examples_tutorials
+   examples_tutorials/index
