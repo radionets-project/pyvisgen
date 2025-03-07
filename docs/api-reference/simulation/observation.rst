@@ -8,7 +8,6 @@ Observation (:mod:`pyvisgen.simulation.observation`)
 
 Observation submodule of pyvisgen.
 
-
 Reference/API
 =============
 
