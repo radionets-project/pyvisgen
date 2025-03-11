@@ -199,6 +199,60 @@ class TestVisLoop:
             batch_size=20.0,
         )
 
+    def test_vis_loop_linear(self):
+        import torch
+
+        from pyvisgen.simulation.visibility import vis_loop
+        from pyvisgen.utils.data import load_bundles, open_bundles
+
+        bundles = load_bundles(conf["in_path"])
+        _, obs = self.s._get_obs_test(CONFIG)
+
+        obs.polarisation = "linear"
+
+        data = open_bundles(bundles[0])
+        SI = torch.tensor(data[0])[None]
+        vis_data = vis_loop(obs, SI, noisy=conf["noisy"], mode="grid")
+
+        assert (vis_data[0].V_11[0]).dtype == torch.complex128
+        assert (vis_data[0].V_22[0]).dtype == torch.complex128
+        assert (vis_data[0].V_12[0]).dtype == torch.complex128
+        assert (vis_data[0].V_21[0]).dtype == torch.complex128
+        assert (vis_data[0].num).dtype == torch.float64
+        assert (vis_data[0].base_num).dtype == torch.float64
+        assert torch.is_tensor(vis_data[0].u)
+        assert torch.is_tensor(vis_data[0].v)
+        assert torch.is_tensor(vis_data[0].w)
+        assert (vis_data[0].date).dtype == torch.float64
+
+    def test_vis_loop_circular(self):
+        import torch
+
+        from pyvisgen.simulation.visibility import vis_loop
+        from pyvisgen.utils.data import load_bundles, open_bundles
+
+        bundles = load_bundles(conf["in_path"])
+        _, obs = self.s._get_obs_test(CONFIG)
+
+        obs.polarisation = "circular"
+
+        assert obs.polarisation == "circular"
+
+        data = open_bundles(bundles[0])
+        SI = torch.tensor(data[0])[None]
+        vis_data = vis_loop(obs, SI, noisy=conf["noisy"], mode="grid")
+
+        assert (vis_data[0].V_11[0]).dtype == torch.complex128
+        assert (vis_data[0].V_22[0]).dtype == torch.complex128
+        assert (vis_data[0].V_12[0]).dtype == torch.complex128
+        assert (vis_data[0].V_21[0]).dtype == torch.complex128
+        assert (vis_data[0].num).dtype == torch.float64
+        assert (vis_data[0].base_num).dtype == torch.float64
+        assert torch.is_tensor(vis_data[0].u)
+        assert torch.is_tensor(vis_data[0].v)
+        assert torch.is_tensor(vis_data[0].w)
+        assert (vis_data[0].date).dtype == torch.float64
+
 
 class TestPolarisation:
     """Unit test class for ``pyvisgen.simulation.visibility.Polarisation``."""
