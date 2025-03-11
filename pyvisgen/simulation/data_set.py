@@ -121,6 +121,12 @@ class SimulateDataSet:
                 [len(cls.get_images(bundle)) for bundle in data_bundles]
             )
 
+        if isinstance(cls.num_images, (int, float)):
+            if int(cls.num_images) == 0:
+                raise ValueError(
+                    "No images found in bundles! Please check your input path!"
+                )
+
         if slurm:  # pragma: no cover
             cls._run_slurm()
         else:
