@@ -53,7 +53,6 @@ class SimulateDataSet:
         date_fmt: str = DATEFMT,
         num_images: int | None = None,
         multiprocess: int | str = 1,
-        device="cuda" if torch.cuda.is_available() else "cpu",
     ):
         """Simulates data from parameters in a config file.
 
@@ -85,9 +84,6 @@ class SimulateDataSet:
             Number of jobs to use in multiprocessing during the
             sampling and testing phase. If -1 or ``'all'``,
             use all available cores. Default: 1
-        device : str, optional
-            Device to allocate :func:`~torch.tensor`s on.
-            Default: ``'cuda'`` if cuda is available, otherwise ``'cpu'``
         """
         cls = cls()
         cls.key = image_key
@@ -98,7 +94,6 @@ class SimulateDataSet:
         cls.date_fmt = date_fmt
         cls.num_images = num_images
         cls.multiprocess = multiprocess
-        cls.device = device
 
         if multiprocess in ["all"]:
             cls.multiprocess = -1
@@ -111,6 +106,8 @@ class SimulateDataSet:
             raise ValueError("Expected config to be one of str, Path or dict!")
 
         print("Simulation Config:\n", cls.conf)
+
+        cls.device = cls.conf["device"]
 
         if grid:
             cls.out_path = Path(cls.conf["out_path_gridded"])
