@@ -48,7 +48,7 @@ def get_bundles(path: str | Path) -> np.array:
     return bundles
 
 
-def open_bundles(path: str | Path) -> np.array:
+def open_bundles(path: str | Path, key: str = "y") -> np.array:
     """Opens a bundle HDF5 file.
 
     Parameters
@@ -63,6 +63,6 @@ def open_bundles(path: str | Path) -> np.array:
         the bundle file.
     """
     f = h5py.File(path, "r")
-    bundle_y = np.array(f["y"])
+    bundle_y = np.array(f[key])
 
     return bundle_y
