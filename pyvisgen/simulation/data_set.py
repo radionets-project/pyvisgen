@@ -4,9 +4,9 @@ from pathlib import Path
 import numpy as np
 import torch
 from astropy import units as un
-from astropy.coordinates import AltAz, EarthLocation, SkyCoord
 from astropy.time import Time
 from joblib import Parallel, delayed
+from rich import print
 from tqdm.autonotebook import tqdm
 
 import pyvisgen.fits.writer as writer
@@ -24,6 +24,15 @@ from pyvisgen.utils.config import read_data_set_conf
 from pyvisgen.utils.data import load_bundles, open_bundles
 
 DATEFMT = "%d-%m-%Y %H:%M:%S"
+
+JD_EPOCH = Time("J2000.0").jd  # Reference epoch (J2000.0)
+DAYS_PER_CENTURY = 36525.0  # Number of days in a Julian century
+GST_COEFFS = {
+    "const": 280.4606,
+    "linear": 360.985647366,
+    "quadratic": 0.000387933,
+    "cubic": -2.583e-8,
+}
 
 
 class SimulateDataSet:
@@ -44,6 +53,7 @@ class SimulateDataSet:
         date_fmt: str = DATEFMT,
         num_images: int | None = None,
         multiprocess: int | str = 1,
+        device="cuda" if torch.cuda.is_available() else "cpu",
     ):
         """Simulates data from parameters in a config file.
 
@@ -75,6 +85,9 @@ class SimulateDataSet:
             Number of jobs to use in multiprocessing during the
             sampling and testing phase. If -1 or ``'all'``,
             use all available cores. Default: 1
+        device : str, optional
+            Device to allocate :func:`~torch.tensor`s on.
+            Default: ``'cuda'`` if cuda is available, otherwise ``'cpu'``
         """
         cls = cls()
         cls.key = image_key
@@ -85,6 +98,7 @@ class SimulateDataSet:
         cls.date_fmt = date_fmt
         cls.num_images = num_images
         cls.multiprocess = multiprocess
+        cls.device = device
 
         if multiprocess in ["all"]:
             cls.multiprocess = -1
@@ -129,6 +143,7 @@ class SimulateDataSet:
 
         if slurm:  # pragma: no cover
             cls._run_slurm()
+            pass
         else:
             # draw parameters beforehand, i.e. outside the simulation loop
             cls.create_sampling_rc(cls.num_images)
@@ -295,8 +310,8 @@ class SimulateDataSet:
 
         obs = Observation(
             **self.samp_opts_const,
-            src_ra=rc["src_ra"][i],
-            src_dec=rc["src_dec"][i],
+            src_ra=rc["src_ra"][i].cpu().numpy(),
+            src_dec=rc["src_dec"][i].cpu().numpy(),
             start_time=rc["start_time"][i],
             scan_duration=int(rc["scan_duration"][i]),
             num_scans=int(rc["num_scans"][i]),
@@ -351,14 +366,20 @@ class SimulateDataSet:
         self.samp_opts = self.draw_sampling_opts(size)
 
         test_idx = tqdm(
-            range(self.samp_opts["src_ra"].size),
+            range(self.samp_opts["src_ra"].size()[0]),
             position=0,
             desc="Pre-drawing and testing sample parameters",
             colour="#00c1a2",
             leave=False,
         )
 
+        # get array for later use and also get lon/lat conversion
         self.array = layouts.get_array_layout(self.samp_opts_const["array_layout"])
+        self.array_lat, self.array_lon = self._geocentric_to_spherical(
+            self.array.x.to(self.device),
+            self.array.y.to(self.device),
+            self.array.z.to(self.device),
+        )
 
         Parallel(n_jobs=self.multiprocess, backend="threading")(
             delayed(self.test_rand_opts)(i) for i in test_idx
@@ -409,7 +430,7 @@ class SimulateDataSet:
         # if polarisation is None, we don't need to enter the
         # conditional below, so we set delta, amp_ratio, field_order,
         # and field_scale to None.
-        delta, amp_ratio, field_order, field_scale = np.full((4, size), None)
+        delta, amp_ratio, field_order, field_scale = np.full((4, size), np.NaN)
 
         if self.conf["polarisation"]:
             if self.conf["pol_delta"]:
@@ -437,15 +458,15 @@ class SimulateDataSet:
                 field_scale = np.stack((a, b), axis=1)
 
         samp_opts = dict(
-            src_ra=ra,
-            src_dec=dec,
+            src_ra=torch.from_numpy(ra).to(self.device),
+            src_dec=torch.from_numpy(dec).to(self.device),
             start_time=scan_start,
-            scan_duration=scan_duration,
-            num_scans=num_scans,
-            delta=delta,
-            amp_ratio=amp_ratio,
-            order=field_order,
-            scale=field_scale,
+            scan_duration=torch.from_numpy(scan_duration).to(self.device),
+            num_scans=torch.from_numpy(num_scans).to(self.device),
+            delta=torch.from_numpy(delta).to(self.device),
+            amp_ratio=torch.from_numpy(amp_ratio).to(self.device),
+            order=torch.from_numpy(field_order).to(self.device),
+            scale=torch.from_numpy(field_scale).to(self.device),
             threshold=self.conf["field_threshold"],
         )
         # NOTE: We don't need to draw random values for threshold
@@ -468,44 +489,48 @@ class SimulateDataSet:
         i : int
             Index of the current set of sampling parameters.
         """
-        time_steps = self.calc_time_steps(i)
-        src_crd = SkyCoord(
-            self.samp_opts["src_ra"][i], self.samp_opts["src_dec"][i], unit=un.deg
-        )
+        # Loop until a valid observation is found
+        while True:
+            time_steps = self.calc_time_steps(i)
+            ra = self.samp_opts["src_ra"][i]
+            dec = self.samp_opts["src_dec"][i]
 
-        total_stations = len(self.array.st_num)
+            # calculate Greenwich sidereal time
+            jd = Time(time_steps).jd
 
-        locations = EarthLocation.from_geocentric(
-            x=self.array.x,
-            y=self.array.y,
-            z=self.array.z,
-            unit=un.m,
-        )
+            jd_diff = jd - JD_EPOCH
+            T = jd_diff / DAYS_PER_CENTURY
+            gst = (
+                GST_COEFFS["const"]
+                + GST_COEFFS["linear"] * jd_diff
+                + T * (GST_COEFFS["quadratic"] + T * GST_COEFFS["cubic"])
+            )
+            gst = gst % 360
 
-        altaz_frames = AltAz(obstime=time_steps[:, None], location=locations[None])
-        src_alt = src_crd.transform_to(altaz_frames).alt.degree
+            # Compute local sidereal time
+            lst = (gst[:, np.newaxis] + self.array_lon.cpu().numpy()) % 360
+            lst = torch.tensor(lst, device=self.device)
 
-        # check which stations can see the source for each time step
-        visible = np.logical_and(
-            self.array.el_low.numpy() <= src_alt, src_alt <= self.array.el_high.numpy()
-        )
+            alt = self._compute_altitude(ra, dec, lst)
 
-        # We want at least half of the telescopes to see the source
-        visible_count_per_t = visible.sum(axis=1)
-        visible_half = visible_count_per_t > total_stations // 2
+            # Check visibility
+            visible = torch.logical_and(
+                self.array.el_low.to(self.device) <= alt,
+                alt <= self.array.el_high.to(self.device),
+            )
+            visible_count_per_t = visible.sum(dim=1)
+            visible_half = visible_count_per_t > len(self.array.st_num) // 2
 
-        # If the source is not seen by half the telescopes half of the observation time,
-        # we redraw the source ra and dec and scan start times, duration,
-        # and number of scans. Then we test again by calling this function recursively.
-        if visible_half.sum() < time_steps.size // 2:
+            # Exit the loop if the condition is met
+            if visible_half.sum().item() >= time_steps.size // 2:
+                break
+
+            # Redraw sampling parameters if the condition is not met
             redrawn_samp_opts = self.draw_sampling_opts(1)
-            self.samp_opts["src_ra"][i] = redrawn_samp_opts["src_ra"][0]
-            self.samp_opts["src_dec"][i] = redrawn_samp_opts["src_dec"][0]
-            self.samp_opts["start_time"][i] = redrawn_samp_opts["start_time"][0]
-            self.samp_opts["scan_duration"][i] = redrawn_samp_opts["scan_duration"][0]
-            self.samp_opts["num_scans"][i] = redrawn_samp_opts["num_scans"][0]
+            keys = ["src_ra", "src_dec", "start_time", "scan_duration", "num_scans"]
 
-            self.test_rand_opts(i)
+            for key in keys:
+                self.samp_opts[key][i] = redrawn_samp_opts[key][0]
 
     def calc_time_steps(self, i: int) -> Time:
         """Calculates time steps for given sampling
@@ -516,31 +541,91 @@ class SimulateDataSet:
         i : int
             Index of the current set of sampling parameters.
 
+        Returns
+        -------
+        time_steps : :class:`~astropy.time.Time`
+            Observation time steps.
+
         See Also
         --------
         pyvisgen.simulation.data_set.SimulateDataSet.test_rand_opts :
             Tests randomized sampling parameters.
         """
         start_time = Time(self.samp_opts["start_time"][i].isoformat(), format="isot")
-        scan_separation = self.samp_opts_const["scan_separation"]
+
         num_scans = self.samp_opts["num_scans"][i]
+        scan_separation = self.samp_opts_const["scan_separation"]
         scan_duration = self.samp_opts["scan_duration"][i]
+
         int_time = self.samp_opts_const["integration_time"]
 
-        time_lst = [
+        time_steps = (
             start_time
-            + scan_separation * i * un.second
-            + i * scan_duration * un.second
-            + j * int_time * un.second
-            for i in range(num_scans)
-            for j in range(int(scan_duration / int_time) + 1)
-        ]
-        # +1 because t_1 is the stop time of t_0.
-        # In order to save computing power we take
-        # one time more to complete interval
-        time = Time(time_lst)
+            + torch.arange(num_scans)[:, None] * scan_separation * un.second
+            + torch.arange(int(scan_duration / int_time) + 1)[None, :]
+            * int_time
+            * un.second
+        ).flatten()
 
-        return time
+        return Time(time_steps)
+
+    def _geocentric_to_spherical(
+        self, x: torch.tensor, y: torch.tensor, z: torch.tensor
+    ) -> torch.tensor:
+        """Convert geocentric coordinates to lon/lat.
+
+        Parameters
+        ----------
+        x, y, z : :func:`~torch.tensor`
+            Cartesian coordinates in the geocentric coordinate
+            system.
+
+        Returns
+        -------
+        lon, lat : :func:`~torch.tensor`
+            Longitude and latitude representation of the
+            geocentric coordinates.
+        """
+        r = torch.sqrt(x**2 + y**2 + z**2)
+        lat = torch.rad2deg(torch.arcsin(z / r))
+        lon = torch.rad2deg(torch.atan2(y, x))
+
+        return lat, lon
+
+    def _compute_altitude(
+        self, ra: torch.tensor, dec: torch.tensor, lst: torch.tensor
+    ) -> torch.tensor:
+        """Computes altitude for a given RA/DEC, and local sidereal time (LST).
+
+        Parameters
+        ----------
+        ra, dec : :func:`~torch.tensor`
+            Right ascension and declination of the source.
+        lst : :func:`~torch.tensor`
+            Local sidereal time of the source.
+
+        Returns
+        -------
+        alt_rad : :func:`~torch.tensor`
+            Altitude of the source.
+        """
+        ra_rad = torch.deg2rad(ra)
+        dec_rad = torch.deg2rad(dec)
+        lst_rad = torch.deg2rad(lst)
+        lat_rad = torch.deg2rad(self.array_lat)
+
+        ha_rad = lst_rad - ra_rad
+
+        # Compute altitude using spherical trigonometry
+        sin_alt = torch.sin(dec_rad) * torch.sin(lat_rad) + torch.cos(
+            dec_rad
+        ) * torch.cos(lat_rad) * torch.cos(ha_rad)
+
+        # limit sin_alt to (-1, 1) to ensure numerical stability
+        # in the arcsin below
+        sin_alt = torch.clamp(sin_alt, -1, 1)
+        alt_rad = torch.arcsin(sin_alt)
+        return torch.rad2deg(alt_rad)
 
     @classmethod
     def _get_obs_test(

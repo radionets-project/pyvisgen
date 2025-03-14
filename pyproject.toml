@@ -38,6 +38,7 @@ dependencies = [
   "natsort",
   "numpy",
   "pandas",
+  "rich",
   "scipy",
   "toma",
   "toml",
