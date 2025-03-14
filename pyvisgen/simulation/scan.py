@@ -180,8 +180,8 @@ def calc_feed_rotation(
         xb[..., 1, 0] = X2[..., 1, 0] * torch.exp(1j * q2)
         xb[..., 1, 1] = X2[..., 1, 1] * torch.exp(-1j * q2)
 
-    X1 = xa.clone()
-    X2 = xb.clone()
+    X1 = xa.detach().clone()
+    X2 = xb.detach().clone()
 
     del xa, xb
 
