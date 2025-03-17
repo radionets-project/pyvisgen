@@ -215,7 +215,7 @@ This is nothing less but the 2-dimensional Fourier transform of our model intens
 divided into pixels, the integral transitions to a discrete sum over the :math:`(l, m)` coordinates of each pixel.
 
 What's special about this Fourier transform is, that the real space coordinates are *not equidistant*. This is a problem if one is using a typical
-Fast Fourier Transform (FFT) algorithm like `numpy.fft.fft` since these assume a homogenous real space.
+Fast Fourier Transform (FFT) algorithm like ``numpy.fft.fft`` since these assume a homogenous real space.
 For this reason we will have to use a *Nonuniform Fast Fourier Transform* (NUFFT) like the python implementation
 FINUFFT_ by the Flatiron Institute [BARN2019]_.
 
@@ -283,16 +283,14 @@ a uniform grid in an equatorial coordinate system with coordinates RA (Right Asc
 
 We will assume that the center of our model is located at the declination :math:`0\;\symup{deg}`.
 
+To demonstrate the effect of the non-equidistant :math:`(l, m)` points, we will first look at a much larger
+section of the sky with a FoV of :math:`90\;\symup{deg}`.
+
 .. code-block:: python
 
-    lm_grid = create_lm_grid(fov=fov, img_size=img_size, dec=0)
-
-    l = lm_grid[..., 0, 0].cpu().numpy()
-    m = lm_grid[..., 1, 0].cpu().numpy()
+    test_grid = create_lm_grid(fov=np.deg2rad(90), img_size=img_size, dec=0)
 
 The created :math:`(l, m)` grid is shown in the figure below.
-Additionally to the grid itself, the difference between the adjacent points in :math:`l` and :math:`m` is plotted
-to the left and right of the grid view.
 
 .. image:: ../../_static/resources/ideal_interferometer/lm_grid.png
    :width: 100%
@@ -306,9 +304,30 @@ to the left and right of the grid view.
    :align: center
    :alt: LM grid
 
-While the grid itself does not seem to have significant non-equidistant points,
-the difference between the points is clearly changing towards the middle, which will have an effect on our visibilities
-and the resulting dirty image.
+We can clearly see that the grid is not homogenous on the :math:`l` and the
+:math:`m` axes. This effect is existent but less impactful in case of a small FoV.
+
+The correct grid with our Field of View is calculated and plotted below:
+
+.. code-block:: python
+
+    lm_grid = create_lm_grid(fov=fov, img_size=img_size, dec=0)
+
+    l = lm_grid[..., 0, 0].cpu().numpy()
+    m = lm_grid[..., 1, 0].cpu().numpy()
+
+
+.. image:: ../../_static/resources/ideal_interferometer/lm_grid_small.png
+   :width: 100%
+   :class: only-light
+   :align: center
+   :alt: LM grid
+
+.. image:: ../../_static/resources/ideal_interferometer/lm_grid_small_dark.png
+   :width: 100%
+   :class: only-dark
+   :align: center
+   :alt: LM grid
 
 Now that we have our :math:`(l, m)` grid set up, we can continue to calculate the nonuniform Fourier transform:
 
