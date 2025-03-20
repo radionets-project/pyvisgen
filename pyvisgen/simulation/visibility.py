@@ -161,17 +161,20 @@ class Polarisation:
                 **field_kwargs,
             )
 
+            if isinstance(delta, float):
+                delta = torch.tensor(delta)
+
             self.delta = delta
 
             if amp_ratio and (amp_ratio >= 0):
                 ax2 = amp_ratio
             else:
-                ax2 = torch.rand(1)
+                ax2 = torch.rand(1).to(self.device)
 
             ay2 = 1 - ax2
 
-            self.ax2 = self.SI[..., 0].clone() * ax2
-            self.ay2 = self.SI[..., 0].clone() * ay2
+            self.ax2 = self.SI[..., 0].detach().clone().to(self.device) * ax2
+            self.ay2 = self.SI[..., 0].detach().clone().to(self.device) * ay2
         else:
             self.ax2 = self.SI[..., 0]
             self.ay2 = torch.zeros_like(self.ax2)
@@ -198,13 +201,13 @@ class Polarisation:
             2
             * torch.sqrt(self.ax2)
             * torch.sqrt(self.ay2)
-            * torch.cos(torch.deg2rad(torch.tensor(self.delta)))
+            * torch.cos(torch.deg2rad(self.delta))
         )
         self.I[..., 3] = (
             -2
             * torch.sqrt(self.ax2)
             * torch.sqrt(self.ay2)
-            * torch.sin(torch.deg2rad(torch.tensor(self.delta)))
+            * torch.sin(torch.deg2rad(self.delta))
         )
 
     def circular(self) -> None:
@@ -225,13 +228,13 @@ class Polarisation:
             2
             * torch.sqrt(self.ax2)
             * torch.sqrt(self.ay2)
-            * torch.cos(torch.deg2rad(torch.tensor(self.delta)))
+            * torch.cos(torch.deg2rad(self.delta))
         )
         self.I[..., 2] = (
             -2
             * torch.sqrt(self.ax2)
             * torch.sqrt(self.ay2)
-            * torch.sin(torch.deg2rad(torch.tensor(self.delta)))
+            * torch.sin(torch.deg2rad(self.delta))
         )
         self.I[..., 3] = self.ax2 - self.ay2
 
@@ -244,13 +247,13 @@ class Polarisation:
         self.I[..., 2] *= self.polarisation_field
         self.I[..., 3] *= self.polarisation_field
 
-        dop_I = self.I[..., 0].real.clone()
+        dop_I = self.I[..., 0].real.detach().clone()
         dop_I[~mask] = float("nan")
-        dop_Q = self.I[..., 1].real.clone()
+        dop_Q = self.I[..., 1].real.detach().clone()
         dop_Q[~mask] = float("nan")
-        dop_U = self.I[..., 2].real.clone()
+        dop_U = self.I[..., 2].real.detach().clone()
         dop_U[~mask] = float("nan")
-        dop_V = self.I[..., 3].real.clone()
+        dop_V = self.I[..., 3].real.detach().clone()
         dop_V[~mask] = float("nan")
 
         self.lin_dop = torch.sqrt(dop_Q**2 + dop_U**2) / dop_I
