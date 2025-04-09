@@ -57,7 +57,7 @@ def rime(
     with torch.no_grad():
         X1, X2 = calc_fourier(img, bas, lm, spw_low, spw_high)
 
-        if polarisation and mode != "dense":
+        if mode != "dense":
             X1, X2 = calc_feed_rotation(X1, X2, bas, polarisation)
 
         if corrupted:
