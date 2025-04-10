@@ -4,7 +4,6 @@ import torch
 from numpy import AxisError
 
 from pyvisgen.gridding.alt_gridder import ms2dirty_python_fast
-from pyvisgen.gridding.utils import _get_stokes_vis
 
 
 def ducc0_gridding(uv_data, freq_data):
@@ -229,3 +228,81 @@ def grid_vis_loop_data(
     gridded_vis[1] = mask_imag
 
     return gridded_vis
+
+
+def compute_single_stokes_component(
+    vis_data, stokes_comp_1: int, stokes_comp_2: int, sign: str
+):
+    """Computes single stokes components I, Q, U, or V from visibility
+    data for gridding.
+
+    Parameters
+    ----------
+    vis_data : :class:`~pyvisgen.simulation.Visibilities`
+        :class:`~pyvisgen.simulation.Visibilities` dataclass object
+        containing the visibilities measured by the array.
+    stokes_comp_1 : int
+        Index of first stokes visibility.
+    stokes_comp_2 : int
+        Index of second stokes visibility.
+    sign : str
+        Wether to add or substract ``stokes_comp_1`` and ``stokes_comp_2``.
+        Valid values are ``'+'`` or ``'-'``.
+    """
+    if sign not in "+-":
+        raise ValueError("'sign' can only be '+' or '-'!")
+    match sign:
+        case "+":
+            real = vis_data[..., stokes_comp_1, 0] + vis_data[..., stokes_comp_2, 0]
+            imag = vis_data[..., stokes_comp_1, 1] + vis_data[..., stokes_comp_2, 1]
+        case "-":
+            real = vis_data[..., stokes_comp_1, 0] - vis_data[..., stokes_comp_2, 0]
+            imag = vis_data[..., stokes_comp_1, 1] - vis_data[..., stokes_comp_2, 1]
+
+    vis = real + 1j * imag
+
+    return vis
+
+
+def _get_stokes_vis(vis_data, stokes_comp: str, polarization: str):
+    """Returns the stokes visibility for a given stokes component
+    depending on polarization.
+    """
+    if polarization == "circular":
+        match stokes_comp:
+            case "I":
+                stokes_vis = compute_single_stokes_component(vis_data, 0, 3, "+")
+            case "Q":
+                stokes_vis = compute_single_stokes_component(vis_data, 1, 2, "+")
+            case "U":
+                stokes_vis = compute_single_stokes_component(vis_data, 1, 2, "-")
+            case "V":
+                stokes_vis = compute_single_stokes_component(vis_data, 0, 3, "-")
+            case "I+V":
+                stokes_vis = vis_data[..., 0, 0] + 1j * vis_data[..., 0, 1]
+            case "Q+U":
+                stokes_vis = vis_data[..., 1, 0] + 1j * vis_data[..., 1, 1]
+            case "Q-U":
+                stokes_vis = vis_data[..., 2, 0] + 1j * vis_data[..., 2, 1]
+            case "I-V":
+                stokes_vis = vis_data[..., 3, 0] + 1j * vis_data[..., 3, 1]
+    else:
+        match stokes_comp:
+            case "I":
+                stokes_vis = compute_single_stokes_component(vis_data, 0, 3, "+")
+            case "Q":
+                stokes_vis = compute_single_stokes_component(vis_data, 0, 3, "-")
+            case "U":
+                stokes_vis = compute_single_stokes_component(vis_data, 1, 2, "+")
+            case "V":
+                stokes_vis = compute_single_stokes_component(vis_data, 1, 2, "-")
+            case "I+Q":
+                stokes_vis = vis_data[..., 0, 0] + 1j * vis_data[..., 0, 1]
+            case "U+V":
+                stokes_vis = vis_data[..., 1, 0] + 1j * vis_data[..., 1, 1]
+            case "U-V":
+                stokes_vis = vis_data[..., 2, 0] + 1j * vis_data[..., 2, 1]
+            case "I-Q":
+                stokes_vis = vis_data[..., 3, 0] + 1j * vis_data[..., 3, 1]
+
+    return np.squeeze(stokes_vis)
