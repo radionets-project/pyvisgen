@@ -11,10 +11,12 @@ pyvisgen |ci| |codecov|
     :alt: Code coverage
 
 
-Python implementation of the VISGEN tool developed at `Haystack Observatory <https://www.haystack.mit.edu/astronomy/>`_.
-It uses the Radio Interferometer Measurement Equation (RIME) to simulate the measurement process of a radio interferometer.
-A gridder is also implemented to process the resulting visibilities and convert them to images suitable as input for
-the neural networks developed in the `radionets repository <https://github.com/radionets-project/radionets>`_.
+Pyvisgen is a python implementation of the Radio Interferometer Measurement Equation (RIME)
+formalism inspired by the VISGEN tool of the `MIT Array Performance Simulator <https://github.com/piyanatk/MAPS>`_
+developed at `Haystack Observatory <https://www.haystack.mit.edu/astronomy/>`_. The RIME is used to simulate
+the measurement process of a radio interferometer. A gridder is also implemented to process the resulting
+visibilities and convert them to images suitable as input for the neural networks developed in the
+`radionets repository <https://github.com/radionets-project/radionets>`_.
 
 Installation
 ============
