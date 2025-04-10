@@ -675,6 +675,8 @@ class SimulateDataSet:
         else:
             raise ValueError("Expected config to be one of str, Path or dict!")
 
+        cls.device = cls.conf["device"]
+
         cls.data_paths = load_bundles(cls.conf["in_path"])[0]
         cls.create_sampling_rc(1)
         obs = cls.create_observation(0)
