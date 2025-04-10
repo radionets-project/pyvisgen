@@ -41,12 +41,12 @@ def read_data_set_conf(conf_toml: str | Path) -> dict:
     conf["noisy"] = config["sampling_options"]["noisy"]
     conf["sensitivty_cut"] = config["sampling_options"]["sensitivity_cut"]
 
-    conf["polarisation"] = config["polarisation_options"]["mode"]
-    conf["pol_delta"] = config["polarisation_options"]["delta"]
-    conf["pol_amp_ratio"] = config["polarisation_options"]["amp_ratio"]
-    conf["field_order"] = config["polarisation_options"]["field_order"]
-    conf["field_scale"] = config["polarisation_options"]["field_scale"]
-    conf["field_threshold"] = config["polarisation_options"]["field_threshold"]
+    conf["polarization"] = config["polarization_options"]["mode"]
+    conf["pol_delta"] = config["polarization_options"]["delta"]
+    conf["pol_amp_ratio"] = config["polarization_options"]["amp_ratio"]
+    conf["field_order"] = config["polarization_options"]["field_order"]
+    conf["field_scale"] = config["polarization_options"]["field_scale"]
+    conf["field_threshold"] = config["polarization_options"]["field_threshold"]
 
     conf["num_test_images"] = config["bundle_options"]["num_test_images"]
     conf["bundle_size"] = config["bundle_options"]["bundle_size"]

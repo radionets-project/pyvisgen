@@ -12,7 +12,7 @@ torch.set_default_dtype(torch.float64)
 __all__ = [
     "Visibilities",
     "vis_loop",
-    "Polarisation",
+    "Polarization",
     "generate_noise",
 ]
 
@@ -69,12 +69,12 @@ class Visibilities:
         ]
 
 
-class Polarisation:
-    r"""Simulation of polarisation.
+class Polarization:
+    r"""Simulation of polarization.
 
     Creates the :math:`2\times 2` stokes matrix and simulates
-    polarisation if ``polarisation`` is either ``'linear'``
-    or ``'circular'``. Also computes the degree of polarisation.
+    polarization if ``polarization`` is either ``'linear'``
+    or ``'circular'``. Also computes the degree of polarization.
 
     Parameters
     ----------
@@ -93,13 +93,13 @@ class Polarisation:
         Sets the phase difference of the amplitudes :math:`A_{X|R}`
         and :math:`A_{Y|L}`` of the sky distribution. Defines the
         measure of ellipticity.
-    polarisation : str
+    polarization : str
         Choose between ``'linear'`` or ``'circular'`` or ``None`` to
-        simulate different types of polarisations or disable
-        the simulation of polarisation entirely.
+        simulate different types of polarizations or disable
+        the simulation of polarization entirely.
     random_state : int
         Random state used when drawing ``amp_ratio`` and during
-        the generation of the random polarisation field.
+        the generation of the random polarization field.
     device : :class:`~torch.cuda.device`
         Torch device to select for computation.
     """
@@ -110,14 +110,14 @@ class Polarisation:
         sensitivity_cut: float,
         amp_ratio: float,
         delta: float,
-        polarisation: str,
+        polarization: str,
         field_kwargs: dict,
         random_state: int,
         device: torch.device,
     ) -> None:
         """Creates the :math:`2\times 2` stokes matrix and simulates
-        polarisation if ``polarisation`` is either ``'linear'``
-        or ``'circular'``. Also computes the degree of polarisation.
+        polarization if ``polarization`` is either ``'linear'``
+        or ``'circular'``. Also computes the degree of polarization.
 
         Parameters
         ----------
@@ -136,18 +136,18 @@ class Polarisation:
             Sets the phase difference of the amplitudes :math:`A_{X|R}`
             and :math:`A_{Y|L}`` of the sky distribution. Defines the
             measure of ellipticity.
-        polarisation : str
+        polarization : str
             Choose between ``'linear'`` or ``'circular'`` or ``None`` to
-            simulate different types of polarisations or disable
-            the simulation of polarisation entirely.
+            simulate different types of polarizations or disable
+            the simulation of polarization entirely.
         random_state : int
             Random state used when drawing ``amp_ratio`` and during
-            the generation of the random polarisation field.
+            the generation of the random polarization field.
         device : :class:`~torch.cuda.device`
             Torch device to select for computation.
         """
         self.sensitivity_cut = sensitivity_cut
-        self.polarisation = polarisation
+        self.polarization = polarization
         self.device = device
 
         self.SI = SI.permute(dims=(1, 2, 0))
@@ -155,8 +155,8 @@ class Polarisation:
         if random_state:
             torch.manual_seed(random_state)
 
-        if self.polarisation and self.polarisation in ["circular", "linear"]:
-            self.polarisation_field = self.rand_polarisation_field(
+        if self.polarization and self.polarization in ["circular", "linear"]:
+            self.polarization_field = self.rand_polarization_field(
                 [self.SI.shape[0], self.SI.shape[1]],
                 **field_kwargs,
             )
@@ -185,7 +185,7 @@ class Polarisation:
 
     def linear(self) -> None:
         r"""Computes the stokes parameters I, Q, U, and V
-        for linear polarisation.
+        for linear polarization.
 
         This is done using the following equations:
 
@@ -212,7 +212,7 @@ class Polarisation:
 
     def circular(self) -> None:
         r"""Computes the stokes parameters I, Q, U, and V
-        for circular polarisation.
+        for circular polarization.
 
         This is done using the following equations:
 
@@ -239,13 +239,13 @@ class Polarisation:
         self.I[..., 3] = self.ax2 - self.ay2
 
     def dop(self) -> None:
-        """Computes the degree of polarisation for each pixel."""
+        """Computes the degree of polarization for each pixel."""
         mask = (self.ax2 + self.ay2) > 0
 
-        # apply polarisation_field to Q, U, and V only
-        self.I[..., 1] *= self.polarisation_field
-        self.I[..., 2] *= self.polarisation_field
-        self.I[..., 3] *= self.polarisation_field
+        # apply polarization_field to Q, U, and V only
+        self.I[..., 1] *= self.polarization_field
+        self.I[..., 2] *= self.polarization_field
+        self.I[..., 3] *= self.polarization_field
 
         dop_I = self.I[..., 0].real.detach().clone()
         dop_I[~mask] = float("nan")
@@ -268,20 +268,20 @@ class Polarisation:
         -------
         B : torch.tensor
             2 x 2 stokes brightness matrix. Either for linear,
-            circular or no polarisation.
+            circular or no polarization.
         mask : torch.tensor
             Mask of the sensitivity cut (Keep all px > sensitivity_cut).
         lin_dop : torch.tensor
-            Degree of linear polarisation of every pixel in the sky.
+            Degree of linear polarization of every pixel in the sky.
         circ_dop : torch.tensor
-            Degree of circular polarisation of every pixel in the sky.
+            Degree of circular polarization of every pixel in the sky.
         """
         # define 2 x 2 Stokes matrix
         B = torch.zeros(
             (self.SI.shape[0], self.SI.shape[1], 2, 2), dtype=torch.cdouble
         ).to(torch.device(self.device))
 
-        if self.polarisation == "linear":
+        if self.polarization == "linear":
             self.linear()
             self.dop()
 
@@ -290,7 +290,7 @@ class Polarisation:
             B[..., 1, 0] = self.I[..., 2] - 1j * self.I[..., 3]  # U - iV
             B[..., 1, 1] = self.I[..., 0] - self.I[..., 1]  # I - Q
 
-        elif self.polarisation == "circular":
+        elif self.polarization == "circular":
             self.circular()
             self.dop()
 
@@ -300,9 +300,9 @@ class Polarisation:
             B[..., 1, 1] = self.I[..., 0] - self.I[..., 3]  # I - V
 
         else:
-            # No polarisation applied
+            # No polarization applied
             self.I[..., 0] = self.SI[..., 0]
-            self.polarisation_field = torch.ones_like(self.I[..., 0])
+            self.polarization_field = torch.ones_like(self.I[..., 0])
             self.dop()
 
             B[..., 0, 0] = self.I[..., 0] + self.I[..., 1]  # I + Q
@@ -316,7 +316,7 @@ class Polarisation:
 
         return B, mask, self.lin_dop, self.circ_dop
 
-    def rand_polarisation_field(
+    def rand_polarization_field(
         self,
         shape: list[int, int] | int,
         order: list[int, int] | int = 1,
@@ -325,7 +325,7 @@ class Polarisation:
         threshold: float = None,
     ) -> torch.tensor:
         """
-        Generates a random noise mask for polarisation.
+        Generates a random noise mask for polarization.
 
         Parameters
         ----------
@@ -426,13 +426,13 @@ def vis_loop(
         dense baselines. Default: 'full'
     batch_size : int, optional
         Batch size for iteration over baselines. Default: 100
-    polarisation : str, optional
+    polarization : str, optional
         Choose between `'linear'` or `'circular'` or `None` to
-        simulate different types of polarisations or disable
-        the simulation of polarisation. Default: 'linear'
+        simulate different types of polarizations or disable
+        the simulation of polarization. Default: 'linear'
     random_state : int, optional
         Random state used when drawing `amp_ratio` and during the generation
-        of the random polarisation field. Default: 42
+        of the random polarization field. Default: 42
     show_progress : bool, optional
         If `True`, show a progress bar during the iteration over the
         batches of baselines. Default: False
@@ -454,10 +454,10 @@ def vis_loop(
     ):
         raise ValueError("Expected batch_size to be 'auto' or type int")
 
-    pol = Polarisation(
+    pol = Polarization(
         SI,
         sensitivity_cut=obs.sensitivity_cut,
-        polarisation=obs.polarisation,
+        polarization=obs.polarization,
         device=obs.device,
         field_kwargs=obs.field_kwargs,
         **obs.pol_kwargs,
@@ -598,7 +598,7 @@ def _batch_loop(
                     torch.unique(obs.array.diam),
                     wave_low,
                     wave_high,
-                    obs.polarisation,
+                    obs.polarization,
                     mode=mode,
                     corrupted=obs.corrupted,
                 )[None]

@@ -24,7 +24,7 @@ def test_read_config():
         "corrupted",
         "noisy",
         "sensitivty_cut",
-        "polarisation",
+        "polarization",
         "pol_delta",
         "pol_amp_ratio",
         "field_order",

@@ -401,17 +401,17 @@ class Observation:
     sensitivity_cut : float, optional
         Sensitivity threshold, where only pixels above the value
         are kept. Default: ``1e-6``
-    polarisation : str, optional
+    polarization : str, optional
         Choose between ``'linear'`` or ``'circular'`` or ``None`` to
-        simulate different types of polarisations or disable
-        the simulation of polarisation. Default: ``None``
+        simulate different types of polarizations or disable
+        the simulation of polarization. Default: ``None``
     pol_kwargs : dict, optional
         Additional keyword arguments for the simulation
-        of polarisation. Default:
+        of polarization. Default:
         ``{'delta': 0,'amp_ratio': 0.5,'random_state': 42}``
     field_kwargs : dict, optional
-        Additional keyword arguments for the random polarisation
-        field that is applied when simulating polarisation.
+        Additional keyword arguments for the random polarization
+        field that is applied when simulating polarization.
         Default:
         ``{'order': [1, 1],'scale': [0, 1],'threshold': None,'random_state': 42}``
     show_progress : bool, optional
@@ -420,8 +420,8 @@ class Observation:
 
     Notes
     -----
-    See :class:`~pyvisgen.simulation.Polarisation` and
-    :class:`~pyvisgen.simulation.Polarisation.rand_polarisation_field`
+    See :class:`~pyvisgen.simulation.polarization` and
+    :class:`~pyvisgen.simulation.polarization.rand_polarization_field`
     for more information on the keyword arguments in ``pol_kwargs``
     and ``field_kwargs``, respectively.
     """
@@ -445,7 +445,7 @@ class Observation:
         device: str,
         dense: bool = False,
         sensitivity_cut: float = 1e-6,
-        polarisation: str = None,
+        polarization: str = None,
         pol_kwargs: dict = DEFAULT_POL_KWARGS,
         field_kwargs: dict = DEFAULT_FIELD_KWARGS,
         show_progress: bool = False,
@@ -490,16 +490,16 @@ class Observation:
         sensitivity_cut : float, optional
             Sensitivity threshold, where only pixels above the value
             are kept. Default: ``1e-6``
-        polarisation : str, optional
+        polarization : str, optional
             Choose between ``'linear'`` or ``'circular'`` or ``None`` to
-            simulate different types of polarisations or disable
-            the simulation of polarisation. Default: ``None``
+            simulate different types of polarizations or disable
+            the simulation of polarization. Default: ``None``
         pol_kwargs : dict, optional
-            Additional keyword arguments for the simulation of polarisation.
+            Additional keyword arguments for the simulation of polarization.
             Default: ``{'delta': 0,'amp_ratio': 0.5,'random_state': 42}``
         field_kwargs : dict, optional
-            Additional keyword arguments for the random polarisation
-            field that is applied when simulating polarisation.
+            Additional keyword arguments for the random polarization
+            field that is applied when simulating polarization.
             Default:
             ``{'order': [1, 1],'scale': [0, 1],'threshold': None,'random_state': 42}``
         show_progress : bool, optional
@@ -508,8 +508,8 @@ class Observation:
 
         Notes
         -----
-        See :class:`~pyvisgen.simulation.Polarisation` and
-        :class:`~pyvisgen.simulation.Polarisation.rand_polarisation_field`
+        See :class:`~pyvisgen.simulation.polarization` and
+        :class:`~pyvisgen.simulation.Polarization.rand_polarization_field`
         for more information on the keyword arguments in ``pol_kwargs``
         and ``field_kwargs``, respectively.
         """
@@ -577,8 +577,8 @@ class Observation:
         self.rd = self.create_rd_grid()
         self.lm = self.create_lm_grid()
 
-        # polarisation
-        self.polarisation = polarisation
+        # polarization
+        self.polarization = polarization
         self.pol_kwargs = pol_kwargs
         self.field_kwargs = field_kwargs
 
