@@ -873,7 +873,7 @@ class Observation:
         # define resolution
         res = fov / self.img_size
 
-        dec = torch.deg2rad(self.dec)
+        dec = torch.deg2rad(self.dec).to(self.device)
 
         r = torch.from_numpy(
             np.arange(
