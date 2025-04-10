@@ -50,6 +50,14 @@ from pyvisgen.simulation.data_set import SimulateDataSet
         'all', will use all available cores.
     """,
 )
+@click.option(
+    "-s",
+    "--stokes",
+    required=False,
+    type=str,
+    default="I",
+    help="""Stokes component to grid/simulate.""",
+)
 def main(
     configuration_path: str | click.Path,
     mode: str,
@@ -59,6 +67,7 @@ def main(
     date_fmt="%d-%m-%Y %H:%M:%S",
     num_images: int | None = None,
     multiprocess: int | str = 1,
+    stokes: str = "I",
 ):
     if mode == "simulate":
         SimulateDataSet.from_config(

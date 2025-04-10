@@ -53,6 +53,7 @@ class SimulateDataSet:
         date_fmt: str = DATEFMT,
         num_images: int | None = None,
         multiprocess: int | str = 1,
+        stokes: str = "I",
     ):
         """Simulates data from parameters in a config file.
 
@@ -94,6 +95,8 @@ class SimulateDataSet:
         cls.date_fmt = date_fmt
         cls.num_images = num_images
         cls.multiprocess = multiprocess
+
+        cls.stokes_comp = stokes
 
         if multiprocess in ["all"]:
             cls.multiprocess = -1
@@ -181,7 +184,13 @@ class SimulateDataSet:
 
                 if self.grid:
                     gridded = grid_vis_loop_data(
-                        vis.u, vis.v, vis.get_values(), self.freq_bands, self.conf
+                        vis.u,
+                        vis.v,
+                        vis.get_values(),
+                        self.freq_bands,
+                        self.conf,
+                        self.stokes_comp,
+                        self.conf["polarization"],
                     )
 
                     sim_data.append(gridded)
@@ -355,7 +364,7 @@ class SimulateDataSet:
             corrupted=self.conf["corrupted"],
             device=self.conf["device"],
             sensitivity_cut=self.conf["sensitivty_cut"],
-            polarisation=self.conf["polarisation"],
+            polarization=self.conf["polarization"],
         )  # NOTE: scan_separation and integration_time may change in the future
 
         # get second half of the sampling options;
@@ -424,12 +433,12 @@ class SimulateDataSet:
         if num_scans.size == 1:
             num_scans = num_scans.astype(int)
 
-        # if polarisation is None, we don't need to enter the
+        # if polarization is None, we don't need to enter the
         # conditional below, so we set delta, amp_ratio, field_order,
         # and field_scale to None.
         delta, amp_ratio, field_order, field_scale = np.full((4, size), np.NaN)
 
-        if self.conf["polarisation"]:
+        if self.conf["polarization"]:
             if self.conf["pol_delta"]:
                 delta = np.repeat(self.conf["pol_delta"], size)
             else:

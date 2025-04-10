@@ -1,8 +1,10 @@
 import astropy.constants as const
 import numpy as np
+import torch
 from numpy import AxisError
 
 from pyvisgen.gridding.alt_gridder import ms2dirty_python_fast
+from pyvisgen.gridding.utils import _get_stokes_vis
 
 
 def ducc0_gridding(uv_data, freq_data):
@@ -118,7 +120,15 @@ def grid_data(uv_data, freq_data, conf):
     return gridded_vis
 
 
-def grid_vis_loop_data(uu, vv, vis_data, freq_bands, conf, stokes_comp=0) -> np.array:
+def grid_vis_loop_data(
+    uu: torch.tensor,
+    vv: torch.tensor,
+    vis_data,
+    freq_bands: list,
+    conf: dict,
+    stokes_comp: int = "I",
+    polarization: str | None = None,
+) -> np.array:
     """Grid data returned by :func:`~pyvisgen.simulation.vis_loop`.
 
     Parameters
@@ -135,6 +145,8 @@ def grid_vis_loop_data(uu, vv, vis_data, freq_bands, conf, stokes_comp=0) -> np.
     stokes_comp : int, optional
         Index of the stokes component to grid. Defaults to stokes I.
         Default: 0
+    polarization: str or None, optional
+        Polarization type in the data. Default: ``'I'``
 
     Returns
     -------
@@ -159,18 +171,13 @@ def grid_vis_loop_data(uu, vv, vis_data, freq_bands, conf, stokes_comp=0) -> np.
     u = np.array([uu * np.array(freq) for freq in freq_bands]).ravel()
     v = np.array([vv * np.array(freq) for freq in freq_bands]).ravel()
 
+    # get stokes visibilities depending on stokes component to grid
+    # and polarization mode
+    stokes_vis = _get_stokes_vis(vis_data, stokes_comp, polarization)
     try:
-        stokes_vis = (
-            np.squeeze(
-                (vis_data[..., stokes_comp, 0] + 1j * vis_data[..., stokes_comp, 1])
-            )
-            .swapaxes(0, 1)
-            .ravel()
-        )
+        stokes_vis = stokes_vis.swapaxes(0, 1).ravel()
     except AxisError:
-        stokes_vis = np.squeeze(
-            (vis_data[..., stokes_comp, 0] + 1j * vis_data[..., stokes_comp, 1])
-        ).ravel()
+        stokes_vis = stokes_vis.ravel()
 
     real = stokes_vis.real
     imag = stokes_vis.imag
