@@ -2,30 +2,39 @@
 mode = "full"
 device = "cpu"
 seed = 1337
-layout = "vla"
-img_size = 128
+layout = "vlba"
+img_size = 1024
 fov_center_ra = [100, 110]
 fov_center_dec = [30, 40]
-fov_size = 100
+fov_size = 0.24
 corr_int_time = 30.0
-scan_start = ["16-01-2020 00:04:01", "16-01-2020 08:59:59"]
-scan_duration = [60, 90]
-num_scans = [1, 2]
+scan_start = ["01-01-1995 00:00:01", "01-01-2025 23:59:59"]
+scan_duration = [20, 600]
+num_scans = [6, 10]
 scan_separation = 360
-ref_frequency = 15.21e9
-frequency_offsets = [0e8, 0.8e8, 1.44e8, 2.08e8]
-bandwidths = [6.4e7, 6.4e7, 6.4e7, 6.4e7]
+ref_frequency = 15.17600e9
+frequency_offsets = [0e8, 1.28e8, 2.56e8, 3.84e8]
+bandwidths = [1.28e8, 1.28e8, 1.28e8, 1.28e8]
 noisy = 0
 corrupted = false
 sensitivity_cut = 1e-6
 
+[polarization_options]
+mode = "none"  # linear, circular, or "none"
+delta = 45  # phase angle
+amp_ratio = 0.5  # polarization amplitude ratio
+field_order = [0.01, 0.01]  # (x, y) orders of the random polarization field
+field_scale = [0, 1]  # scaling of the intensity of the polarization field
+field_threshold = "none"
+
 [bundle_options]
-in_path = "skies/"
-out_path_fits = "build/uvfits"
-out_path_gridded = "build/gridded"
+file_prefix="train"  # e.g. train, test, or valid. If "none", no prefix will be applied
+in_path = "/path/to/input/data/"
+out_path_fits = "/output/path/"
+out_path_gridded = "/output/path/for/gridding/"
 num_test_images = 500
 bundle_size = 100
 train_valid_split = 0.2
-grid_size = 128
-grid_fov = 100
+grid_size = 1024
+grid_fov = 0.24
 amp_phase = false

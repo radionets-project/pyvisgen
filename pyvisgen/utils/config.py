@@ -18,6 +18,7 @@ def read_data_set_conf(conf_toml: str | Path) -> dict:
         Simulation configuration.
     """
     config = toml.load(conf_toml)
+    config = sanitize_conf(config)
     conf = {}
 
     conf["mode"] = config["sampling_options"]["mode"]
@@ -40,6 +41,13 @@ def read_data_set_conf(conf_toml: str | Path) -> dict:
     conf["noisy"] = config["sampling_options"]["noisy"]
     conf["sensitivty_cut"] = config["sampling_options"]["sensitivity_cut"]
 
+    conf["polarization"] = config["polarization_options"]["mode"]
+    conf["pol_delta"] = config["polarization_options"]["delta"]
+    conf["pol_amp_ratio"] = config["polarization_options"]["amp_ratio"]
+    conf["field_order"] = config["polarization_options"]["field_order"]
+    conf["field_scale"] = config["polarization_options"]["field_scale"]
+    conf["field_threshold"] = config["polarization_options"]["field_threshold"]
+
     conf["num_test_images"] = config["bundle_options"]["num_test_images"]
     conf["bundle_size"] = config["bundle_options"]["bundle_size"]
     conf["train_valid_split"] = config["bundle_options"]["train_valid_split"]
@@ -49,4 +57,37 @@ def read_data_set_conf(conf_toml: str | Path) -> dict:
     conf["in_path"] = config["bundle_options"]["in_path"]
     conf["out_path_fits"] = config["bundle_options"]["out_path_fits"]
     conf["out_path_gridded"] = config["bundle_options"]["out_path_gridded"]
+    conf["file_prefix"] = config["bundle_options"]["file_prefix"]
+
+    # handle case if file_prefix = None
+    if not conf["file_prefix"]:
+        conf["file_prefix"] = ""
+
     return conf
+
+
+def sanitize_conf(conf: dict) -> dict:
+    """Sanitizes a given dict by replacinginstances of
+    'none' str with None.
+
+    Parameters
+    ----------
+    conf : list
+        Unsanitized config dict.
+
+    Returns
+    -------
+    sanitized_conf : list
+        Sanitized conf dict where all instances of 'none'
+        are replaced with None.
+    """
+    sanitized_conf = {}
+    for key, val in conf.items():
+        if isinstance(val, dict):
+            val = sanitize_conf(val)
+        elif isinstance(val, str) and val == "none":
+            val = None
+
+        sanitized_conf[key] = val
+
+    return sanitized_conf
