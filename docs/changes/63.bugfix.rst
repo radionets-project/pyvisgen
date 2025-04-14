@@ -1,0 +1,2 @@
+* `examples/ideal_interferometer.ipynb`: Added a new code cell to create an `lm_grid` with used fov parameters.
+*  fixed missing images for the `lm_grid` in the docs.
