@@ -1,7 +1,7 @@
 import astropy.constants as const
 import numpy as np
 import torch
-from numpy import AxisError
+from numpy.exceptions import AxisError
 
 from pyvisgen.gridding.alt_gridder import ms2dirty_python_fast
 
