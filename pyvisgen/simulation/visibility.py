@@ -161,7 +161,7 @@ class Polarization:
                 **field_kwargs,
             )
 
-            if isinstance(delta, float):
+            if isinstance(delta, (float, int)):
                 delta = torch.tensor(delta)
 
             self.delta = delta
