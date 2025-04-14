@@ -1,7 +1,6 @@
 import astropy.constants as const
 import numpy as np
-import scipy
-from scipy.special.orthogonal import p_roots
+from scipy.special import p_roots
 
 speedoflight = const.c.value
 
@@ -32,8 +31,9 @@ def init(
     else:
         nwplanes, w0, dw = 1, None, None
     gridcoord = [np.linspace(-0.5, 0.5, nn, endpoint=False) for nn in ng]
-    slc0, slc1 = slice(nxdirty // 2, nxdirty * 3 // 2), slice(
-        nydirty // 2, nydirty * 3 // 2
+    slc0, slc1 = (
+        slice(nxdirty // 2, nxdirty * 3 // 2),
+        slice(nydirty // 2, nydirty * 3 // 2),
     )
     u *= pixsizex
     v *= pixsizey
@@ -81,7 +81,6 @@ def ms2dirty_python_fast(
     u, v, w, w0, dw, nwplanes, nm1, kernel, gridcoord, slc0, slc1, ng, vis = init(
         uvw, freq, nxdirty, nydirty, pixsizex, pixsizey, epsilon, do_wgridding, vis
     )
-    im = np.zeros((nxdirty, nydirty))
     supp = kernel._supp
     for ii in range(nwplanes):
         grid = np.zeros(ng, dtype=vis.dtype)
