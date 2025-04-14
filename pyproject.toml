@@ -51,7 +51,12 @@ dependencies = [
 
 [project.optional-dependencies]
 
-tests = ["h5py", "pytest >= 7.0", "pytest-cov", "tomli"]
+tests = [
+  "h5py",
+  "pytest >= 7.0",
+  "pytest-cov",
+  "tomli",
+]
 
 dev = [
   "pre-commit",
@@ -86,7 +91,12 @@ write_to = "pyvisgen/_version.py"
 where = ["."]
 
 [tool.coverage.run]
-omit = ["pyvisgen/version.py", "pyvisgen/_version.py", "docs/*"]
+omit = [
+  "pyvisgen/version.py",
+  "pyvisgen/_version.py",
+  "docs/*",
+  "pyvisgen/gridding/alt_gridder.py",
+]
 
 [tool.coverage.xml]
 output = "coverage.xml"
