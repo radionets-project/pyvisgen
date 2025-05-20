@@ -16,6 +16,7 @@ torch.set_default_dtype(torch.float64)
 
 __all__ = ["Baselines", "ValidBaselineSubset", "Observation"]
 
+
 DEFAULT_POL_KWARGS = {
     "delta": 0,
     "amp_ratio": 0.5,
@@ -400,17 +401,17 @@ class Observation:
     sensitivity_cut : float, optional
         Sensitivity threshold, where only pixels above the value
         are kept. Default: ``1e-6``
-    polarisation : str, optional
+    polarization : str, optional
         Choose between ``'linear'`` or ``'circular'`` or ``None`` to
-        simulate different types of polarisations or disable
-        the simulation of polarisation. Default: ``None``
+        simulate different types of polarizations or disable
+        the simulation of polarization. Default: ``None``
     pol_kwargs : dict, optional
         Additional keyword arguments for the simulation
-        of polarisation. Default:
+        of polarization. Default:
         ``{'delta': 0,'amp_ratio': 0.5,'random_state': 42}``
     field_kwargs : dict, optional
-        Additional keyword arguments for the random polarisation
-        field that is applied when simulating polarisation.
+        Additional keyword arguments for the random polarization
+        field that is applied when simulating polarization.
         Default:
         ``{'order': [1, 1],'scale': [0, 1],'threshold': None,'random_state': 42}``
     show_progress : bool, optional
@@ -419,8 +420,8 @@ class Observation:
 
     Notes
     -----
-    See :class:`~pyvisgen.simulation.Polarisation` and
-    :class:`~pyvisgen.simulation.Polarisation.rand_polarisation_field`
+    See :class:`~pyvisgen.simulation.polarization` and
+    :class:`~pyvisgen.simulation.polarization.rand_polarization_field`
     for more information on the keyword arguments in ``pol_kwargs``
     and ``field_kwargs``, respectively.
     """
@@ -444,7 +445,7 @@ class Observation:
         device: str,
         dense: bool = False,
         sensitivity_cut: float = 1e-6,
-        polarisation: str = None,
+        polarization: str = None,
         pol_kwargs: dict = DEFAULT_POL_KWARGS,
         field_kwargs: dict = DEFAULT_FIELD_KWARGS,
         show_progress: bool = False,
@@ -489,16 +490,16 @@ class Observation:
         sensitivity_cut : float, optional
             Sensitivity threshold, where only pixels above the value
             are kept. Default: ``1e-6``
-        polarisation : str, optional
+        polarization : str, optional
             Choose between ``'linear'`` or ``'circular'`` or ``None`` to
-            simulate different types of polarisations or disable
-            the simulation of polarisation. Default: ``None``
+            simulate different types of polarizations or disable
+            the simulation of polarization. Default: ``None``
         pol_kwargs : dict, optional
-            Additional keyword arguments for the simulation of polarisation.
+            Additional keyword arguments for the simulation of polarization.
             Default: ``{'delta': 0,'amp_ratio': 0.5,'random_state': 42}``
         field_kwargs : dict, optional
-            Additional keyword arguments for the random polarisation
-            field that is applied when simulating polarisation.
+            Additional keyword arguments for the random polarization
+            field that is applied when simulating polarization.
             Default:
             ``{'order': [1, 1],'scale': [0, 1],'threshold': None,'random_state': 42}``
         show_progress : bool, optional
@@ -507,8 +508,8 @@ class Observation:
 
         Notes
         -----
-        See :class:`~pyvisgen.simulation.Polarisation` and
-        :class:`~pyvisgen.simulation.Polarisation.rand_polarisation_field`
+        See :class:`~pyvisgen.simulation.polarization` and
+        :class:`~pyvisgen.simulation.Polarization.rand_polarization_field`
         for more information on the keyword arguments in ``pol_kwargs``
         and ``field_kwargs``, respectively.
         """
@@ -576,8 +577,8 @@ class Observation:
         self.rd = self.create_rd_grid()
         self.lm = self.create_lm_grid()
 
-        # polarisation
-        self.polarisation = polarisation
+        # polarization
+        self.polarization = polarization
         self.pol_kwargs = pol_kwargs
         self.field_kwargs = field_kwargs
 
@@ -599,8 +600,9 @@ class Observation:
             for i in range(self.num_scans)
             for j in range(int(self.scan_duration / self.int_time) + 1)
         ]
-        # +1 because t_1 is the stop time of t_0
-        # in order to save computing power we take one time more to complete interval
+        # +1 because t_1 is the stop time of t_0.
+        # In order to save computing power we take
+        # one time more to complete interval
         time = Time(time_lst)
 
         return time, time.mjd * (60 * 60 * 24)
@@ -675,8 +677,9 @@ class Observation:
             self.baselines.add_baseline(bas)
 
     def get_baselines(self, times):
-        """Calculates baselines from source coordinates and time of observation for
-        every antenna station in array_layout.
+        """Calculates baselines from source coordinates
+        and time of observation for every antenna station
+        in array_layout.
 
         Parameters
         ----------
@@ -688,6 +691,10 @@ class Observation:
         dataclass object
             baselines between telescopes with visibility flags
         """
+        # catch rare case where dimension of times is 0
+        if times.ndim == 0:
+            times = Time([times])
+
         # calculate GHA, local HA, and station elevation for all times.
         GHA, ha_local, el_st_all = self.calc_ref_elev(time=times)
 
@@ -809,7 +816,8 @@ class Observation:
         )
 
     def calc_feed_rotation(self, ha: Angle) -> Angle:
-        r"""Calculates feed rotation for every antenna at every time step.
+        r"""Calculates feed rotation for every antenna at
+        every time step.
 
         Notes
         -----
@@ -821,8 +829,9 @@ class Observation:
             q = \atan\left(\frac{\sin h}{\cos\delta
             \tan\varphi - \sin\delta \cos h\right),
 
-        where $h$ is the local hour angle, $\varphi$ the geographical latitude
-        of the observer, and $\delta$ the declination of the source.
+        where $h$ is the local hour angle, $\varphi$ the geographical
+        latitude of the observer, and $\delta$ the declination of
+        the source.
         """
         # We need to create a tensor from the EarthLocation object
         # and save only the geographical latitude of each antenna

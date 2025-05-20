@@ -1,0 +1,11 @@
+- Complete rewrite of dataset creation routine ``pyvisgen.simulation.data_set.SimulateDataSet``
+  - Accessible using a classmethod to load a config file
+  - Add optional multithreading support
+  - Draw and fully test parameters before simulation loop. Previously this was done in the loop and tests were only performed for two time steps
+  - Support for polarization
+- Add new default config file for new dataset creation routine
+- Update CLI tool for dataset creation routine
+- Allow passing HDF5 key in ``pyvisgen.utils.data.open_bundles``
+- Restructure ``pyvisgen.gridding`` module by adding a ``utils`` submodule that contains all utility functions that previously were in the ``gridder`` submodule
+  - Also fix parts of the utility functions
+- Update and fix tests
