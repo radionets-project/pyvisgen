@@ -68,7 +68,7 @@ def create_vis_hdu(data, obs, source_name="sim-source-0") -> fits.GroupsHDU:
 
     crval_stokes = -1
     stokes_comment = "-1=RR, -2=LL, -3=RL, -4=LR"
-    if obs.polarisation == "linear":
+    if obs.polarization == "linear":
         crval_stokes = -5
         stokes_comment = "-5=XX, -6=YY, -7=XY, -8=YX"
         stokes_comment += " or -5=VV, -6=HH, -7=VH, -8=HV"

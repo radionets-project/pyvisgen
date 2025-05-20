@@ -31,31 +31,36 @@ classifiers = [
 requires-python = ">=3.10"
 
 dependencies = [
-  "astroplan",
   "astropy<=6.1.0",
   "click",
   "h5py",
   "ipython",
+  "joblib",
   "jupyter",
   "matplotlib",
   "natsort",
-  "numexpr",
   "numpy",
   "pandas",
-  "pre-commit",
-  "pytest",
-  "pytest-cov",
+  "rich",
   "scipy",
   "toma",
   "toml",
-  "torch",
   "torch",
   "tqdm",
 ]
 
 [project.optional-dependencies]
 
-tests = ["h5py", "pytest >= 7.0", "pytest-cov", "tomli"]
+tests = [
+  "h5py",
+  "pytest >= 7.0",
+  "pytest-cov",
+  "tomli",
+]
+
+dev = [
+  "pre-commit",
+]
 
 docs = [
   "graphviz",
@@ -77,7 +82,7 @@ docs = [
 ]
 
 [project.scripts]
-pyvisgen_create_dataset = "pyvisgen.simulation.scripts.create_dataset:main"
+pyvisgen-simulate = "pyvisgen.simulation.scripts.create_dataset:main"
 
 [tool.setuptools_scm]
 write_to = "pyvisgen/_version.py"
@@ -86,7 +91,12 @@ write_to = "pyvisgen/_version.py"
 where = ["."]
 
 [tool.coverage.run]
-omit = ["pyvisgen/version.py", "pyvisgen/_version.py", "docs/*"]
+omit = [
+  "pyvisgen/version.py",
+  "pyvisgen/_version.py",
+  "docs/*",
+  "pyvisgen/gridding/alt_gridder.py",
+]
 
 [tool.coverage.xml]
 output = "coverage.xml"

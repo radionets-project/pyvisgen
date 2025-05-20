@@ -28,7 +28,7 @@ def rime(
     ant_diam,
     spw_low,
     spw_high,
-    polarisation,
+    polarization,
     mode,
     corrupted=False,
 ):
@@ -46,8 +46,8 @@ def rime(
         lower wavelength
     spw_high : float
         higher wavelength
-    polarisation : str
-        Type of polarisation.
+    polarization : str
+        Type of polarization.
 
     Returns
     -------
@@ -57,8 +57,8 @@ def rime(
     with torch.no_grad():
         X1, X2 = calc_fourier(img, bas, lm, spw_low, spw_high)
 
-        if polarisation and mode != "dense":
-            X1, X2 = calc_feed_rotation(X1, X2, bas, polarisation)
+        if polarization and mode != "dense":
+            X1, X2 = calc_feed_rotation(X1, X2, bas, polarization)
 
         if corrupted:
             X1, X2 = calc_beam(X1, X2, rd, ra, dec, ant_diam, spw_low, spw_high)
@@ -125,7 +125,7 @@ def calc_feed_rotation(
     X1: torch.tensor,
     X2: torch.tensor,
     bas,
-    polarisation: str,
+    polarization: str,
 ) -> tuple[torch.tensor, torch.tensor]:
     """Calculates the feed rotation due to the parallactic
     angle rotation of the source over time.
@@ -142,8 +142,8 @@ def calc_feed_rotation(
         :class:`~pyvisgen.simulation.Baselines` dataclass
         object containing information on u, v, and w coverage,
         observation times, and parallactic angles.
-    polarisation : str
-        Type of polarisation for the feed.
+    polarization : str
+        Type of polarization for the feed.
 
     Returns
     -------
@@ -158,7 +158,17 @@ def calc_feed_rotation(
     xa = torch.zeros_like(X1)
     xb = torch.zeros_like(X2)
 
-    if polarisation == "linear":
+    if polarization == "circular":
+        xa[..., 0, 0] = X1[..., 0, 0] * torch.exp(1j * q1)
+        xa[..., 0, 1] = X1[..., 0, 1] * torch.exp(-1j * q1)
+        xa[..., 1, 0] = X1[..., 1, 0] * torch.exp(1j * q1)
+        xa[..., 1, 1] = X1[..., 1, 1] * torch.exp(-1j * q1)
+
+        xb[..., 0, 0] = X2[..., 0, 0] * torch.exp(1j * q2)
+        xb[..., 0, 1] = X2[..., 0, 1] * torch.exp(-1j * q2)
+        xb[..., 1, 0] = X2[..., 1, 0] * torch.exp(1j * q2)
+        xb[..., 1, 1] = X2[..., 1, 1] * torch.exp(-1j * q2)
+    else:
         xa[..., 0, 0] = X1[..., 0, 0] * torch.cos(q1) - X1[..., 0, 1] * torch.sin(q1)
         xa[..., 0, 1] = X1[..., 0, 0] * torch.sin(q1) + X1[..., 0, 1] * torch.cos(q1)
         xa[..., 1, 0] = X1[..., 1, 0] * torch.cos(q1) - X1[..., 1, 1] * torch.sin(q1)
@@ -169,19 +179,8 @@ def calc_feed_rotation(
         xb[..., 1, 0] = X2[..., 1, 0] * torch.cos(q2) - X2[..., 1, 1] * torch.sin(q2)
         xb[..., 1, 1] = X2[..., 1, 0] * torch.sin(q2) + X2[..., 1, 1] * torch.cos(q2)
 
-    if polarisation == "circular":
-        xa[..., 0, 0] = X1[..., 0, 0] * torch.exp(1j * q1)
-        xa[..., 0, 1] = X1[..., 0, 1] * torch.exp(-1j * q1)
-        xa[..., 1, 0] = X1[..., 1, 0] * torch.exp(1j * q1)
-        xa[..., 1, 1] = X1[..., 1, 1] * torch.exp(-1j * q1)
-
-        xb[..., 0, 0] = X2[..., 0, 0] * torch.exp(1j * q2)
-        xb[..., 0, 1] = X2[..., 0, 1] * torch.exp(-1j * q2)
-        xb[..., 1, 0] = X2[..., 1, 0] * torch.exp(1j * q2)
-        xb[..., 1, 1] = X2[..., 1, 1] * torch.exp(-1j * q2)
-
-    X1 = xa.clone()
-    X2 = xb.clone()
+    X1 = xa.detach().clone()
+    X2 = xb.detach().clone()
 
     del xa, xb
 

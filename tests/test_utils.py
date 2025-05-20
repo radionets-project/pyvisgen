@@ -3,7 +3,7 @@ def test_read_config():
 
     conf = read_data_set_conf("config/default_data_set.toml")
 
-    assert type(conf) == dict
+    assert type(conf) is dict
     assert list(conf.keys()) == [
         "mode",
         "device",
@@ -24,6 +24,12 @@ def test_read_config():
         "corrupted",
         "noisy",
         "sensitivty_cut",
+        "polarization",
+        "pol_delta",
+        "pol_amp_ratio",
+        "field_order",
+        "field_scale",
+        "field_threshold",
         "num_test_images",
         "bundle_size",
         "train_valid_split",
@@ -33,6 +39,7 @@ def test_read_config():
         "in_path",
         "out_path_fits",
         "out_path_gridded",
+        "file_prefix",
     ]
 
 
