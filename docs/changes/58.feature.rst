@@ -1,0 +1,4 @@
+- Add ideal interferometer simulation guide to documentation (in `User Guide`)
+- Add example notebook `ideal_interferometer.ipynb` containing full code for the user guide entry
+- Change primary and primary highlight colors for light theme in `_static/pyvisgen.css` to darker greens to be more visible
+- Change maintainers in `pyproject.toml`

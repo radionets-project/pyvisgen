@@ -1,0 +1,3 @@
+Changes to `vis_loop` function in `visibility.py`:
+- add a an optional tqdm progress bar to get a visual confirmation the calculation is still running
+- add optional `batch_size` parameter to control memory consumption

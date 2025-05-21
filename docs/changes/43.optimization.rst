@@ -1,0 +1,1 @@
+Added optional `normalize` parameter to `pyvisgen.visibility.vis_loop` to decide whether to apply a normalization multiplier of `0.5` (default: True)

@@ -1,7 +1,7 @@
 [sampling_options]
 mode = "full"
 device = "cpu"
-seed = 1337
+seed = 42
 layout = "vla"
 img_size = 128
 fov_center_ra = [90, 140]
@@ -19,7 +19,16 @@ noisy = 380
 corrupted = true
 sensitivity_cut = 1e-6
 
+[polarization_options]
+mode = "none"  # linear, circular, or "none"
+delta = 45  # phase angle 
+amp_ratio = 0.5  # polarization amplitude ratio
+field_order = [0.1, 0.1]  # (x, y) orders of the random polarization field
+field_scale = [0, 1]  # scaling of the intensity of the polarization field
+field_threshold = "none"
+
 [bundle_options]
+file_prefix=""
 in_path = "./tests/data"
 out_path_fits = "./tests/build/fits"
 out_path_gridded = "./tests/build/gridded"

@@ -1,0 +1,4 @@
+- Remove ``torch.flip`` call in ``visibility.py``
+- Change dense UV grid creation to use ``numpy.float128`` and convert to ``torch.float64`` afterwards to fix numerical instabilities
+- Change integration in ``scan.py`` to return ``int_f`` instead of ``int_t``, removed time integration
+- Exclude dense calculations from code coverage due to lack of GPU computations in GitHub actions
