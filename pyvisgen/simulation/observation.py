@@ -776,9 +776,7 @@ class Observation:
         src_crd = SkyCoord(ra=self.ra, dec=self.dec, unit=(un.deg, un.deg))
         # Calculate for all times
         # calculate GHA, Greenwich as reference
-        GHA = Angle(
-            [t.sidereal_time("apparent", "greenwich") - src_crd.ra for t in time]
-        )
+        GHA = time.sidereal_time("apparent", "greenwich") - src_crd.ra.to(un.hourangle)
 
         # calculate local sidereal time and HA at each antenna
         lst = un.Quantity(
@@ -964,5 +962,10 @@ class Observation:
             - torch.cos(src_dec) * torch.sin(ha) * delta_y
             + torch.sin(src_dec) * delta_z
         ).reshape(-1)
-        assert u.shape == v.shape == w.shape
+
+        if not (u.shape == v.shape == w.shape):
+            raise ValueError(
+                "Expected u, v, and w to have the same shapes "
+                f"but got {u.shape}, {v.shape}, and {w.shape}."
+            )
         return u, v, w

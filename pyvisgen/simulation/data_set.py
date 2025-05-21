@@ -232,8 +232,7 @@ class SimulateDataSet:
                 )
 
         print(
-            f"Successfully simulated and saved {samp_opts_idx} images "
-            f"to '{path_msg}'!"
+            f"Successfully simulated and saved {samp_opts_idx} images to '{path_msg}'!"
         )
 
     def _run_slurm(self) -> None:  # pragma: no cover
