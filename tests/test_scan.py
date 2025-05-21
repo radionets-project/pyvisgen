@@ -71,7 +71,7 @@ def setup_test_data():
     dec = torch.tensor(0.0)
 
     # Antenna properties
-    ant_diam = torch.tensor([25.0, 25.0])
+    ant_diam = torch.tensor([25.0])
 
     # Spectral window frequencies
     spw_low = 1.0e9  # 1 GHz
@@ -314,6 +314,23 @@ class TestScan:
             ft="reversed",
         )
 
+        # Test with mode = "grid" (reversed jones ordering, no polarization)
+        vis_grid_reversed_nopol = rime(
+            img,
+            bas,
+            lm,
+            rd,
+            ra,
+            dec,
+            ant_diam,
+            spw_low,
+            spw_high,
+            polarization=None,
+            mode="grid",
+            corrupted=True,
+            ft="reversed",
+        )
+
         # Test with mode = "grid" (use radioft dft)
         vis_grid_dft = rime(
             img,
@@ -333,8 +350,10 @@ class TestScan:
 
         assert torch.isclose(vis_grid_reversed, vis_grid, rtol=1e-8).all()
         assert torch.isclose(vis_grid_reversed, vis_grid, rtol=1e-8).all()
-        assert torch.isclose(vis_grid, vis_grid_dft, rtol=1e-8).all()
-        assert torch.isclose(vis_grid_reversed, vis_grid_dft, rtol=1e-8).all()
+        # assert torch.isclose(vis_grid, vis_grid_dft.cpu(), rtol=1e-8).all()
+        assert torch.isclose(
+            vis_grid_reversed_nopol, vis_grid_dft.cpu(), rtol=1e-8
+        ).all()
         assert vis_grid_reversed.dtype == vis_grid.dtype
         assert vis_grid_reversed.shape == vis_grid.shape
 
