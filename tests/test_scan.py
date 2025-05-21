@@ -33,13 +33,12 @@ def setup_test_data():
     # Create a simple 2x2 image with a single source in the center
     img = torch.zeros(1, 2, 2, dtype=torch.complex128)
     img[0, 0, 0] = 1.0 + 0.5j
+    img[0, 0, 1] = 1.0 + 0.5j
 
     # Create a simple 2D lm grid
-    lm = torch.zeros(2, 2, 2, dtype=torch.float64)
-    lm[0, 0] = torch.tensor([0.01, 0.01])  # l,m coordinates
-    lm[0, 1] = torch.tensor([0.01, -0.01])
-    lm[1, 0] = torch.tensor([-0.01, 0.01])
-    lm[1, 1] = torch.tensor([-0.01, -0.01])
+    lm = torch.zeros(1, 1, 2, dtype=torch.float64)
+    lm[..., 0] = torch.tensor([0.01])
+    lm[..., 1] = torch.tensor([0.01])
     lm = lm.flatten(end_dim=1)
 
     # Simulate baselines dataclass as a list for testing
@@ -49,13 +48,13 @@ def setup_test_data():
     bas = [
         None,
         None,
-        torch.tensor([100.0, 200.0]),  # u
+        torch.tensor([100.0, 200.0, 300.0]),  # u
         None,
         None,
-        torch.tensor([150.0, 250.0]),  # v
+        torch.tensor([150.0, 250.0, 350.0]),  # v
         None,
         None,
-        torch.tensor([50.0, 100.0]),  # w
+        torch.tensor([50.0, 100.0, 150.0]),  # w
         None,
         None,
         None,
@@ -79,7 +78,7 @@ def setup_test_data():
     spw_high = 2.0e9  # 2 GHz
 
     # For angular distance
-    rd = torch.zeros(2, 2, 2, dtype=torch.float64)
+    rd = torch.zeros(1, 1, 2, dtype=torch.float64)
     rd[..., 0] = 0.001  # ra
     rd[..., 1] = 0.001  # dec
     rd = rd.flatten(end_dim=1)
@@ -143,7 +142,7 @@ class TestScan:
         result = angular_distance(rd, ra, dec)
 
         # We expect theta to be arcsin(sqrt(rd[...,0]²+rd[...,1]²)) for each point
-        expected_shape = (4,)
+        expected_shape = (1,)
         assert result.shape == expected_shape
 
         # For our values (0.001, 0.001), the angular distance is approximately 0.0014
@@ -224,8 +223,7 @@ class TestScan:
         # Create test data for the beam calculation
         X1 = torch.ones(2, 1, 2, 2, dtype=torch.complex128)
         X2 = torch.ones(2, 1, 2, 2, dtype=torch.complex128)
-        rd_mask = setup_test_data["img"].flatten().real > 0
-        rd = setup_test_data["rd"][rd_mask]
+        rd = setup_test_data["rd"]
         ra = setup_test_data["ra"]
         dec = setup_test_data["dec"]
         ant_diam = setup_test_data["ant_diam"]
@@ -313,11 +311,30 @@ class TestScan:
             polarization,
             mode="grid",
             corrupted=True,
-            reversed=True,
+            ft="reversed",
+        )
+
+        # Test with mode = "grid" (use radioft dft)
+        vis_grid_dft = rime(
+            img,
+            bas,
+            lm,
+            rd,
+            ra,
+            dec,
+            ant_diam,
+            spw_low,
+            spw_high,
+            polarization,
+            mode="grid",
+            corrupted=True,
+            ft="dft",
         )
 
         assert torch.isclose(vis_grid_reversed, vis_grid, rtol=1e-8).all()
         assert torch.isclose(vis_grid_reversed, vis_grid, rtol=1e-8).all()
+        assert torch.isclose(vis_grid, vis_grid_dft, rtol=1e-8).all()
+        assert torch.isclose(vis_grid_reversed, vis_grid_dft, rtol=1e-8).all()
         assert vis_grid_reversed.dtype == vis_grid.dtype
         assert vis_grid_reversed.shape == vis_grid.shape
 
@@ -327,7 +344,7 @@ class TestScan:
         )
 
         # Check output shape, should be (baseline, 2, 2)
-        expected_shape = (2, 2, 2)
+        expected_shape = (3, 2, 2)
         assert vis_grid_pol.shape == expected_shape
 
         # Check type
