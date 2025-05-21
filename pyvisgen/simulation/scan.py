@@ -12,7 +12,7 @@ hybrid_dft = HybridPyTorchCudaDFT(device="cuda")
 
 __all__ = [
     "rime",
-    # "calc_dft",
+    "calc_dft",
     "calc_fourier",
     "calc_feed_rotation",
     "calc_beam",
@@ -36,7 +36,7 @@ def rime(
     polarization,
     mode,
     corrupted=False,
-    reversed=False,
+    ft="standard",
 ):
     """Calculates visibilities using RIME
 
@@ -60,19 +60,7 @@ def rime(
     2d tensor
         Returns visibility for every baseline
     """
-    if reversed:
-        with torch.no_grad():
-            X1 = img.clone()
-            X2 = img.clone()
-            if polarization and mode != "dense":
-                X1, X2 = calc_feed_rotation(X1, X2, bas, polarization)
-
-            if corrupted:
-                X1, X2 = calc_beam(X1, X2, rd, ra, dec, ant_diam, spw_low, spw_high)
-
-            X1, X2 = calc_fourier(X1, X2, bas, lm, spw_low, spw_high)
-            vis = integrate(X1, X2)
-    else:
+    if ft == "standard":
         with torch.no_grad():
             X1 = img.clone()
             X2 = img.clone()
@@ -85,41 +73,83 @@ def rime(
                 X1, X2 = calc_beam(X1, X2, rd, ra, dec, ant_diam, spw_low, spw_high)
 
             vis = integrate(X1, X2)
+    if ft == "reversed":
+        with torch.no_grad():
+            img = torch.repeat_interleave(img.clone()[None], len(bas[2]), dim=0)
+            X1 = img.clone()
+            X2 = img.clone()
+            if polarization and mode != "dense":
+                X1, X2 = calc_feed_rotation(X1, X2, bas, polarization)
+
+            if corrupted:
+                X1, X2 = calc_beam(X1, X2, rd, ra, dec, ant_diam, spw_low, spw_high)
+
+            X1, X2 = calc_fourier(X1, X2, bas, lm, spw_low, spw_high)
+            vis = integrate(X1, X2)
+    if ft == "dft":
+        with torch.no_grad():
+            img = torch.repeat_interleave(img.clone()[None], len(bas[2]), dim=0)
+            X1 = img.clone()
+            X2 = img.clone()
+
+            if polarization and mode != "dense":
+                X1, X2 = calc_feed_rotation(X1, X2, bas, polarization)
+
+            if corrupted:
+                X1, X2 = calc_beam(X1, X2, rd, ra, dec, ant_diam, spw_low, spw_high)
+
+            vis = calc_dft(X1, X2, bas, lm, spw_low, spw_high)
     return vis
 
 
-# @torch.compile
-# def calc_dft(
-#     X1: torch.tensor,
-#     X2: torch.tensor,
-#     bas,
-#     lm: torch.tensor,
-#     spw_low: float,
-#     spw_high: float,
-# ) -> tuple[torch.tensor, torch.tensor]:
-#     vis_low = hybrid_dft.forward(
-#         sky_values,
-#         l_coords,
-#         m_coords,
-#         n_coords,
-#         u_coords_low,
-#         v_coords_low,
-#         w_coords_low,
-#         float64=True,
-#     )
-#     vis_high = hybrid_dft.forward(
-#         sky_values,
-#         l_coords,
-#         m_coords,
-#         n_coords,
-#         u_coords_high,
-#         v_coords_high,
-#         w_coords_high,
-#         float64=True,
-#     )
-#
-#     vis = (vis_low + vis_high) / 2
-#     return vis
+@torch.compile
+def calc_dft(
+    X1: torch.tensor,
+    X2: torch.tensor,
+    bas,
+    lm: torch.tensor,
+    spw_low: float,
+    spw_high: float,
+) -> tuple[torch.tensor, torch.tensor]:
+    l_coords = lm[..., 0]
+    m_coords = lm[..., 1]
+    n_coords = torch.sqrt(1 - l_coords**2 - m_coords**2)
+
+    u_coords_low = bas[2] / c * spw_low
+    v_coords_low = bas[5] / c * spw_low
+    w_coords_low = bas[8] / c * spw_low
+
+    u_coords_high = bas[2] / c * spw_high
+    v_coords_high = bas[5] / c * spw_high
+    w_coords_high = bas[8] / c * spw_high
+
+    X1 = X1.flatten(2).swapaxes(1, 2)
+    X2 = X2.flatten(2).swapaxes(1, 2)
+    vis = torch.empty([X1.shape[0], 2, 2], dtype=torch.complex128)
+    for i in range(X1.shape[0]):
+        vis_low = hybrid_dft.forward(
+            X1[i],
+            l_coords,
+            m_coords,
+            n_coords,
+            u_coords_low[i][None],
+            v_coords_low[i][None],
+            w_coords_low[i][None],
+            dtype=torch.double,
+        )
+        vis_high = hybrid_dft.forward(
+            X2[i],
+            l_coords,
+            m_coords,
+            n_coords,
+            u_coords_high[i][None],
+            v_coords_high[i][None],
+            w_coords_high[i][None],
+            dtype=torch.double,
+        )
+
+        vis[i] = ((vis_low + vis_high) / 2).reshape(2, 2)
+    return vis
 
 
 @torch.compile
