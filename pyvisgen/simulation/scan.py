@@ -120,7 +120,7 @@ def calc_fourier(
     return img * K1, img * K2
 
 
-@torch.compile
+# @torch.compile
 def calc_feed_rotation(
     X1: torch.tensor,
     X2: torch.tensor,
