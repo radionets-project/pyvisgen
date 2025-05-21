@@ -88,12 +88,10 @@ def rime(
             vis = integrate(X1, X2)
     if ft == "dft":
         with torch.no_grad():
-            img = torch.repeat_interleave(img.clone()[None], len(bas[2]), dim=0)
             X1 = img.clone()
             X2 = img.clone()
-
-            if polarization and mode != "dense":
-                X1, X2 = calc_feed_rotation(X1, X2, bas, polarization)
+            # if polarization and mode != "dense":
+            #     X1, X2 = calc_feed_rotation(X1, X2, bas, polarization)
 
             if corrupted:
                 X1, X2 = calc_beam(X1, X2, rd, ra, dec, ant_diam, spw_low, spw_high)
@@ -123,32 +121,33 @@ def calc_dft(
     v_coords_high = bas[5] / c * spw_high
     w_coords_high = bas[8] / c * spw_high
 
-    X1 = X1.flatten(2).swapaxes(1, 2)
-    X2 = X2.flatten(2).swapaxes(1, 2)
+    X1 = X1.flatten(1).swapaxes(0, 1)
+    X2 = X2.flatten(1).swapaxes(0, 1)
     vis = torch.empty([X1.shape[0], 2, 2], dtype=torch.complex128)
-    for i in range(X1.shape[0]):
-        vis_low = hybrid_dft.forward(
-            X1[i],
-            l_coords,
-            m_coords,
-            n_coords,
-            u_coords_low[i][None],
-            v_coords_low[i][None],
-            w_coords_low[i][None],
-            dtype=torch.double,
-        )
-        vis_high = hybrid_dft.forward(
-            X2[i],
-            l_coords,
-            m_coords,
-            n_coords,
-            u_coords_high[i][None],
-            v_coords_high[i][None],
-            w_coords_high[i][None],
-            dtype=torch.double,
-        )
+    vis_low = hybrid_dft.forward(
+        X1,
+        l_coords,
+        m_coords,
+        n_coords,
+        u_coords_low,
+        v_coords_low,
+        w_coords_low,
+        dtype=torch.double,
+        max_memory_gb=60,
+    )
+    vis_high = hybrid_dft.forward(
+        X2,
+        l_coords,
+        m_coords,
+        n_coords,
+        u_coords_high,
+        v_coords_high,
+        w_coords_high,
+        dtype=torch.double,
+        max_memory_gb=60,
+    )
 
-        vis[i] = ((vis_low + vis_high) / 2).reshape(2, 2)
+    vis = ((vis_low + vis_high) / 2).swapaxes(1, 0).reshape(-1, 2, 2)
     return vis
 
 
@@ -309,7 +308,6 @@ def calc_beam(
 
     E1 = jinc(2 * pi / c * spw_low * tds)
     E2 = jinc(2 * pi / c * spw_high * tds)
-
     assert E1.shape == E2.shape
 
     EXE1 = E1[..., None] * X1 * E1[..., None]
