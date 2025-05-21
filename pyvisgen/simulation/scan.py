@@ -1,13 +1,18 @@
 from math import pi
 
 import torch
+from radioft.dft.dft import HybridPyTorchCudaDFT
 from scipy.constants import c
 from torch.special import bessel_j1
 
 torch.set_default_dtype(torch.float64)
 
+
+hybrid_dft = HybridPyTorchCudaDFT(device="cuda")
+
 __all__ = [
     "rime",
+    # "calc_dft",
     "calc_fourier",
     "calc_feed_rotation",
     "calc_beam",
@@ -31,6 +36,7 @@ def rime(
     polarization,
     mode,
     corrupted=False,
+    reversed=False,
 ):
     """Calculates visibilities using RIME
 
@@ -54,22 +60,72 @@ def rime(
     2d tensor
         Returns visibility for every baseline
     """
-    with torch.no_grad():
-        X1, X2 = calc_fourier(img, bas, lm, spw_low, spw_high)
+    if reversed:
+        with torch.no_grad():
+            X1 = img.clone()
+            X2 = img.clone()
+            if polarization and mode != "dense":
+                X1, X2 = calc_feed_rotation(X1, X2, bas, polarization)
 
-        if polarization and mode != "dense":
-            X1, X2 = calc_feed_rotation(X1, X2, bas, polarization)
+            if corrupted:
+                X1, X2 = calc_beam(X1, X2, rd, ra, dec, ant_diam, spw_low, spw_high)
 
-        if corrupted:
-            X1, X2 = calc_beam(X1, X2, rd, ra, dec, ant_diam, spw_low, spw_high)
+            X1, X2 = calc_fourier(X1, X2, bas, lm, spw_low, spw_high)
+            vis = integrate(X1, X2)
+    else:
+        with torch.no_grad():
+            X1 = img.clone()
+            X2 = img.clone()
+            X1, X2 = calc_fourier(X1, X2, bas, lm, spw_low, spw_high)
 
-        vis = integrate(X1, X2)
+            if polarization and mode != "dense":
+                X1, X2 = calc_feed_rotation(X1, X2, bas, polarization)
+
+            if corrupted:
+                X1, X2 = calc_beam(X1, X2, rd, ra, dec, ant_diam, spw_low, spw_high)
+
+            vis = integrate(X1, X2)
     return vis
+
+
+# @torch.compile
+# def calc_dft(
+#     X1: torch.tensor,
+#     X2: torch.tensor,
+#     bas,
+#     lm: torch.tensor,
+#     spw_low: float,
+#     spw_high: float,
+# ) -> tuple[torch.tensor, torch.tensor]:
+#     vis_low = hybrid_dft.forward(
+#         sky_values,
+#         l_coords,
+#         m_coords,
+#         n_coords,
+#         u_coords_low,
+#         v_coords_low,
+#         w_coords_low,
+#         float64=True,
+#     )
+#     vis_high = hybrid_dft.forward(
+#         sky_values,
+#         l_coords,
+#         m_coords,
+#         n_coords,
+#         u_coords_high,
+#         v_coords_high,
+#         w_coords_high,
+#         float64=True,
+#     )
+#
+#     vis = (vis_low + vis_high) / 2
+#     return vis
 
 
 @torch.compile
 def calc_fourier(
-    img: torch.tensor,
+    X1: torch.tensor,
+    X2: torch.tensor,
     bas,
     lm: torch.tensor,
     spw_low: float,
@@ -80,8 +136,10 @@ def calc_fourier(
 
     Parameters
     ----------
-    img : :func:`~torch.tensor`
-        Sky distribution.
+    X1 : :func:`~torch.tensor`
+        Sky tensor.
+    X2 : :func:`~torch.tensor`
+        Sky tensor.
     bas : :class:`~pyvisgen.simulation.ValidBaselineSubset`
         :class:`~pyvisgen.simulation.Baselines` dataclass
         object containing information on u, v, and w coverage,
@@ -117,10 +175,10 @@ def calc_fourier(
     K1 = torch.exp(-2 * pi * 1j * (ul + vm + wn) / c * spw_low)[..., None, None]
     K2 = torch.exp(-2 * pi * 1j * (ul + vm + wn) / c * spw_high)[..., None, None]
     del ul, vm, wn
-    return img * K1, img * K2
+    return X1 * K1, X2 * K2
 
 
-# @torch.compile
+@torch.compile
 def calc_feed_rotation(
     X1: torch.tensor,
     X2: torch.tensor,

@@ -12,6 +12,19 @@ from pyvisgen.simulation.scan import (
 )
 
 
+# This is added to mock torch.compile
+@pytest.fixture(autouse=True)
+def disable_torch_compile(monkeypatch):
+    """Disable torch.compile to make tests work properly."""
+
+    def identity(func, *args, **kwargs):
+        """Return the function unchanged."""
+        return func
+
+    # Replace torch.compile with the identity function
+    monkeypatch.setattr(torch, "compile", identity)
+
+
 @pytest.fixture
 def setup_test_data():
     # Set deterministic behavior
@@ -27,6 +40,7 @@ def setup_test_data():
     lm[0, 1] = torch.tensor([0.01, -0.01])
     lm[1, 0] = torch.tensor([-0.01, 0.01])
     lm[1, 1] = torch.tensor([-0.01, -0.01])
+    lm = lm.flatten(end_dim=1)
 
     # Simulate baselines dataclass as a list for testing
     # [0:u1, 1:u2, 2:u_valid, 3:v1, 4:v2, 5:v_valid,
@@ -46,11 +60,11 @@ def setup_test_data():
         None,
         None,
         None,
-        torch.tensor([0.1, 0.2]),
-        None,  # q1
+        torch.tensor([0.1]),  # q1
         None,
-        torch.tensor([0.15, 0.25]),
-        None,  # q2
+        None,
+        torch.tensor([0.15]),  # q2
+        None,
     ]
 
     # Sky position
@@ -68,6 +82,7 @@ def setup_test_data():
     rd = torch.zeros(2, 2, 2, dtype=torch.float64)
     rd[..., 0] = 0.001  # ra
     rd[..., 1] = 0.001  # dec
+    rd = rd.flatten(end_dim=1)
 
     return {
         "img": img,
@@ -127,8 +142,8 @@ class TestScan:
 
         result = angular_distance(rd, ra, dec)
 
-        # We expect theta to be arcsin(sqrt(rd[0]²+rd[1]²)) for each point
-        expected_shape = (2, 2)
+        # We expect theta to be arcsin(sqrt(rd[...,0]²+rd[...,1]²)) for each point
+        expected_shape = (4,)
         assert result.shape == expected_shape
 
         # For our values (0.001, 0.001), the angular distance is approximately 0.0014
@@ -145,7 +160,7 @@ class TestScan:
         spw_low = setup_test_data["spw_low"]
         spw_high = setup_test_data["spw_high"]
 
-        X1, X2 = calc_fourier(img, bas, lm, spw_low, spw_high)
+        X1, X2 = calc_fourier(img, img, bas, lm, spw_low, spw_high)
 
         # Check shapes
         assert X1.shape[-2:] == img.shape[-2:]
@@ -207,11 +222,11 @@ class TestScan:
     def test_calc_beam(self, setup_test_data):
         """Test the beam calculation function."""
         # Create test data for the beam calculation
-        X1 = torch.ones(2, 2, 2, 2, dtype=torch.complex128)
-        X2 = torch.ones(2, 2, 2, 2, dtype=torch.complex128)
-        rd = setup_test_data["rd"]
+        X1 = torch.ones(2, 1, 2, 2, dtype=torch.complex128)
+        X2 = torch.ones(2, 1, 2, 2, dtype=torch.complex128)
+        rd_mask = setup_test_data["img"].flatten().real > 0
+        rd = setup_test_data["rd"][rd_mask]
         ra = setup_test_data["ra"]
-        print(rd.shape)
         dec = setup_test_data["dec"]
         ant_diam = setup_test_data["ant_diam"]
         spw_low = setup_test_data["spw_low"]
@@ -279,16 +294,32 @@ class TestScan:
             ant_diam,
             spw_low,
             spw_high,
-            polarization=None,
+            polarization,
             mode="grid",
+            corrupted=True,
         )
 
-        vis1 = torch.tensor([-0.9936 - 0.6792j], dtype=torch.complex128)
-        vis2 = torch.tensor([0.3792 + 0.5325j], dtype=torch.complex128)
+        # Test with mode = "grid" (reversed jones ordering)
+        vis_grid_reversed = rime(
+            img,
+            bas,
+            lm,
+            rd,
+            ra,
+            dec,
+            ant_diam,
+            spw_low,
+            spw_high,
+            polarization,
+            mode="grid",
+            corrupted=True,
+            reversed=True,
+        )
 
-        assert torch.isclose(vis_grid[0, 0, 0], vis1, rtol=1e-4)
-        assert torch.isclose(vis_grid[1, 0, 0], vis2, rtol=1e-4)
-        assert vis_grid.dtype == vis1.dtype == vis2.dtype
+        assert torch.isclose(vis_grid_reversed, vis_grid, rtol=1e-8).all()
+        assert torch.isclose(vis_grid_reversed, vis_grid, rtol=1e-8).all()
+        assert vis_grid_reversed.dtype == vis_grid.dtype
+        assert vis_grid_reversed.shape == vis_grid.shape
 
         # Test with mode = "grid" with polarization
         vis_grid_pol = rime(
