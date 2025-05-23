@@ -7,7 +7,7 @@ import torch
 from astropy.constants import c
 from astropy.coordinates import AltAz, Angle, EarthLocation, Longitude, SkyCoord
 from astropy.time import Time
-from tqdm.autonotebook import tqdm
+from tqdm.auto import tqdm
 
 from pyvisgen.layouts import layouts
 from pyvisgen.simulation.array import Array
