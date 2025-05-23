@@ -1,0 +1,1 @@
+- Add quick fix of the annoying import warning when using `tqdm.autonotbook`: Use `tqdm.auto` instead. This does not create any warnings, as written in the `tqdm` documentation (https://tqdm.github.io/docs/shortcuts/#tqdmauto).
