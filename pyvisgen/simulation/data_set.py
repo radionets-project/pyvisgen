@@ -7,7 +7,7 @@ from astropy import units as un
 from astropy.time import Time
 from joblib import Parallel, delayed
 from rich import print
-from tqdm.autonotebook import tqdm
+from tqdm.auto import tqdm
 
 import pyvisgen.fits.writer as writer
 import pyvisgen.layouts.layouts as layouts
