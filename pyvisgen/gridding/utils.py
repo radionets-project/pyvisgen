@@ -3,7 +3,7 @@ from pathlib import Path
 
 import h5py
 import numpy as np
-from tqdm.autonotebook import tqdm
+from tqdm.auto import tqdm
 
 from pyvisgen.fits.data import fits_data
 from pyvisgen.gridding import grid_data
