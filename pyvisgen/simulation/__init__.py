@@ -15,7 +15,6 @@ __all__ = [
     "angular_distance",
     "calc_beam",
     "calc_fourier",
-    "calc_time_steps",
     "generate_noise",
     "integrate",
     "jinc",
