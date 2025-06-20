@@ -52,7 +52,7 @@ dependencies = [
 [project.optional-dependencies]
 
 tests = [
-  "coverage!=6.3.0"
+  "coverage!=6.3.0",
   "h5py",
   "pytest >= 7.0",
   "pytest-cov",
