@@ -14,6 +14,26 @@ env:
   GITHUB_PR_NUMBER: ${{ github.event.number }}
 
 jobs:
+  lint:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Check README syntax
+        run: |
+          pip install restructuredtext-lint
+          restructuredtext-lint README.rst
+
+      - uses: pre-commit/action@v3.0.1
+        with:
+          extra_args: --files $(git diff origin/main --name-only)
+
   tests:
     runs-on: ${{ matrix.os }}
     strategy:
@@ -58,8 +78,7 @@ jobs:
           PYTHON_VERSION: ${{ matrix.python-version }}
         run: |
           python --version
-          pip install pytest-cov restructuredtext-lint pytest-xdist 'coverage!=6.3.0'
-          pip install -e .[all]
+          pip install -e .[tests]
           pip freeze
           pip list
 
