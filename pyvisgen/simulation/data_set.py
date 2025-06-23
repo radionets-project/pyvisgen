@@ -435,7 +435,7 @@ class SimulateDataSet:
         # if polarization is None, we don't need to enter the
         # conditional below, so we set delta, amp_ratio, field_order,
         # and field_scale to None.
-        delta, amp_ratio, field_order, field_scale = np.full((4, size), np.NaN)
+        delta, amp_ratio, field_order, field_scale = np.full((4, size), np.nan)
 
         if self.conf["polarization"]:
             if self.conf["pol_delta"]:
