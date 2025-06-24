@@ -1,12 +1,12 @@
 [build-system]
-requires = ["setuptools>=64", "setuptools_scm[toml]>=8"]
-build-backend = "setuptools.build_meta"
+requires = ["hatchling", "hatch-vcs"]
+build-backend = "hatchling.build"
 
 [project]
 name = "pyvisgen"
 dynamic = ["version"]
 description = "Simulate radio interferometer observations and visibility generation with the RIME formalism."
-readme = "README.md"
+readme = "README.rst"
 authors = [
   { name = "Kevin Schmitz, Felix Geyer, Stefan Fröse, Anno Knierim, Tom Groß" },
 ]
@@ -91,8 +91,11 @@ dev = [
 [project.scripts]
 pyvisgen-simulate = "pyvisgen.simulation.scripts.create_dataset:main"
 
-[tool.setuptools_scm]
-write_to = "pyvisgen/_version.py"
+[tool.hatch.version]
+source = "vcs"
+
+[tool.hatch.build.hooks.vcs]
+version-file = "pyvisgen/_version.py"
 
 [tool.setuptools.packages.find]
 where = ["."]
