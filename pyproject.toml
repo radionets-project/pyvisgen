@@ -98,8 +98,8 @@ source = "vcs"
 [tool.hatch.build.hooks.vcs]
 version-file = "pyvisgen/_version.py"
 
-[tool.setuptools.packages.find]
-where = ["."]
+[tool.hatch.build.targets.wheel]
+packages = ["."]
 
 [tool.coverage.run]
 omit = [
