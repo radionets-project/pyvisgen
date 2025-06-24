@@ -34,10 +34,7 @@ dependencies = [
   "astropy<=6.1.0",
   "click",
   "h5py",
-  "ipython",
   "joblib",
-  "jupyter",
-  "matplotlib",
   "natsort",
   "numpy",
   "pandas",
@@ -50,7 +47,11 @@ dependencies = [
 ]
 
 [project.optional-dependencies]
+plot = [
+  "matplotlib",
+]
 
+[dependency-groups]
 tests = [
   "coverage!=6.3.0",
   "h5py",
@@ -61,10 +62,6 @@ tests = [
   "tomli",
 ]
 
-dev = [
-  "pre-commit",
-]
-
 docs = [
   "graphviz",
   "ipython",
@@ -73,7 +70,6 @@ docs = [
   "notebook",
   "numpydoc",
   "pydata_sphinx_theme",
-  "pyvisgen[all]",
   "sphinx",
   "sphinx-changelog",
   "sphinx-copybutton",
@@ -82,6 +78,14 @@ docs = [
   "sphinx_automodapi",
   "sphinxcontrib-bibtex",
   "tomli; python_version < '3.11'",
+]
+
+dev = [
+  "ipython",
+  "jupyter",
+  "pre-commit",
+  {include-group = "tests"},
+  {include-group = "docs"},
 ]
 
 [project.scripts]
