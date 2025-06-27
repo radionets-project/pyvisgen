@@ -174,5 +174,5 @@ def get_array_names() -> list[str]:
         returned by this function.
     """
     root = sysconfig.get_path("data", sysconfig.get_default_scheme())
-    path = root + "/share/resources/layouts/"
+    path = Path(root + "/share/resources/layouts/")
     return list(file.stem for file in path.glob("*.txt"))
