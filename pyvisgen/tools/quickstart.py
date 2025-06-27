@@ -1,8 +1,8 @@
-import toml
 import sysconfig
 from pathlib import Path
 
 import click
+import toml
 
 try:
     from rich import print
