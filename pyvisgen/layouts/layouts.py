@@ -173,4 +173,6 @@ def get_array_names() -> list[str]:
         containing station informations for any array names
         returned by this function.
     """
-    return list(file.stem for file in file_dir.glob("*.txt"))
+    root = sysconfig.get_path("data", sysconfig.get_default_scheme())
+    path = root + "/share/resources/layouts/"
+    return list(file.stem for file in path.glob("*.txt"))
