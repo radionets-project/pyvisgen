@@ -78,7 +78,7 @@ jobs:
           PYTHON_VERSION: ${{ matrix.python-version }}
         run: |
           python --version
-          pip install -e .[tests]
+          pip install --group tests -e .
           pip freeze
           pip list
 
@@ -111,7 +111,7 @@ jobs:
         run: |
           sudo apt update --yes && sudo apt install --yes git 
           pip install -U pip towncrier
-          pip install -e .[docs]
+          pip install --group docs -e .
           git describe --tags
 
       - name: Build docs
