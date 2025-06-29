@@ -6,13 +6,9 @@ build:
     - graphviz
   tools:
     python: "3.10"
-
-python:
-  install:
-    - method: pip
-      path: .
-      extra_requirements:
-        - docs
+  jobs:
+    install:
+      - pip install --group docs .
 
 sphinx:
   configuration: docs/conf.py
