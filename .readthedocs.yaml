@@ -8,6 +8,7 @@ build:
     python: "3.11"
   jobs:
     install:
+      - pip install --upgrade pip
       - pip install --group docs .
 
 sphinx:
