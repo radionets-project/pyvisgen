@@ -17,7 +17,18 @@ from pyvisgen import __version__
     "config_path",
     type=click.Path(dir_okay=True),
 )
-def quickstart(config_path: str | Path) -> None:
+@click.option(
+    "-y",
+    "--yes",
+    "overwrite",
+    type=bool,
+    is_flag=True,
+    help="Overwrite file if it already exists.",
+)
+def quickstart(
+    config_path: str | Path,
+    overwrite: bool = False,
+) -> None:
     """Quickstart CLI tool for pyvisgen. Creates
     a copy of the default simulation configuration
     file at the specified path.
@@ -33,6 +44,9 @@ def quickstart(config_path: str | Path) -> None:
     a file called 'pyvisgen_default_data_set_config.toml'
     inside that directory.
     """
+    # required below
+    write_file = True
+
     msg = f"This is the pyvisgen v{__version__} quickstart tool"
     print(msg)
     print(len(msg) * "=", "\n")
@@ -52,13 +66,22 @@ def quickstart(config_path: str | Path) -> None:
     if config_path.is_dir():
         config_path /= "pyvisgen_default_data_set_config.toml"
 
-    with open(config_path, "w") as f:
-        toml.dump(default_config, f)
+    if config_path.is_file() and not overwrite:
+        print("")
+        write_file = click.confirm(
+            f"{config_path} already exists! Overwrite?", default=False
+        )
 
-    print(
-        "Configuration file was successfully written to",
-        f"{config_path.absolute()}",
-    )
+    if write_file:
+        with open(config_path, "w") as f:
+            toml.dump(default_config, f)
+
+        print(
+            "Configuration file was successfully written to",
+            f"{config_path.absolute()}",
+        )
+    else:
+        print("No file was written!")
 
 
 if __name__ == "__main__":
