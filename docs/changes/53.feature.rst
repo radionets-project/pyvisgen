@@ -1,1 +1,0 @@
-- Add new gridder that can handle vis data returned by the ``vis_loop``

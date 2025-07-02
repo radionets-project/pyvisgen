@@ -1,18 +1,22 @@
-====================================
-pyvisgen |ci| |pre-commit| |codecov|
-====================================
+===========================================
+pyvisgen |ci| |pre-commit| |codecov| |pypi|
+===========================================
 
 .. |ci| image:: https://github.com/radionets-project/pyvisgen/actions/workflows/ci.yml/badge.svg?branch=main
-    :target: https://github.com/radionets-project/pyvisgen/actions/workflows/ci.yml?branch=main
-    :alt: Test Status
+   :target: https://github.com/radionets-project/pyvisgen/actions/workflows/ci.yml?branch=main
+   :alt: Test Status
 
 .. |pre-commit| image:: https://results.pre-commit.ci/badge/github/radionets-project/pyvisgen/main.svg
    :target: https://results.pre-commit.ci/latest/github/radionets-project/pyvisgen/main
    :alt: pre-commit.ci status
 
 .. |codecov| image:: https://codecov.io/github/radionets-project/pyvisgen/badge.svg
-    :target: https://codecov.io/github/radionets-project/pyvisgen
-    :alt: Code coverage
+   :target: https://codecov.io/github/radionets-project/pyvisgen
+   :alt: Code coverage
+
+.. |pypi| image:: https://badge.fury.io/py/pyvisgen.svg
+   :target: https://badge.fury.io/py/pyvisgen
+   :alt: PyPI version
 
 
 Pyvisgen is a python implementation of the Radio Interferometer Measurement Equation (RIME)
