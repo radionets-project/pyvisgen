@@ -14,6 +14,22 @@ env:
   GITHUB_PR_NUMBER: ${{ github.event.number }}
 
 jobs:
+  lint:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Check README syntax
+        run: |
+          pip install restructuredtext-lint
+          restructuredtext-lint README.rst
+
   tests:
     runs-on: ${{ matrix.os }}
     strategy:
@@ -58,8 +74,7 @@ jobs:
           PYTHON_VERSION: ${{ matrix.python-version }}
         run: |
           python --version
-          pip install pytest-cov restructuredtext-lint pytest-xdist 'coverage!=6.3.0'
-          pip install -e .[all]
+          pip install --group tests -e .
           pip freeze
           pip list
 
@@ -90,8 +105,13 @@ jobs:
 
       - name: Install doc dependencies
         run: |
-          sudo apt update --yes && sudo apt install --yes git 
+          sudo apt update --yes && sudo apt install --yes git
           pip install -U pip towncrier
+          pip install --group docs -e .
+          git describe --tags
+
+      - name: Build docs
+        run: make -C docs html
 
       - name: Produce Changelog
         run: |

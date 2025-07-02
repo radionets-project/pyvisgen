@@ -1,4 +1,4 @@
-- Change pyvisgen.simulation.visibility.Visibilities dataclass component names from stokes components (I , Q, U, and V) 
+- Change pyvisgen.simulation.visibility.Visibilities dataclass component names from stokes components (I , Q, U, and V)
   to visibilities constructed from the stokes components (`V_11`, `V_22`, `V_12`, `V_21`)
 - Change indices for stokes components according to AIPS Memo 114
   - Indices will be set automatically depending on simulated polarisation

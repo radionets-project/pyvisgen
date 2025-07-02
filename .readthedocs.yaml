@@ -5,14 +5,11 @@ build:
   apt_packages:
     - graphviz
   tools:
-    python: "3.10"
-
-python:
-  install:
-    - method: pip
-      path: .
-      extra_requirements:
-        - docs
+    python: "3.11"
+  jobs:
+    install:
+      - pip install --upgrade pip
+      - pip install --group docs .
 
 sphinx:
   configuration: docs/conf.py

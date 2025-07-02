@@ -3,7 +3,7 @@ from dataclasses import dataclass, fields
 import scipy.ndimage
 import toma
 import torch
-from tqdm.autonotebook import tqdm
+from tqdm.auto import tqdm
 
 import pyvisgen.simulation.scan as scan
 
