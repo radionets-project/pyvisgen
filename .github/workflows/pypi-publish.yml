@@ -55,17 +55,3 @@ jobs:
           subject-path: "./dist/*"
 
       - uses: pypa/gh-action-pypi-publish@release/v1
-
-  publishtoken:
-    needs: [ dist ]
-    runs-on: ubuntu-latest
-    if: false && github.event_name == 'release' && github.event.action == 'published'
-    steps:
-      - uses: actions/download-artifact@v4
-        with:
-          name: Packages
-          path: dist
-
-      - uses: pypa/gh-action-pypi-publish@release/v1
-        with:
-          password: ${{ secrets.PYPI_PASSWORD }}
