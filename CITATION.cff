@@ -1,0 +1,24 @@
+authors:
+- affiliation: TU Dortmund University
+  family-names: Kevin Schmitz
+- affiliation: TU Dortmund University
+  family-names: Anno Knierim
+- affiliation: TU Dortmund University
+- family-names: Felix Geyer
+- affiliation: TU Dortmund University
+  family-names: "Tom Gro\xDF"
+- affiliation: Academia Sinica
+  family-names: "Stefan Fr\xF6se"
+cff-version: 1.2.0
+date-released: '2025-07-02'
+doi: 10.5281/zenodo.15791973
+identifiers:
+- type: swh
+  value: swh:1:dir:a4fe1f29eee481d5298f7ab59c943628c9e6a453;origin=https://doi.org/10.5281/zenodo.10091310;visit=swh:1:snp:1db1d573c2d71f63582ce13c747ae3a2f334823e;anchor=swh:1:rel:0521920e44ad73e380e8612d56ba8729b728ee04;path=radionets-project-pyvisgen-930e27b
+license:
+- mit
+message: If you use this software, please cite it using the metadata from this file.
+repository-code: https://github.com/radionets-project/pyvisgen/tree/v0.3.0
+title: 'radionets-project/pyvisgen: v0.3.0'
+type: software
+version: v0.3.0
