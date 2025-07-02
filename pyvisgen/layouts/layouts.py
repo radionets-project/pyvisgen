@@ -1,11 +1,10 @@
+import sysconfig
 from dataclasses import dataclass, fields
 from pathlib import Path
 
 import pandas as pd
 import torch
 from astropy.coordinates import EarthLocation
-
-file_dir = Path(__file__).parent.resolve()
 
 
 @dataclass
@@ -81,6 +80,10 @@ def get_array_layout(
     +-----------------+------------------+
     | ALMA (DSHARP)   | ``alma_dsharp``  |
     +-----------------+------------------+
+    | DSA 2000W       | ``dsa2000W``     |
+    +-----------------+------------------+
+    | DSA 2000 31B    | ``dsa2000_31b``  |
+    +-----------------+------------------+
     | EHT             | ``eht``          |
     +-----------------+------------------+
     | MeerKAT         | ``meerkat``      |
@@ -114,8 +117,11 @@ def get_array_layout(
         information on all stations in the given array layout.
     """
     if isinstance(array_layout, str):
-        f = array_layout + ".txt"
-        array = pd.read_csv(file_dir / f, sep=r"\s+")
+        root = sysconfig.get_path("data", sysconfig.get_default_scheme())
+        path = root + f"/share/resources/layouts/{array_layout}.txt"
+
+        with open(path, "r") as f:
+            array = pd.read_csv(f, sep=r"\s+")
 
         if array_layout == "vla":
             # Change relative positions to absolute positions
@@ -128,7 +134,7 @@ def get_array_layout(
     elif isinstance(array_layout, pd.DataFrame):
         array = array_layout
     elif isinstance(array_layout, Path):
-        array = pd.read_csv(file_dir / f, sep=r"\s+")
+        array = pd.read_csv(array_layout, sep=r"\s+")
     else:
         raise TypeError(
             "Expected array_layout to be of type str, "
@@ -167,4 +173,6 @@ def get_array_names() -> list[str]:
         containing station informations for any array names
         returned by this function.
     """
-    return list(file.stem for file in file_dir.glob("*.txt"))
+    root = sysconfig.get_path("data", sysconfig.get_default_scheme())
+    path = Path(root + "/share/resources/layouts/")
+    return list(file.stem for file in path.glob("*.txt"))

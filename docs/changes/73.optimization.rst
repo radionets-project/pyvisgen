@@ -1,0 +1,4 @@
+- Remove reading of layout files relative to :mod:`pyvisgen.layouts.layout`
+- Move layout files to external resources directory that is shipped with
+  the distribution
+- Ship default config with distribution

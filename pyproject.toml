@@ -91,6 +91,7 @@ dev = [
 
 [project.scripts]
 pyvisgen-simulate = "pyvisgen.simulation.scripts.create_dataset:main"
+pyvisgen-quickstart = "pyvisgen.tools.quickstart:quickstart"
 
 [tool.hatch.version]
 source = "vcs"
@@ -99,7 +100,11 @@ source = "vcs"
 version-file = "pyvisgen/_version.py"
 
 [tool.hatch.build.targets.wheel]
-packages = ["."]
+include = ["pyvisgen"]
+
+[tool.hatch.build.targets.wheel.shared-data]
+"resources" = "share/resources"
+"config" = "share/configs"
 
 [tool.coverage.run]
 omit = [
