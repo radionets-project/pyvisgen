@@ -157,7 +157,7 @@ path = ""
 [tool.ruff]
 target-version = "py311"
 line-length = 88
-extend-exclude = ["tests", "examplesa"]
+extend-exclude = ["tests", "examples"]
 
 [tool.ruff.lint]
 extend-select = [
