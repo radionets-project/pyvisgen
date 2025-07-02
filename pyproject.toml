@@ -1,12 +1,12 @@
 [build-system]
-requires = ["setuptools>=64", "setuptools_scm[toml]>=8"]
-build-backend = "setuptools.build_meta"
+requires = ["hatchling", "hatch-vcs"]
+build-backend = "hatchling.build"
 
 [project]
 name = "pyvisgen"
 dynamic = ["version"]
 description = "Simulate radio interferometer observations and visibility generation with the RIME formalism."
-readme = "README.md"
+readme = "README.rst"
 authors = [
   { name = "Kevin Schmitz, Felix Geyer, Stefan Fröse, Anno Knierim, Tom Groß" },
 ]
@@ -34,10 +34,7 @@ dependencies = [
   "astropy<=6.1.0",
   "click",
   "h5py",
-  "ipython",
   "joblib",
-  "jupyter",
-  "matplotlib",
   "natsort",
   "numpy",
   "pandas",
@@ -50,7 +47,11 @@ dependencies = [
 ]
 
 [project.optional-dependencies]
+plot = [
+  "matplotlib",
+]
 
+[dependency-groups]
 tests = [
   "coverage!=6.3.0",
   "h5py",
@@ -61,19 +62,15 @@ tests = [
   "tomli",
 ]
 
-dev = [
-  "pre-commit",
-]
-
 docs = [
   "graphviz",
   "ipython",
   "jupyter",
+  "matplotlib",
   "nbsphinx",
   "notebook",
   "numpydoc",
   "pydata_sphinx_theme",
-  "pyvisgen[all]",
   "sphinx",
   "sphinx-changelog",
   "sphinx-copybutton",
@@ -84,14 +81,30 @@ docs = [
   "tomli; python_version < '3.11'",
 ]
 
+dev = [
+  "ipython",
+  "jupyter",
+  "pre-commit",
+  {include-group = "tests"},
+  {include-group = "docs"},
+]
+
 [project.scripts]
 pyvisgen-simulate = "pyvisgen.simulation.scripts.create_dataset:main"
+pyvisgen-quickstart = "pyvisgen.tools.quickstart:quickstart"
 
-[tool.setuptools_scm]
-write_to = "pyvisgen/_version.py"
+[tool.hatch.version]
+source = "vcs"
 
-[tool.setuptools.packages.find]
-where = ["."]
+[tool.hatch.build.hooks.vcs]
+version-file = "pyvisgen/_version.py"
+
+[tool.hatch.build.targets.wheel]
+include = ["pyvisgen"]
+
+[tool.hatch.build.targets.wheel.shared-data]
+"resources" = "share/resources"
+"config" = "share/configs"
 
 [tool.coverage.run]
 omit = [
