@@ -1,0 +1,32 @@
+cff-version: 1.2.0
+title: 'radionets-project/pyvisgen: v0.3.0'
+type: software
+message: If you use this software, please cite it using the metadata from this file.
+doi: 10.5281/zenodo.15791973
+keywords:
+- Astronomy
+- "Data Analysis"
+- Simulation
+license: "MIT License"
+version: v0.3.0
+date-released: '2025-07-02'
+repository-code: https://github.com/radionets-project/pyvisgen/tree/v0.3.0
+authors:
+- family-names: Schmitz
+  given-names: Kevin
+  affiliation: "TU Dortmund University"
+- family-names: Knierim
+  given-names: Anno
+  affiliation: "TU Dortmund University"
+- family-names: Geyer
+  given-names: Felix
+  affiliation: "TU Dortmund University"
+- family-names: Groß
+  given-names: Tom
+  affiliation: "Academia Sinica"
+- family-names: Fröse
+  given-names: Stefan
+  affiliation: "Academia Sinica"
+identifiers:
+- type: swh
+  value: swh:1:dir:a4fe1f29eee481d5298f7ab59c943628c9e6a453;origin=https://doi.org/10.5281/zenodo.10091310;visit=swh:1:snp:1db1d573c2d71f63582ce13c747ae3a2f334823e;anchor=swh:1:rel:0521920e44ad73e380e8612d56ba8729b728ee04;path=radionets-project-pyvisgen-930e27b
