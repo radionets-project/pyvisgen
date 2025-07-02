@@ -1,3 +1,0 @@
-- fix shape of `num_ifs`
-- delete additional bin in masking
-- fix ra dec bug

@@ -1,1 +1,0 @@
-- Use `obs.layout` instead of passing the layout name separately in `pyvisgen.fits.writer.create_vis_hdu`

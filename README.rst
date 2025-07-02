@@ -1,18 +1,30 @@
-====================================
-pyvisgen |ci| |pre-commit| |codecov|
-====================================
+==============================================================
+pyvisgen |ci| |pre-commit| |codecov| |pypi| |zenodo| |license|
+==============================================================
 
 .. |ci| image:: https://github.com/radionets-project/pyvisgen/actions/workflows/ci.yml/badge.svg?branch=main
-    :target: https://github.com/radionets-project/pyvisgen/actions/workflows/ci.yml?branch=main
-    :alt: Test Status
+   :target: https://github.com/radionets-project/pyvisgen/actions/workflows/ci.yml?branch=main
+   :alt: Test Status
 
 .. |pre-commit| image:: https://results.pre-commit.ci/badge/github/radionets-project/pyvisgen/main.svg
    :target: https://results.pre-commit.ci/latest/github/radionets-project/pyvisgen/main
    :alt: pre-commit.ci status
 
 .. |codecov| image:: https://codecov.io/github/radionets-project/pyvisgen/badge.svg
-    :target: https://codecov.io/github/radionets-project/pyvisgen
-    :alt: Code coverage
+   :target: https://codecov.io/github/radionets-project/pyvisgen
+   :alt: Code coverage
+
+.. |pypi| image:: https://badge.fury.io/py/pyvisgen.svg
+   :target: https://badge.fury.io/py/pyvisgen
+   :alt: PyPI version
+
+.. |zenodo| image:: https://zenodo.org/badge/DOI/10.5281/zenodo.15791973.svg
+   :target: https://doi.org/10.5281/zenodo.15791973
+   :alt: Zenodo DOI
+
+.. |license| image:: https://img.shields.io/badge/License-MIT-blue.svg
+   :target: https://opensource.org/license/mit
+   :alt: License: MIT
 
 
 Pyvisgen is a python implementation of the Radio Interferometer Measurement Equation (RIME)

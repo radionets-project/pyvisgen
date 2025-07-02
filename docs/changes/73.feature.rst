@@ -1,1 +1,0 @@
-- Add new quickstart CLI tool that creates a copy of the default configuration at the specified path

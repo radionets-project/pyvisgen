@@ -1,2 +1,0 @@
-- Add linting CI job
-- Fix attribute error in ``pyvisgen.simulation``
