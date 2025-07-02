@@ -4,7 +4,7 @@ from datetime import datetime
 import astropy.units as un
 import numpy as np
 import torch
-from astropy.constants import c
+from astropy.constants import R_earth, c
 from astropy.coordinates import AltAz, Angle, EarthLocation, Longitude, SkyCoord
 from astropy.time import Time
 from tqdm.autonotebook import tqdm
@@ -614,7 +614,8 @@ class Observation:
         """
         N = self.img_size
         fov = np.deg2rad(self.fov / 3600, dtype=np.float128)
-        delta = fov ** (-1) * c.value / self.ref_frequency
+        wavelength = c.value / self.ref_frequency
+        delta = fov ** (-1) * wavelength
 
         u_dense = torch.from_numpy(
             np.arange(
@@ -631,17 +632,24 @@ class Observation:
         u = uu.flatten()
         v = vv.flatten()
 
+        r_squared = u**2 + v**2
+        physical_distance = r_squared
+        earth_radius_wavelengths = R_earth.value / wavelength.numpy()
+
+        ww = physical_distance.detach().cpu().numpy() / (2 * earth_radius_wavelengths)
+        w = torch.from_numpy(ww.astype(np.float64)).to(self.device)
+
         self.dense_baselines_gpu = torch.stack(
             [
-                u,
-                u,
-                u,
-                v,
-                v,
-                v,
-                torch.zeros(u.shape, device=self.device),
-                torch.zeros(u.shape, device=self.device),
-                torch.zeros(u.shape, device=self.device),
+                u,  # u_start
+                u,  # u_stop
+                u,  # u_valid
+                v,  # v_start
+                v,  # v_stop
+                v,  # v_valid
+                w,  # w_start
+                w,  # w_stop
+                w,  # w_valid
                 torch.ones(u.shape, device=self.device),
                 torch.ones(u.shape, device=self.device),
             ]
