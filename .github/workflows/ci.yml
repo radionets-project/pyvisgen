@@ -74,6 +74,7 @@ jobs:
           PYTHON_VERSION: ${{ matrix.python-version }}
         run: |
           python --version
+          pip install --upgrade pip
           pip install --group tests -e .
           pip freeze
           pip list
