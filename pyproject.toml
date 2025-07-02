@@ -157,6 +157,7 @@ path = ""
 [tool.ruff]
 target-version = "py311"
 line-length = 88
+extend-exclude = ["tests", "examplesa"]
 
 [tool.ruff.lint]
 extend-select = [
@@ -166,9 +167,6 @@ ignore = []
 
 fixable = ["ALL"]
 unfixable = []
-
-[tool.ruff.lint.per-file-ignores]
-"examples/**" = ["I"]
 
 [tool.ruff.format]
 quote-style = "double"
