@@ -60,11 +60,11 @@ The above image is the test image in real space we will assume as our real sky f
 Additionally we will need the following parameters:
 
 =============== ============== ======= ========= ========================================
-Parameter       Variable       Value   Unit      Explanation                             
+Parameter       Variable       Value   Unit      Explanation
 =============== ============== ======= ========= ========================================
-Image Size      ``img_size``   60      pixel     The side length of the test image       
-Frequency       ``freq``       230     gigahertz The frequency we observe the source at  
-Field Of View   ``fov``        6000    arcsec    The Field Of View of the test image     
+Image Size      ``img_size``   60      pixel     The side length of the test image
+Frequency       ``freq``       230     gigahertz The frequency we observe the source at
+Field Of View   ``fov``        6000    arcsec    The Field Of View of the test image
 =============== ============== ======= ========= ========================================
 
 .. code-block:: python
@@ -77,7 +77,7 @@ Field Of View   ``fov``        6000    arcsec    The Field Of View of the test i
   freq = 230e9
   wavelength = c / freq
 
-  delta_uv = fov ** (-1) 
+  delta_uv = fov ** (-1)
 
 2. Creating the Ideal :math:`(u,v)` Coverage
 --------------------------------------------
@@ -120,7 +120,7 @@ This means that there will be zero values for our Fourier space coordinates and 
 .. note::
 
    The grid is created using the data type ``float128`` since the magnitude of the ``delta_uv`` values can differ severly
-   depending on the choice of the Field Of View and the size of the image. For small values of the ``fov`` and small images 
+   depending on the choice of the Field Of View and the size of the image. For small values of the ``fov`` and small images
    this is not as much of a problem, but for large values the precision of the default ``float64`` data type leads to major instabilites
    and non-linearities which alter the grid and therefore the simulation. The usage of the larger data type ensures that the axes are
    equidistant. This equidistance it preserved when casting the array to ``float64``.
@@ -138,9 +138,9 @@ This can be achieved by adding an offset of half a pixel size (``delta_uv``) in 
 .. code-block:: python
 
   bins = (np.arange(
-      start=-(img_size / 2 + 1/2) * delta_uv, 
-      stop=(img_size / 2 + 1/2) * delta_uv, 
-      step=delta_uv, 
+      start=-(img_size / 2 + 1/2) * delta_uv,
+      stop=(img_size / 2 + 1/2) * delta_uv,
+      step=delta_uv,
       dtype=np.float128))
 
 This positions the bin edges exactly half a ``delta_uv`` left and right of the points so that every 2-dimensional bin contains exactly one point.
@@ -153,7 +153,7 @@ These points can now be plotted in the created grid with the following code:
     for b in bins:
         ax.axvline(x=b, color="black")
         ax.axhline(y=b, color="black")
-        
+
     ax.scatter(uv_grid[0], uv_grid[1], s=10, color="royalblue")
     ax.set_xlabel("$u$ in $\\lambda$")
     ax.set_ylabel("$v$ in $\\lambda$")
@@ -183,7 +183,7 @@ The full-sky RIME is given by the following fomula:
 
   V_{pq}(u_{pq}, v_{pq}) = \int_l\int_m \mathrm{\overline{E}}_p(l, m)\mathrm{K}_p(l, m)
   \mathrm{B}(l, m)
-  \mathrm{K}_q^\dagger(l, m)\mathrm{\overline{E}}_q^\dagger(l, m) 
+  \mathrm{K}_q^\dagger(l, m)\mathrm{\overline{E}}_q^\dagger(l, m)
   \frac{\symup{d}m\;\symup{d}l}{n}
 
 The 2-dimensional intensity distribution of the observed source, in our case our test image, is described by the :math:`\mathrm{B}` matrix.
@@ -242,7 +242,7 @@ Since the calculations of ``pyvisgen`` are done using ``pytorch`` to enable GPU-
 
 To perform this calculation in our code, we will first need to create the values of :math:`(l, m)`. These are the direction cosines of
 a uniform grid in an equatorial coordinate system with coordinates RA (Right Ascension) and DEC (Declination). This grid will be called
-``rd_grid``. The code to calculate this grid is taken from :py:meth:`~pyvisgen.simulation.Observation.create_rd_grid` and 
+``rd_grid``. The code to calculate this grid is taken from :py:meth:`~pyvisgen.simulation.Observation.create_rd_grid` and
 :py:meth:`~pyvisgen.simulation.Observation.create_lm_grid`.
 
 .. code-block:: python
@@ -266,11 +266,11 @@ a uniform grid in an equatorial coordinate system with coordinates RA (Right Asc
     return rd_grid
 
   def create_lm_grid(fov, img_size, dec):
-    
+
     dec = np.deg2rad(dec).astype(np.float128)
-    
-    rd = create_rd_grid(fov=fov, 
-                        img_size=img_size, 
+
+    rd = create_rd_grid(fov=fov,
+                        img_size=img_size,
                         dec=dec).cpu().numpy().astype(np.float128)
 
     lm_grid = np.zeros(rd.shape, dtype=np.float128)
@@ -461,4 +461,3 @@ References
 .. _FINUFFT: https://finufft.readthedocs.io/en/latest/index.html
 
 .. _pytorch-finufft: https://flatironinstitute.github.io/pytorch-finufft/index.html
-

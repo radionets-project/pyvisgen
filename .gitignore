@@ -34,3 +34,6 @@ dist/
 coverage.xml
 *.fits
 *.swp
+*.whl
+
+.ruff_cache
