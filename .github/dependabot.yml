@@ -9,3 +9,5 @@ updates:
       actions:
         patterns:
           - "*"
+    labels:
+      - "no-changelog-needed"
