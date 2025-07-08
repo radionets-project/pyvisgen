@@ -31,6 +31,7 @@ jobs:
           restructuredtext-lint README.rst
 
   tests:
+    if: contains(github.event.pull_request.labels.*.name, 'documentation-only') == false
     runs-on: ${{ matrix.os }}
     strategy:
       matrix:
@@ -57,7 +58,7 @@ jobs:
       - uses: astral-sh/setup-uv@v6
 
       - name: Prepare mamba installation
-        if: matrix.install-method == 'mamba' &&  contains(github.event.pull_request.labels.*.name, 'documentation-only') == false
+        if: matrix.install-method == 'mamba'
         env:
           PYTHON_VERSION: ${{ matrix.python-version }}
         run: |
@@ -65,7 +66,7 @@ jobs:
           sed -i -e "s/- python.*/- python=$PYTHON_VERSION/g" environment.yml
 
       - name: mamba setup
-        if: matrix.install-method == 'mamba' &&  contains(github.event.pull_request.labels.*.name, 'documentation-only') == false
+        if: matrix.install-method == 'mamba'
         uses: mamba-org/setup-micromamba@v2
         with:
           environment-file: environment.yml
