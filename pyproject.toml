@@ -8,7 +8,11 @@ dynamic = ["version"]
 description = "Simulate radio interferometer observations and visibility generation with the RIME formalism."
 readme = "README.rst"
 authors = [
-  { name = "Kevin Schmitz, Felix Geyer, Stefan Fröse, Anno Knierim, Tom Groß" },
+  { name = "Kevin Schmitz", email = "kevin2.schmitz@tu-dortmund.de" },
+  { name = "Felix Geyer" },
+  { name = "Stefan Fröse" },
+  { name = "Anno Knierim", email = "anno.knierim@tu-dortmund.de" },
+  { name = "Tom Groß", email = "tom.gross@tu-dortmund.de" },
 ]
 maintainers = [
   { name = "Kevin Schmitz", email = "kevin2.schmitz@tu-dortmund.de" },
@@ -97,10 +101,10 @@ pyvisgen-quickstart = "pyvisgen.tools.quickstart:quickstart"
 source = "vcs"
 
 [tool.hatch.build.hooks.vcs]
-version-file = "pyvisgen/_version.py"
+version-file = "src/pyvisgen/_version.py"
 
 [tool.hatch.build.targets.wheel]
-include = ["pyvisgen"]
+include = ["src/pyvisgen"]
 
 [tool.hatch.build.targets.wheel.shared-data]
 "resources" = "share/resources"
@@ -108,10 +112,10 @@ include = ["pyvisgen"]
 
 [tool.coverage.run]
 omit = [
-  "pyvisgen/version.py",
-  "pyvisgen/_version.py",
   "docs/*",
-  "pyvisgen/gridding/alt_gridder.py",
+  "src/pyvisgen/_version.py",
+  "src/pyvisgen/gridding/alt_gridder.py",
+  "src/pyvisgen/version.py",
 ]
 
 [tool.coverage.xml]
