@@ -106,6 +106,9 @@ version-file = "src/pyvisgen/_version.py"
 [tool.hatch.build.targets.wheel]
 include = ["src/pyvisgen"]
 
+[tool.hatch.build.targets.wheel.sources]
+"src/pyvisgen" = "pyvisgen"
+
 [tool.hatch.build.targets.wheel.shared-data]
 "resources" = "share/resources"
 "config" = "share/configs"
