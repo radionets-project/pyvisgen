@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 import datetime
+import os
 import sys
 from pathlib import Path
 
@@ -65,6 +66,26 @@ version = pyvisgen.__version__
 release = version
 
 
+# -- Version switcher -----------------------------------------------------
+
+# Define the json_url for our version switcher.
+json_url = "https://pyvisgen.readthedocs.io/en/latest/_static/switcher.json"
+
+# Define the version we use for matching in the version switcher.,
+version_match = os.getenv("READTHEDOCS_VERSION")
+# If READTHEDOCS_VERSION doesn't exist, we're not on RTD
+# If it is an integer, we're in a PR build and the version isn't correct.
+if not version_match or version_match.isdigit():
+    # For local development, infer the version to match from the package.
+    if "dev" in release or "rc" in release:
+        version_match = "latest"
+    else:
+        version_match = release
+
+    # We want to keep the relative reference when on a pull request or locally
+    json_url = "_static/switcher.json"
+
+
 # -- Options for HTML output -------------------------------------------------
 # https://www.sphinx-doc.org/en/master/usage/configuration.html#options-for-html-output
 
@@ -80,7 +101,11 @@ html_favicon = "_static/favicon/favicon.ico"
 html_theme_options = {
     "github_url": "https://github.com/radionets-project/pyvisgen",
     "header_links_before_dropdown": 5,
-    "navbar_start": ["navbar-logo"],
+    "navbar_start": ["navbar-logo", "version-switcher"],
+    "switcher": {
+        "version_match": version_match,
+        "json_url": json_url,
+    },
     "navigation_with_keys": False,
     # "use_edit_page_button": True,
     "icon_links_label": "Quick Links",
