@@ -107,7 +107,7 @@ html_theme_options = {
         "json_url": json_url,
     },
     "navigation_with_keys": False,
-    # "use_edit_page_button": True,
+    "show_version_warning_banner": True,
     "icon_links_label": "Quick Links",
     "icon_links": [
         {
