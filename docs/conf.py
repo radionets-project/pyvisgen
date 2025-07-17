@@ -43,7 +43,7 @@ exclude_patterns = [
     "*.log",
 ]
 
-source_suffix = ".rst"
+source_suffix = {".rst": "restructuredtext"}
 master_doc = "index"
 
 
@@ -120,8 +120,6 @@ intersphinx_mapping = {
     "pytest": ("https://docs.pytest.org/en/stable", None),
     "python": ("https://docs.python.org/3", None),
     "scipy": ("https://docs.scipy.org/doc/scipy", None),
-    "setuptools": ("https://setuptools.pypa.io/en/stable", None),
-    "sklearn": ("https://scikit-learn.org/stable", None),
     "torch": ("https://pytorch.org/docs/stable/", None),
 }
 
