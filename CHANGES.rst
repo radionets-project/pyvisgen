@@ -30,7 +30,7 @@ Bug Fixes
   - Fix :class:`pyvisgen.simulation.observation.ValidBaselineSubset` dataclass field order
   - Fix tests failing because of api change [`#39 <https://github.com/radionets-project/pyvisgen/pull/39>`__]
 
-- Fix image rotation caused by bug in rd/lm grid computation in :class:`pyvisgen.simulation.observation.Obseravtion`
+- Fix image rotation caused by bug in rd/lm grid computation in :class:`pyvisgen.simulation.observation.Observation`
 
   - Fix field order in :class:`pyvisgen.simulation.observation.ValidBaselineSubset` data class
   - Flip input image at the beginning of :func:`pyvisgen.simulation.visibility.vis_loop` to ensure correct indexing, e.g. for plotting [`#40 <https://github.com/radionets-project/pyvisgen/pull/40>`__]
@@ -79,7 +79,7 @@ New Features
   - Add a an optional tqdm progress bar to get a visual confirmation the calculation is still running
   - Add optional ``batch_size`` parameter to control memory consumption [`#33 <https://github.com/radionets-project/pyvisgen/pull/33>`__]
 
-- Add class :class:`~pyvisgen.simulation.visibility.Polarisation` to :mod:`pyvisgen.simulation.visibility` that is called in :func:`~pyvisgen.simulation.visibility.vis_loop`
+- Add class :class:`~pyvisgen.simulation.visibility.Polarization` to :mod:`pyvisgen.simulation.visibility` that is called in :func:`~pyvisgen.simulation.visibility.vis_loop`
 
   - Add linear, circular, and no polarisation options
   - Update :class:`pyvisgen.simulation.visibility.Visibilities` dataclass to also store polarisation degree tensors
