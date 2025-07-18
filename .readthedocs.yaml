@@ -7,9 +7,13 @@ build:
   tools:
     python: "3.11"
   jobs:
+    pre_create_environment:
+         - asdf plugin add uv
+         - asdf install uv latest
+         - asdf global uv latest
     install:
-      - pip install --upgrade pip
-      - pip install --group docs .
+      - uv pip install --upgrade pip
+      - uv pip install --group docs .
 
 sphinx:
   configuration: docs/conf.py
