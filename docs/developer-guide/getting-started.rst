@@ -39,12 +39,17 @@ terminal session to activate the conda environment.
 Installing pyvisgen in Development Mode
 =======================================
 
+.. note::
+
+   We recommend using the `uv <https://github.com/astral-sh/uv>`_ package manager
+   for its speed to install ``pyvisgen`` and its dependencies.
+
 To install pyvisgen inside the ``pyvisgen`` environment
 (or any environment for that matter), just run
 
 .. code-block:: console
 
-   $ pip install -e .
+   $ uv pip install --group dev -e .
 
 This installs the package in editable mode, meaning that you won't have to rerun
 the installation for code changes to take effect. For greater changes such as
