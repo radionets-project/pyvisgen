@@ -5,9 +5,9 @@ User Guide
 **********
 
 .. toctree::
-   :maxdepth: 2
+   :maxdepth: 1
+   :glob:
 
    getting-started
    about
-   examples_tutorials
    examples_tutorials/index

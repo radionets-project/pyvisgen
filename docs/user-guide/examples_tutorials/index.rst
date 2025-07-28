@@ -1,4 +1,9 @@
+**********************
+Tutorials and Examples
+**********************
+
+
 .. toctree::
-   :maxdepth: 2
+   :maxdepth: 1
 
    ideal_interferometer

@@ -14,13 +14,14 @@ Getting Started for Users
 Installation
 ============
 
-Currently, pyvisgen is only available via the
-`source repository <https://github.com/radionets-project/pyvisgen>`_.
+.. note::
 
-To install ``pyvisgen`` into an existing (conda) environment, use
+   We recommend using the `uv <https://github.com/astral-sh/uv>`_ package manager
+   for its speed to install ``pyvisgen`` and its dependencies.
+
+``pyvisgen`` is available on `PyPI <https://pypi.org/project/pyvisgen/>`_.
+To install ``pyvisgen`` into an existing (mamba) environment, use
 
 .. code-block:: console
 
-   $ pip install .
-
-in the root directory of the source repository.
+   $ uv pip install pyvisgen
