@@ -357,6 +357,65 @@ class ValidBaselineSubset:
         return torch.argsort(inv), inv
 
 
+@dataclass
+class Scan:
+    """
+    Dataclass containing the timing information of scans.
+
+    Attributes
+    ----------
+
+    start: astropy.times.Time
+    The start time of the scan
+
+    stop: astropy.times.Time
+    The stop time of the scan
+
+    separation: float
+    The separation to the next scan in seconds
+
+    integration_time: float
+    The integration time of the interferometer for this scan.
+
+    """
+
+    start: Time
+    stop: Time
+    separation: float
+    integration_time: float
+
+    def get_num_timesteps(self):
+        """
+        Get the number of time steps in the scan.
+
+        Returns
+        -------
+
+        num_timesteps: int
+
+        """
+        return int(
+            ((self.stop - self.start).to(un.second) // self.integration_time).value
+        )
+
+    def get_timesteps(self):
+        """
+        Get the start and stop times of the timesteps.
+
+        Returns
+        -------
+
+        timesteps: astropy.times.Time
+
+        """
+        return Time(
+            [
+                min([self.start + i * self.integration_time, self.stop])
+                for i in range(0, self.get_num_timesteps() + 1)
+            ]
+        )
+
+
 class Observation:
     """Main observation simulation class.
     The :class:`~pyvisgen.simulation.Observation` class
@@ -431,10 +490,10 @@ class Observation:
         src_ra: float,
         src_dec: float,
         start_time: datetime,
-        scan_duration: int,
-        num_scans: int,
-        scan_separation: int,
-        integration_time: int,
+        scan_duration: int | np.typing.ArrayLike,
+        num_scans: int | np.typing.ArrayLike,
+        scan_separation: int | np.typing.ArrayLike,
+        integration_time: int | np.typing.ArrayLike,
         ref_frequency: float,
         frequency_offsets: list,
         bandwidths: list,
@@ -464,7 +523,7 @@ class Observation:
             Scan duration.
         num_scans : int
             Number of scans.
-        scan_separation : int
+        scan_separation : int | ArrayLike
             Scan separation.
         integration_time : int
             Integration time.
@@ -516,20 +575,17 @@ class Observation:
         self.ra = torch.tensor(src_ra).double()
         self.dec = torch.tensor(src_dec).double()
 
-        self.start = Time(start_time.isoformat(), format="isot", scale="utc")
-        self.scan_duration = scan_duration
-        self.num_scans = num_scans
-        self.int_time = integration_time
-        self.scan_separation = scan_separation
+        self.show_progress = show_progress
 
-        self.times, self.times_mjd = self.calc_time_steps()
-        self.scans = torch.stack(
-            torch.split(
-                torch.arange(self.times.size),
-                (self.times.size // self.num_scans),
-            ),
-            dim=0,
-        )
+        self.start = Time(start_time.isoformat(), format="isot", scale="utc")
+
+        self.scan_duration = scan_duration  # Duration of scans (in seconds)
+        self.num_scans = num_scans  # Number of scans
+        self.scan_separation = scan_separation  # Seperation between scans (in seconds)
+
+        self.int_time = integration_time  # Integration time (either one time for all scans or one for each scan)
+
+        self.scans = self.create_scans()
 
         self.ref_frequency = torch.tensor(ref_frequency)
         self.bandwidths = torch.tensor(bandwidths)
@@ -559,8 +615,6 @@ class Observation:
             len(self.array.st_num) * (len(self.array.st_num) - 1) / 2
         )
 
-        self.show_progress = show_progress
-
         if dense:  # pragma: no cover
             self.waves_low = [self.ref_frequency]
             self.waves_high = [self.ref_frequency]
@@ -582,30 +636,47 @@ class Observation:
         self.pol_kwargs = pol_kwargs
         self.field_kwargs = field_kwargs
 
-    def calc_time_steps(self):
-        """Computes the time steps of the observation.
+    def create_scans(self):
+        """
+        Calculates individual scans of the observation based on
+        the number of scans, their duration and the integration time.
 
         Returns
         -------
-        time : array_like
-            Array of time steps.
-        time.mjd : array_like
-            Time steps in mjd format.
-        """
-        time_lst = [
-            self.start
-            + self.scan_separation * i * un.second
-            + i * self.scan_duration * un.second
-            + j * self.int_time * un.second
-            for i in range(self.num_scans)
-            for j in range(int(self.scan_duration / self.int_time) + 1)
-        ]
-        # +1 because t_1 is the stop time of t_0.
-        # In order to save computing power we take
-        # one time more to complete interval
-        time = Time(time_lst)
 
-        return time, time.mjd * (60 * 60 * 24)
+        list[Scan]:
+        List of scans with a specific start, stop and integration time
+
+        """
+        scans = []
+
+        def _as_array(arr, size: int):
+            if np.isscalar(arr):
+                return np.ones(size) * arr
+            else:
+                return np.asarray(arr)
+
+        current_time = self.start
+
+        scan_duration = _as_array(self.scan_duration, size=self.num_scans)
+        scan_separation = np.append(
+            _as_array(self.scan_separation, size=self.num_scans - 1), 0
+        )
+        int_time = _as_array(self.int_time, size=self.num_scans)
+
+        for i in range(self.num_scans):
+            scans.append(
+                Scan(
+                    start=current_time,
+                    stop=current_time + scan_duration[i] * un.second,
+                    integration_time=int_time[i] * un.second,
+                    separation=scan_separation[i] * un.second,
+                )
+            )
+
+            current_time = scans[-1].stop + scans[-1].separation
+
+        return scans
 
     def calc_dense_baselines(self):  # pragma: no cover
         """Calculates the baselines of a densely-built
@@ -666,14 +737,12 @@ class Observation:
             torch.tensor([]),  # q2
         )
 
-        self.scans = tqdm(
+        for scan in tqdm(
             self.scans,
             disable=not self.show_progress,
-            desc="Computing scans",
-        )
-
-        for scan in self.scans:
-            bas = self.get_baselines(self.times[scan])
+            desc="Computing baselines",
+        ):
+            bas = self.get_baselines(scan.get_timesteps())
             self.baselines.add_baseline(bas)
 
     def get_baselines(self, times):
@@ -752,15 +821,14 @@ class Observation:
 
         return baselines
 
-    def calc_ref_elev(self, time=None) -> tuple:
+    def calc_ref_elev(self, time) -> tuple:
         """Calculates the station elevations for given
         time steps.
 
         Parameters
         ----------
-        time : array_like or None, optional
+        time : array_like, optional
             Array containing observation time steps.
-            Default: ``None``
 
         Returns
         -------
@@ -768,8 +836,7 @@ class Observation:
             Tuple containing tensors of the Greenwich hour angle,
             antenna-local hour angles, and the elevations.
         """
-        if time is None:
-            time = self.times
+
         if time.shape == ():
             time = time[None]
 
