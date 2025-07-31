@@ -360,7 +360,18 @@ class ValidBaselineSubset:
 @dataclass
 class Scan:
     """
-    Dataclass containing the timing information of scans.
+    Dataclass containing the timing information about a scan.
+    A scan is defined as a period in which the simulated interferometer
+    measures visibilities. It has a specific start and end time.
+    The measurements are taken in regular time steps during the scan time.
+    The difference between those steps is the integration time.
+    If the total measurement time is not divisible by the integration time
+    the last measurement will end prematurely and the time difference between
+    the two last measurements will be shorter than the integration time.
+
+    The scan seperation determines the time the interferometer
+    does not measure between two scans. The time defined in one scan
+    is the time that will be waited after (!) the scan.
 
     Attributes
     ----------
@@ -491,7 +502,7 @@ class Observation:
         src_dec: float,
         start_time: datetime,
         scan_duration: int | np.typing.ArrayLike,
-        num_scans: int | np.typing.ArrayLike,
+        num_scans: int,
         scan_separation: int | np.typing.ArrayLike,
         integration_time: int | np.typing.ArrayLike,
         ref_frequency: float,
@@ -514,25 +525,28 @@ class Observation:
         Parameters
         ----------
         src_ra : float
-            Source right ascension coordinate.
+            Source right ascension coordinate in degrees.
         src_dec : float
-            Source declination coordinate.
+            Source declination coordinate in degrees.
         start_time : datetime
             Observation start time.
-        scan_duration : int
-            Scan duration.
+        scan_duration : int | ArrayLike
+            Scan duration or array of scan durations
+            with size=num_scans.
         num_scans : int
             Number of scans.
         scan_separation : int | ArrayLike
-            Scan separation.
-        integration_time : int
-            Integration time.
+            Scan separation or array of scan seperations
+            with size=num_scans - 1.
+        integration_time : int | ArrayLike
+            Integration time or an array of scan seperations
+            with size=num_scans.
         ref_frequency : float
-            Reference frequency.
+            Reference frequency in Hertz.
         frequency_offsets : list
-            Frequency offsets.
+            Frequency offsets in Hertz.
         bandwidths : list
-            Frequency bandwidth.
+            Frequency bandwidth in Hertz.
         fov : float
             Field of view in arcseconds.
         image_size : int
