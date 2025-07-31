@@ -659,7 +659,7 @@ class Observation:
         -------
 
         list[Scan]:
-        List of scans with a specific start, stop and integration time
+            List of scans with a specific start, stop and integration time
 
         """
         scans = []
