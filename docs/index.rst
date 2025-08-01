@@ -61,6 +61,9 @@ visibilities and convert them to images suitable as input for the neural network
   developer-guide/index
   api-reference/index
   changelog
+  citeus
+  references
+  glossary
 
 
 
