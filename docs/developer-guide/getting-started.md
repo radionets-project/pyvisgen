@@ -7,8 +7,8 @@ that ships the package installer [`mamba`][mamba], a C++ reimplementation of ``c
 
 :::{warning}
 The following guide is used only if you want to *develop* the
-``pyvisgen`` package, if you just want to write code that uses it
-as a dependency, you can install ``pyvisgen`` through one of the
+`pyvisgen` package, if you just want to write code that uses it
+as a dependency, you can install `pyvisgen` through one of the
 installation methods in {ref}`getting_started_users`
 :::
 
@@ -18,7 +18,7 @@ installation methods in {ref}`getting_started_users`
 We provide a [`mamba`][mamba]/`conda` environment with all packages needed for development of pyvisgen
 that can be installed via:
 
-```shell-shell
+```shell-session
 $ mamba env create --file=environment-dev.yml
 ```
 
@@ -39,9 +39,9 @@ We recommend using the `uv` package manager to install ``pyvisgen``
 and its dependencies. Never heard of `uv`? See [the documentation][uv] for more.
 :::
 
-To install pyvisgen in your virtual environment, just run
+To install `pyvisgen` in your virtual environment, just run
 
-```shell-shell
+```shell-session
 $ uv pip install --group dev -e .
 ```
 in the root of the directory (the directory that contains the `pyproject.toml` file).
@@ -54,5 +54,38 @@ Make sure you include the `--group` flag to install the `dev` dependency group, 
 provides all the necessary dependencies for development on `pyvisgen`.
 :::
 
+
+(pre_commit)=
+## Further Setup
+
+We are using [`pre-commit`][pre-commit] with [Ruff][ruff] as linter and formatter for automatic code adherence
+to the {ref}`coding-style`. Install the `pre-commit` hooks:
+```shell-session
+$ pre-commit install
+```
+The pre-commit hooks will then run every time you commit something. If any of the tools
+reports a problem, the commit will be aborted and you will have to fix the issues first.
+Usually, a failing `pre-commit` hook indicates code not complying with the style guide.
+Once all problems are fixed, you can try committing again, and the changes will be accepted.
+
+To run `pre-commit` manually, call:
+```shell-session
+$ pre-commit run
+```
+Or, to run it on all files:
+```shell-session
+$ pre-commit run --all-files
+```
+The [Ruff][ruff] hook uses the configuration in [`pyproject.toml`][pyvisgen-pyproject] for linting and formatting.
+
+
+## Next Steps
+
+Check out {ref}`contributions` and {ref}`coding-style` to learn how to contribute
+to `pyvisgen` as a developer.
+
+
 [mamba]: https://mamba.readthedocs.io/en/latest/
 [uv]: https://docs.astral.sh/uv/
+[ruff]: https://docs.astral.sh/ruff/
+[pyvisgen-pyproject]: https://github.com/radionets-project/pyvisgen/blob/main/pyproject.toml
