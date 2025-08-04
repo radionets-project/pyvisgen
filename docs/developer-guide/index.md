@@ -7,4 +7,5 @@
 
 getting-started
 contributions
+style-guide
 :::
