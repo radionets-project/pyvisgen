@@ -23,6 +23,9 @@ from pyvisgen.simulation.visibility import vis_loop
 from pyvisgen.utils.config import read_data_set_conf
 from pyvisgen.utils.data import load_bundles, open_bundles
 
+__all__ = ["SimulateDataSet"]
+
+
 DATEFMT = "%d-%m-%Y %H:%M:%S"
 
 JD_EPOCH = Time("J2000.0").jd  # Reference epoch (J2000.0)

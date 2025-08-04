@@ -38,8 +38,8 @@ def get_bundles(path: str | Path) -> np.array:
 
     Returns
     -------
-    bundles : :class:`~numpy.ndarray`
-        :class:`~numpy.ndarray` containing paths to the bundle
+    bundles : :func:`~numpy.array`
+        :func:`~numpy.array` containing paths to the bundle
         files.
     """
     data_path = Path(path)
@@ -58,8 +58,8 @@ def open_bundles(path: str | Path, key: str = "y") -> np.array:
 
     Returns
     -------
-    bundle_y : :class:`~numpy.ndarray`
-        :class:`~numpy.ndarray` containing data from
+    bundle_y : :func:`~numpy.array`
+        :func:`~numpy.array` containing data from
         the bundle file.
     """
     f = h5py.File(path, "r")
