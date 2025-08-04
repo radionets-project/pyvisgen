@@ -7,7 +7,7 @@ This page contains pointers and links to help you contribute to this project.
 (forking_v_main)=
 ## Forking vs. Working in the Main Repository
 
-If you are a member of the https://github.com/radionets-project/ GitHub organization,
+If you are a member of the https://github.com/radionets-project GitHub organization,
 the maintainers can provide you access to the main repository at https://github.com/radionets-project/pyvisgen.
 Working on the main repository has the advantage, that there is no need to synchronize between a
 personal fork and the main repository, and collaboration is easier on the same branch with other
@@ -15,6 +15,11 @@ developers.
 
 If you are an external contributor, you will have to create a fork of `pyvisgen`.
 
+:::{admonition} Important
+:class: warning
+In any case, make sure you have read and understood the {ref}`coding-style` before working on
+the codebase.
+:::
 
 (cloning_repo)=
 ## Cloning the Repository
@@ -62,47 +67,6 @@ The GitHub docs provide useful information on
 ```
 :::
 ::::
-
-
-(pre_commit)=
-## Further Setting Up the Development Environment
-
- We are using [`pre-commit`][pre-commit] with [Ruff][ruff] as linter and formatter for automatic code adherence
-to the {ref}`coding-style`. Install the `pre-commit` hooks:
-```shell-session
-$ pre-commit install
-```
-The pre-commit hooks will then run every time you commit something. If any of the tools
-reports a problem, the commit will be aborted and you will have to fix the issues first.
-Usually, a failing `pre-commit` hook indicates code not complying with the style guide.
-Once all problems are fixed, you can try committing again, and the changes will be accepted.
-
-To run `pre-commit` manually, call:
-```shell-session
-$ pre-commit run
-```
-Or, to run it on all files:
-```shell-session
-$ pre-commit run --all-files
-```
-The [Ruff][ruff] hook uses the configuration in [`pyproject.toml`][pyvisgen-pyproject] for linting and formatting.
-
-
-(testing)=
-## Testing
-
-We're using [`pytest`][pytest] to test the functionality of `pyvisgen`. To test all
-components, run:
-```shell-session
-$ pytest -vv
-```
-The `-vv` option shows verbose output and can be omitted. [`pytest`][pytest] disables
-any output sent `stdout` and `stderr` by default. To enable the output,
-run [`pytest`][pytest] with the `-s` option (or `-vvs` for verbose).
-
-:::{attention}
-Make sure that all tests run successfully, before you commit changes.
-:::
 
 
 (updating_repo)=
@@ -157,7 +121,7 @@ Please create a new feature branch whenever you want to contribute to the codeba
 Best practice is to create one branch per new feature, so that you do not mix code from
 each. This also makes the reviewing process much easier.
 
-:::{admonition} If you're working on a fork...
+:::{admonition} If you're working in a fork...
 :class: warning
 ...you should **never** add commits to the `main` branch of your fork. This will create
 issues due to diverging histories of the main repository and your fork, whenever
@@ -241,7 +205,7 @@ $ git push -u origin <feature branch name>
 
 As of Git version `2.37` you can set the behaviour of git so that a simple `git push` will also work
 for the first push:
-:::{code-block}shell-session
+:::{code-block} shell-session
 :class: no-copybutton
 $ git config --global branch.autoSetupMerge simple
 $ git config --global push.autoSetupRemote true
@@ -366,26 +330,104 @@ git branch --delete --remotes <name of the feature branch>
 ```
 
 
-(coding-style)=
-## Coding Style
+(testing)=
+## Testing
 
-`pyvisgen` follows the [PEP8 style guide][pep8] for Python. This is enforced via the [Ruff][ruff]
-linter and code formatter and through the `pre-commit` hook set up in {ref}`getting_started_dev`.
+We're using [`pytest`][pytest] to test the functionality of `pyvisgen`. To test all
+components, run:
+```shell-session
+$ pytest -vv
+```
+The `-vv` option shows verbose output and can be omitted. [`pytest`][pytest] disables
+any output sent to `stdout` and `stderr` by default. To enable the output,
+run [`pytest`][pytest] with the `-s` option (or `-vvs` for verbose).
 
-## Tools Used in Development
+:::{admonition} Before committing,...
+:class: warning
+...please make sure that all tests run successfully.
+:::
 
-`pyvisgen` is built and developed using:
+
+(adding_deps)=
+## Adding New Dependencies to the Project
+
+If you developed a new feature that requires a new dependency, please add
+it to `pyproject.toml` using [`uv`][uv]:
+
+```shell-session
+$ uv add <package name>
+```
+
+`uv` will attempt to resolve the existing dependencies and add the dependency
+to the project. The `uv add` command will also update the `uv.lock` file or create
+a new one if it does not exist. `uv` will automatically set version constraints
+for the new dependency, but you can also specify them manually if necessary, e.g.:
+
+```shell-session
+$ uv add 'numpy>=2.0'
+```
+
+If the dependency is only required for a specific dependency group (e.g. `dev`, `tests`, or `docs`),
+use:
+
+```shell-session
+$ uv add --group <group> <package name>
+```
+
+:::{seealso}
+[Managing project dependencies][managing_deps] in the [`uv` docs][uv].
+:::
+
+
+## Updating the Docs
+
+The docs are build using [`Sphinx`][sphinx] and the [PyData Sphinx Theme][pydata-theme].
+Extensions like [`sphinx-automodapi`][sphinx-automodapi] create summaries of modules
+automatically, with only very little effort. If a new feature you developed is implemented
+inside one of the existing submodules, it will automatically be added to the docs. Please
+make sure, you have written docstrings for your code.
+
+The `dev` dependency group also includes the `docs` group. This dependency group
+comes with all required software and tools to build the docs. We recommend using
+[`sphinx-autobuild`][sphinx-autobuild] to build and serve the docs on
+`localhost` during work on the docs. Please use the following call to `sphinx-autobuild`
+to watch and build the docs (e.g. from the root of the repository):
+
+```shell-session
+$ sphinx-autobuild docs docs/_build/html --port <port> --jobs auto --nitpicky --watch src
+```
+
+This call builds the docs from the `docs/` directory and saves `html`
+files to `docs/_build/html/`. The other flags serve following purposes:
+
+`--port`
+:  Binds the local server to a specific port `<port>`.
+
+`--jobs`
+:  Runs in parallel a specified number of processes. `auto` uses the number of CPU cores available on your machine.
+
+`--nitpicky`
+:  If this flag is used, `sphinx-autobuild` will warn about any missing reference.
+
+`--watch`
+:  This flag enables watching additional directories. If `src` is passed, any changes in the packages will also trigger a rebuild.
+
+`sphinx-autobuild` rebuilds the docs any time it detects changes in the docs directory.
+
 
 [github-ssh]: https://docs.github.com/en/authentication/connecting-to-github-with-ssh/adding-a-new-ssh-key-to-your-github-account
 [github-fork]: https://docs.github.com/en/pull-requests/collaborating-with-pull-requests/working-with-forks/fork-a-repo
 [github-sync]: https://docs.github.com/en/pull-requests/collaborating-with-pull-requests/working-with-forks/syncing-a-fork
 [pre-commit]: https://pre-commit.com/
-[pyvisgen-pyproject]: https://github.com/radionets-project/pyvisgen/blob/main/pyproject.toml
 [pytest]: https://docs.pytest.org/en/stable/
 [conventionalcommits]: https://www.conventionalcommits.org/en/v1.0.0/
 [atlassian-merge]: https://www.atlassian.com/git/tutorials/merging-vs-rebasing
 [github-pr]: https://docs.github.com/en/pull-requests/collaborating-with-pull-requests/proposing-changes-to-your-work-with-pull-requests/creating-a-pull-request
 [ci]: https://docs.github.com/en/actions/get-started/continuous-integration
-[pep8]: https://peps.python.org/pep-0008/
-[ruff]: https://docs.astral.sh/ruff/
 [pytorch]: https://pytorch.org/
+[uv]: https://docs.astral.sh/uv/
+[managing_deps]: https://docs.astral.sh/uv/guides/projects/#managing-dependencies
+[sphinx]: https://www.sphinx-doc.org/en/master/
+[pydata-theme]: https://pydata-sphinx-theme.readthedocs.io/en/stable/
+[sphinx-automodapi]: https://sphinx-automodapi.readthedocs.io/en/latest/
+[sphinx-autobuild]: https://github.com/sphinx-doc/sphinx-autobuild
