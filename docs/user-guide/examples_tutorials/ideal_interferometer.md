@@ -1,6 +1,6 @@
 # Simulating an Ideal Radio Interferometer
 
-In radio interferometry an ideal an ideal radio interferometer is assumed to
+In radio interferometry, an ideal radio interferometer is assumed to
 provide full $(u,v)$ coverage for a given resolution.
 We have implemented a method in the {class}`~pyvisgen.simulation.observation.Observation` class
 that allows the simulation of such an interferometer; mostly relying on
