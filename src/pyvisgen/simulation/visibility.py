@@ -506,8 +506,10 @@ def vis_loop(
         if obs.device == torch.device("cpu"):
             LOGGER.exception("Only available for GPU calculations!")
             raise ValueError("Only available for GPU calculations!")
-        obs.calc_dense_baselines()
-        bas = obs.dense_baselines_gpu
+
+        # We cannot test this at the moment
+        obs.calc_dense_baselines()  # pragma: no cover
+        bas = obs.dense_baselines_gpu  # pragma: nocover
     else:
         LOGGER.exception("Unsupported mode!")
         raise ValueError("Unsupported mode!")
