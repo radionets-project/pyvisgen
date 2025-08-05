@@ -1,3 +1,61 @@
+Pyvisgen v0.4.0 (2025-08-05)
+============================
+
+
+API Changes
+-----------
+
+
+Bug Fixes
+---------
+
+
+New Features
+------------
+
+- - Added a new `setup_logger` function in {mod}`pyvisgen.utils`
+  - Added logging throughout the codebase
+  - Replaced bare prints with `LOGGER.info` or `LOGGER.warning` for better status messages
+  - Added exception logging before raising an exception, providing better tracebacks and error context [`#98 <https://github.com/radionets-project/pyvisgen/pull/98>`__]
+
+
+Maintenance
+-----------
+
+- - Updated most of the docs to use myst parser
+  - Updated user guide
+  - Updated developer guide
+  - Added contribution guide
+  - Added coding style guide
+  - Added "Cite Us" page [`#96 <https://github.com/radionets-project/pyvisgen/pull/96>`__]
+
+
+Refactoring and Optimization
+----------------------------
+
+Pyvisgen v0.4.0 (2025-08-05)
+============================
+
+
+API Changes
+-----------
+
+
+Bug Fixes
+---------
+
+
+New Features
+------------
+
+
+Maintenance
+-----------
+
+
+Refactoring and Optimization
+----------------------------
+
 Pyvisgen v0.3.0 (2025-07-02)
 ============================
 

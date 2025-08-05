@@ -1,4 +1,0 @@
-- Added a new `setup_logger` function in {mod}`pyvisgen.utils`
-- Added logging throughout the codebase
-- Replaced bare prints with `LOGGER.info` or `LOGGER.warning` for better status messages
-- Added exception logging before raising an exception, providing better tracebacks and error context
