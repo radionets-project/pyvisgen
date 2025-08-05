@@ -24,7 +24,10 @@ from pyvisgen.utils.config import read_data_set_conf
 from pyvisgen.utils.data import load_bundles, open_bundles
 from pyvisgen.utils.logging import setup_logger
 
+__all__ = ["SimulateDataSet"]
+
 LOGGER = setup_logger()
+
 DATEFMT = "%d-%m-%Y %H:%M:%S"
 
 JD_EPOCH = Time("J2000.0").jd  # Reference epoch (J2000.0)

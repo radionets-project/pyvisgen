@@ -4,7 +4,7 @@
 
 :root[data-theme="light"] {
   --pst-color-text: #090704;
-  --pst-color-background: #f5f5f5;
+  --pst-color-background: #fafafa;
   --pst-color-on-background: #ffffff;
   --pst-color-primary: #14992e;
   --pst-color-secondary: #325e8d;
@@ -41,11 +41,12 @@ body {
 
 :root {
   --pst-font-family-monospace: "Fira Mono";
+  --admonition-toggle-padding: 0 0.6rem 0;
 }
 
 
 h1, h2, h3, h4, h5 {
-font-family: 'Open Sans';
+  font-family: 'Open Sans';
   font-weight: 700;
   line-height: 1.4;
 }
@@ -88,7 +89,7 @@ dt:target {
 
 /* code blocks */
 div.highlight {
-  background-color: var(--hl-pre-code-background) !important;
+  background-color: transparent !important;
 }
 .highlight pre {
   border-radius: 20px;
@@ -98,63 +99,35 @@ div.highlight {
   color: var(--pst-color-primary);
 }
 
+button.copybtn {
+  top: 0.75em !important;
+  right: 0.75em !important;
+}
+
+
+/* inline code */
+code.literal {
+  background-color: transparent;
+  border: none;
+  padding: .1rem 0;
+}
+
+code {
+	font-size: 1em;
+}
+
+/* Announcement banner */
 .bd-header-announcement {
   color: var(--bd-header-announcement-color);
   background-color: var(--bd-header-announcement-background);
 }
 
+/* admonitions */
 .admonition {
   border-radius: 10px !important;
 }
 
-/* sphinx-design */
-.sd-card {
-  background-color: var(--pst-color-on-background);
-  border-radius: 10px;
-  padding: 30px 10px 20px 10px;
-  margin: 10px 0px;
-}
-
-.sd-card .sd-card-header .sd-card-text {
-  margin: 0px;
-}
-
-.sd-card .sd-card-header {
-  border: none;
-  text-align: center;
-  font-size: var(--pst-font-size-h4);
-  font-weight: bold;
-  padding: 0.5rem 0rem 0.5rem 0rem;
-}
-
-.sd-card .sd-card-footer {
-  border: none;
-}
-
-.sd-card .sd-card-footer .sd-card-text {
-  max-width: 220px;
-  margin-left: auto;
-  margin-right: auto;
-}
-
-.sd-card .sd-btn {
-  border-radius: 20px;
-}
-
-.sd-card:hover {
-  border-color: var(--pst-color-secondary);
-  transform: scale(1.05);
-  -webkit-transition: all .2s;
-  -moz-transition: all .2s;
-  transition: all .2s;
-}
-
-.sd-card .sd-btn:hover {
-  -webkit-animation: pulse 2s infinite;
-  animation: pulse512 1.5s infinite;
-  background-size: 200% auto;
-}
-
+/* Announcement banner */
 .search-button-field:hover {
   border-color: var(--pst-color-primary-highlight);
   border-width: 2pt;
@@ -226,4 +199,15 @@ div.highlight {
 .bd-header {
   background: var(--color-header-navbar) !important;
   backdrop-filter: blur(20px) !important;
+}
+
+/* version switcher */
+.version-switcher__container a[data-version-name*="stable"] {
+  background-color: var(--pst-color-success-bg);
+  color: var(--pst-color-success);
+}
+
+.version-switcher__container a[data-version-name*="dev"] {
+  background-color: var(--pst-color-warning-bg);
+  color: var(--pst-color-warning);
 }
