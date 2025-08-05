@@ -6,7 +6,7 @@ import torch
 from astropy import units as un
 from astropy.time import Time
 from joblib import Parallel, delayed
-from rich import print
+from rich.pretty import pretty_repr
 from tqdm.auto import tqdm
 
 import pyvisgen.fits.writer as writer
@@ -22,7 +22,9 @@ from pyvisgen.simulation.observation import Observation
 from pyvisgen.simulation.visibility import vis_loop
 from pyvisgen.utils.config import read_data_set_conf
 from pyvisgen.utils.data import load_bundles, open_bundles
+from pyvisgen.utils.logging import setup_logger
 
+LOGGER = setup_logger()
 DATEFMT = "%d-%m-%Y %H:%M:%S"
 
 JD_EPOCH = Time("J2000.0").jd  # Reference epoch (J2000.0)
@@ -106,9 +108,11 @@ class SimulateDataSet:
         elif isinstance(config, dict):
             cls.conf = config
         else:
+            LOGGER.exception("Expected config to be one of str, Path or dict!")
             raise ValueError("Expected config to be one of str, Path or dict!")
 
-        print("Simulation Config:\n", cls.conf)
+        LOGGER.info("Simulation Config:")
+        LOGGER.info(pretty_repr(cls.conf))
 
         cls.device = cls.conf["device"]
 
@@ -137,6 +141,9 @@ class SimulateDataSet:
 
         if isinstance(cls.num_images, (int, float)):
             if int(cls.num_images) == 0:
+                LOGGER.exception(
+                    "No images found in bundles! Please check your input path!"
+                )
                 raise ValueError(
                     "No images found in bundles! Please check your input path!"
                 )
@@ -208,7 +215,8 @@ class SimulateDataSet:
                     truth_fft = convert_real_imag(truth_fft, sky_sim=True)
 
                 if sim_data.shape[1] != 2:
-                    raise ValueError("Expected sim_data axis 1 to be 2!")
+                    LOGGER.exception("Expected sim_data axis at index 1 to be 2!")
+                    raise ValueError("Expected sim_data axis at index 1 to be 2!")
 
                 out = self.out_path / Path(
                     f"samp_{self.conf['file_prefix']}_" + str(i) + ".h5"
@@ -231,7 +239,7 @@ class SimulateDataSet:
                     f"samp_{self.conf['file_prefix']}_<id>.fits"
                 )
 
-        print(
+        LOGGER.info(
             f"Successfully simulated and saved {samp_opts_idx} images to '{path_msg}'!"
         )
 
@@ -672,6 +680,7 @@ class SimulateDataSet:
         elif isinstance(config, dict):
             cls.conf = config
         else:
+            LOGGER.exception("Expected config to be one of str, Path or dict!")
             raise ValueError("Expected config to be one of str, Path or dict!")
 
         cls.device = cls.conf["device"]
