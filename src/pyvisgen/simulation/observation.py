@@ -11,8 +11,10 @@ from tqdm.auto import tqdm
 
 from pyvisgen.layouts import layouts
 from pyvisgen.simulation.array import Array
+from pyvisgen.utils.logging import setup_logger
 
 torch.set_default_dtype(torch.float64)
+LOGGER = setup_logger()
 
 __all__ = ["Baselines", "ValidBaselineSubset", "Observation"]
 
@@ -802,10 +804,11 @@ class Observation:
             )
         )
         if not len(GHA.value) == len(el_st_all):
-            raise ValueError(
-                "Expected GHA and el_st_all to have the same length"
-                f"{len(GHA.value)} and {len(el_st_all)}"
-            )
+            exception_msg = "Expected GHA and el_st_all to have the same length"
+            exception_msg += f"{len(GHA.value)} and {len(el_st_all)}"
+
+            LOGGER.exception(exception_msg)
+            raise ValueError(exception_msg)
 
         return (
             torch.tensor(GHA.deg),
@@ -964,8 +967,10 @@ class Observation:
         ).reshape(-1)
 
         if not (u.shape == v.shape == w.shape):
-            raise ValueError(
-                "Expected u, v, and w to have the same shapes "
-                f"but got {u.shape}, {v.shape}, and {w.shape}."
-            )
+            exception_msg = "Expected u, v, and w to have the same shapes "
+            exception_msg += f"but got {u.shape}, {v.shape}, and {w.shape}."
+
+            LOGGER.exception(exception_msg)
+            raise ValueError(exception_msg)
+
         return u, v, w
