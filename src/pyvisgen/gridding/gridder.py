@@ -4,6 +4,9 @@ import torch
 from numpy.exceptions import AxisError
 
 from pyvisgen.gridding.alt_gridder import ms2dirty_python_fast
+from pyvisgen.utils.logging import setup_logger
+
+LOGGER = setup_logger()
 
 
 def ducc0_gridding(uv_data, freq_data):
@@ -159,6 +162,7 @@ def grid_vis_loop_data(
                 axis=3,
             )[:, None, None, :, None, ...]
     else:
+        LOGGER.exception("Expected vis_data to be of dimension 3 or 7")
         raise ValueError("Expected vis_data to be of dimension 3 or 7")
 
     if isinstance(freq_bands, float):
@@ -218,10 +222,10 @@ def grid_vis_loop_data(
     mask_imag /= mask
 
     if mask_real.shape != (conf["grid_size"], conf["grid_size"]):
-        raise ValueError(
-            "shape mismatch: Expected mask_real to be "
-            f"of shape {(conf['grid_size'], conf['grid_size'])}"
-        )
+        exception_msg = "shape mismatch: Expected mask_real to be "
+        exception_msg += f"of shape {(conf['grid_size'], conf['grid_size'])}"
+        LOGGER.exception(exception_msg)
+        raise ValueError(exception_msg)
 
     gridded_vis = np.zeros((2, N, N))
     gridded_vis[0] = mask_real
@@ -250,6 +254,7 @@ def compute_single_stokes_component(
         Valid values are ``'+'`` or ``'-'``.
     """
     if sign not in "+-":
+        LOGGER.exception("'sign' can only be '+' or '-'!")
         raise ValueError("'sign' can only be '+' or '-'!")
     match sign:
         case "+":

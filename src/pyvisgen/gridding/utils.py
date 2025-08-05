@@ -9,8 +9,10 @@ from pyvisgen.fits.data import fits_data
 from pyvisgen.gridding import grid_data
 from pyvisgen.utils.config import read_data_set_conf
 from pyvisgen.utils.data import load_bundles, open_bundles
+from pyvisgen.utils.logging import setup_logger
 
 os.environ["HDF5_USE_FILE_LOCKING"] = "FALSE"
+LOGGER = setup_logger()
 
 
 def create_gridded_data_set(config):
@@ -153,16 +155,18 @@ def save_fft_pair(path, x, y, name_x="x", name_y="y"):
 
 def test_shapes(array, name):
     if array.shape[1] != 2:
-        raise ValueError(
-            f"Expected array {name} axis 1 to be 2 but got "
-            f"{array.shape} with axis 1: {array.shape[1]}!"
-        )
+        exception_msg = f"Expected array {name} axis 1 to be 2 but got "
+        exception_msg += f"{array.shape} with axis 1: {array.shape[1]}!"
+
+        LOGGER.exception(exception_msg)
+        raise ValueError(exception_msg)
 
     if len(array.shape) != 4:
-        raise ValueError(
-            f"Expected array {name} shape to be of len 4 but got "
-            f"{array.shape} with len {len(array.shape)}!"
-        )
+        exception_msg = f"Expected array {name} shape to be of len 4 but got "
+        exception_msg += f"{array.shape} with len {len(array.shape)}!"
+
+        LOGGER.exception(exception_msg)
+        raise ValueError(exception_msg)
 
 
 def calc_truth_fft(sky_dist):
