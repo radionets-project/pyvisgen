@@ -1,0 +1,6 @@
+- Updated most of the docs to use myst parser
+- Updated user guide
+- Updated developer guide
+- Added contribution guide
+- Added coding style guide
+- Added "Cite Us" page
