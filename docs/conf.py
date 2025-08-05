@@ -194,8 +194,3 @@ intersphinx_mapping = {
 suppress_warnings = [
     "intersphinx.external",
 ]
-
-
-def setup(app):
-    app.add_css_file("./css/dropdown.css")
-    app.add_js_file("./js/dropdown.js")
