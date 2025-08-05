@@ -126,7 +126,7 @@ class SimulateDataSet:
 
         cls.data_paths = load_bundles(cls.conf["in_path"])
 
-        if not cls.num_images:
+        if cls.num_images is None:
             data_bundles = tqdm(
                 range(len(cls.data_paths)),
                 position=0,
