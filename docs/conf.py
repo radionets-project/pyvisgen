@@ -185,6 +185,7 @@ intersphinx_mapping = {
     "pandas": ("https://pandas.pydata.org/pandas-docs/stable", None),
     "pytest": ("https://docs.pytest.org/en/stable", None),
     "python": ("https://docs.python.org/3", None),
+    "rich": ("https://rich.readthedocs.io/en/stable", None),
     "scipy": ("https://docs.scipy.org/doc/scipy", None),
     "torch": ("https://pytorch.org/docs/stable/", None),
 }

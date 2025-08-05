@@ -6,8 +6,10 @@ import torch
 from tqdm.auto import tqdm
 
 import pyvisgen.simulation.scan as scan
+from pyvisgen.utils.logging import setup_logger
 
 torch.set_default_dtype(torch.float64)
+LOGGER = setup_logger()
 
 __all__ = [
     "Visibilities",
@@ -500,8 +502,10 @@ def vis_loop(
     elif mode == "dense":
         if obs.device == torch.device("cpu"):
             raise ValueError("Only available for GPU calculations!")
-        obs.calc_dense_baselines()
-        bas = obs.dense_baselines_gpu
+
+        # We cannot test this at the moment
+        obs.calc_dense_baselines()  # pragma: no cover
+        bas = obs.dense_baselines_gpu  # pragma: nocover
     else:
         raise ValueError("Unsupported mode!")
 

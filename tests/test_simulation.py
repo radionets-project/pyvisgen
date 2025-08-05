@@ -22,7 +22,7 @@ def test_get_data():
 
 
 class TestSimulateDataSet:
-    """Unit test class for :class:``pyvisgen.simulation.SimulateDataSet``."""
+    """Unit test class for :class:`pyvisgen.simulation.SimulateDataSet`."""
 
     def setup_class(self):
         """Set up common objects and variables for the following tests."""
@@ -60,9 +60,12 @@ class TestSimulateDataSet:
     def test_run_no_gridding(self):
         self.s.from_config(CONFIG, grid=False)
 
+    def test_no_images(self):
+        assert_raises(ValueError, self.s.from_config, CONFIG, num_images=0)
+
 
 class TestVisLoop:
-    """Unit test class for :func:``pyvisgen.simulation.vis_loop``."""
+    """Unit test class for :func:`pyvisgen.simulation.vis_loop`."""
 
     def setup_class(self):
         """Set up common objects and variables for the following tests."""
@@ -93,13 +96,6 @@ class TestVisLoop:
         assert torch.is_tensor(vis_data[0].w)
         assert (vis_data[0].date).dtype == torch.float64
 
-        # test num vis for time step 0
-        # num_vis_theory = num_active_telescopes * (num_active_telescopes - 1) / 2
-        # num_vis_calc = vis_data.base_num[vis_data.date == vis_data.date[0]].shape[0]
-        # dunno what's going on here
-        # assert num_vis_theory == num_vis_calc
-        #
-
         out_path = Path(conf["out_path_fits"])
         out = out_path / Path("vis_0.fits")
         hdu_list = writer.create_hdu_list(vis_data, obs)
@@ -127,13 +123,6 @@ class TestVisLoop:
         assert torch.is_tensor(vis_data[0].v)
         assert torch.is_tensor(vis_data[0].w)
         assert (vis_data[0].date).dtype == torch.float64
-
-        # test num vis for time step 0
-        # num_vis_theory = num_active_telescopes * (num_active_telescopes - 1) / 2
-        # num_vis_calc = vis_data.base_num[vis_data.date == vis_data.date[0]].shape[0]
-        # dunno what's going on here
-        # assert num_vis_theory == num_vis_calc
-        #
 
         out_path = Path(conf["out_path_fits"])
         out = out_path / Path("vis_0.fits")
@@ -198,6 +187,29 @@ class TestVisLoop:
             mode=conf["mode"],
             batch_size=20.0,
         )
+
+    def test_vis_loop_invalid_mode(self):
+        from pyvisgen.simulation.visibility import vis_loop
+        from pyvisgen.utils.data import load_bundles, open_bundles
+
+        bundles = load_bundles(conf["in_path"])
+        _, obs = self.s._get_obs_test(CONFIG)
+
+        data = open_bundles(bundles[0])
+        SI = torch.tensor(data[0])[None]
+
+        # assert that modes other than "full", "grid"
+        # or "dense" raise an exception
+        assert_raises(
+            ValueError,
+            vis_loop,
+            obs,
+            SI,
+            noisy=conf["noisy"],
+            mode="abc",
+            batch_size="auto",
+        )
+
 
 
 class TestPolarization:

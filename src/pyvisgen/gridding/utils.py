@@ -9,8 +9,10 @@ from pyvisgen.fits.data import fits_data
 from pyvisgen.gridding import grid_data
 from pyvisgen.utils.config import read_data_set_conf
 from pyvisgen.utils.data import load_bundles, open_bundles
+from pyvisgen.utils.logging import setup_logger
 
 os.environ["HDF5_USE_FILE_LOCKING"] = "FALSE"
+LOGGER = setup_logger()
 
 
 def create_gridded_data_set(config):
