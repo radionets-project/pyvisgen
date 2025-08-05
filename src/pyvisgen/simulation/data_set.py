@@ -108,7 +108,6 @@ class SimulateDataSet:
         elif isinstance(config, dict):
             cls.conf = config
         else:
-            LOGGER.exception("Expected config to be one of str, Path or dict!")
             raise ValueError("Expected config to be one of str, Path or dict!")
 
         LOGGER.info("Simulation Config:")
@@ -141,9 +140,6 @@ class SimulateDataSet:
 
         if isinstance(cls.num_images, (int, float)):
             if int(cls.num_images) == 0:
-                LOGGER.exception(
-                    "No images found in bundles! Please check your input path!"
-                )
                 raise ValueError(
                     "No images found in bundles! Please check your input path!"
                 )
@@ -215,7 +211,6 @@ class SimulateDataSet:
                     truth_fft = convert_real_imag(truth_fft, sky_sim=True)
 
                 if sim_data.shape[1] != 2:
-                    LOGGER.exception("Expected sim_data axis at index 1 to be 2!")
                     raise ValueError("Expected sim_data axis at index 1 to be 2!")
 
                 out = self.out_path / Path(
@@ -680,7 +675,6 @@ class SimulateDataSet:
         elif isinstance(config, dict):
             cls.conf = config
         else:
-            LOGGER.exception("Expected config to be one of str, Path or dict!")
             raise ValueError("Expected config to be one of str, Path or dict!")
 
         cls.device = cls.conf["device"]

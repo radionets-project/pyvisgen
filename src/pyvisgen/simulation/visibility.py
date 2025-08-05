@@ -363,7 +363,6 @@ class Polarization:
         if len(shape) < 2:
             shape *= 2
         elif len(shape) > 2:
-            LOGGER.exception("Only 2d shapes are allowed!")
             raise ValueError("Only 2d shapes are allowed!")
 
         if isinstance(order, int):
@@ -375,7 +374,6 @@ class Polarization:
         if len(order) < 2:
             order *= 2
         elif len(order) > 2:
-            LOGGER.exception("Only 2d shapes are allowed!")
             raise ValueError("Only 2d shapes are allowed!")
 
         sigma = torch.mean(torch.tensor(shape).double()) / (40 * torch.tensor(order))
@@ -456,7 +454,6 @@ def vis_loop(
         isinstance(batch_size, int)
         or (isinstance(batch_size, str) and batch_size == "auto")
     ):
-        LOGGER.exception("Expected batch_size to be 'auto' or type int")
         raise ValueError("Expected batch_size to be 'auto' or type int")
 
     pol = Polarization(
@@ -504,14 +501,12 @@ def vis_loop(
         ).get_unique_grid(obs.fov, obs.ref_frequency, obs.img_size, obs.device)
     elif mode == "dense":
         if obs.device == torch.device("cpu"):
-            LOGGER.exception("Only available for GPU calculations!")
             raise ValueError("Only available for GPU calculations!")
 
         # We cannot test this at the moment
         obs.calc_dense_baselines()  # pragma: no cover
         bas = obs.dense_baselines_gpu  # pragma: nocover
     else:
-        LOGGER.exception("Unsupported mode!")
         raise ValueError("Unsupported mode!")
 
     if batch_size == "auto":

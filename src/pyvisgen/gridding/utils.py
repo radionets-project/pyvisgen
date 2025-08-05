@@ -155,18 +155,16 @@ def save_fft_pair(path, x, y, name_x="x", name_y="y"):
 
 def test_shapes(array, name):
     if array.shape[1] != 2:
-        exception_msg = f"Expected array {name} axis 1 to be 2 but got "
-        exception_msg += f"{array.shape} with axis 1: {array.shape[1]}!"
-
-        LOGGER.exception(exception_msg)
-        raise ValueError(exception_msg)
+        raise ValueError(
+            f"Expected array {name} axis 1 to be 2 but got "
+            f"{array.shape} with axis 1: {array.shape[1]}!"
+        )
 
     if len(array.shape) != 4:
-        exception_msg = f"Expected array {name} shape to be of len 4 but got "
-        exception_msg += f"{array.shape} with len {len(array.shape)}!"
-
-        LOGGER.exception(exception_msg)
-        raise ValueError(exception_msg)
+        raise ValueError(
+            f"Expected array {name} shape to be of len 4 but got "
+            f"{array.shape} with len {len(array.shape)}!"
+        )
 
 
 def calc_truth_fft(sky_dist):

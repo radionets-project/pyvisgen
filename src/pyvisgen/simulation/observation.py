@@ -804,11 +804,10 @@ class Observation:
             )
         )
         if not len(GHA.value) == len(el_st_all):
-            exception_msg = "Expected GHA and el_st_all to have the same length"
-            exception_msg += f"{len(GHA.value)} and {len(el_st_all)}"
-
-            LOGGER.exception(exception_msg)
-            raise ValueError(exception_msg)
+            raise ValueError(
+                "Expected GHA and el_st_all to have the same length"
+                f"{len(GHA.value)} and {len(el_st_all)}"
+            )
 
         return (
             torch.tensor(GHA.deg),
@@ -967,10 +966,9 @@ class Observation:
         ).reshape(-1)
 
         if not (u.shape == v.shape == w.shape):
-            exception_msg = "Expected u, v, and w to have the same shapes "
-            exception_msg += f"but got {u.shape}, {v.shape}, and {w.shape}."
-
-            LOGGER.exception(exception_msg)
-            raise ValueError(exception_msg)
+            raise ValueError(
+                "Expected u, v, and w to have the same shapes "
+                f"but got {u.shape}, {v.shape}, and {w.shape}."
+            )
 
         return u, v, w
