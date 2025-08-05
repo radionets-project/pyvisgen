@@ -6,6 +6,10 @@ import pandas as pd
 import torch
 from astropy.coordinates import EarthLocation
 
+from pyvisgen.utils.logging import setup_logger
+
+LOGGER = setup_logger()
+
 
 @dataclass
 class Stations:
@@ -136,10 +140,10 @@ def get_array_layout(
     elif isinstance(array_layout, Path):
         array = pd.read_csv(array_layout, sep=r"\s+")
     else:
-        raise TypeError(
-            "Expected array_layout to be of type str, "
-            "pathlib.Path, or pandas.DataFrame!"
-        )
+        exception_msg = "Expected array_layout to be of type str, "
+        exception_msg += "pathlib.Path, or pandas.DataFrame!"
+        LOGGER.exception(exception_msg)
+        raise TypeError(exception_msg)
 
     # drop name col and convert to tensor
     tensor = torch.from_numpy(array.iloc[:, 1:].values)
