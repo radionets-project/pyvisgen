@@ -88,7 +88,7 @@ jobs:
 
       - name: Tests
         run: |
-          pytest -vv --cov --junitxml=junit.xml -o junit_family=legacy
+          pytest -vv --cov --cov-report=xml --junitxml=junit.xml -o junit_family=legacy
 
       - name: Upload coverage to Codecov
         uses: codecov/codecov-action@v5
