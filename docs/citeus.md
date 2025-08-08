@@ -36,8 +36,8 @@ If you use pyvisgen in your scientific publication, please cite the code as foll
 
 You can also use the following Zenodo reference:
 
-:::{figure} https://zenodo.org/badge/DOI/10.5281/zenodo.15791973.svg
-:target: https://doi.org/10.5281/zenodo.15791973
+:::{figure} https://zenodo.org/badge/333035370.svg
+:target: https://zenodo.org/badge/latestdoi/333035370
 :alt: Zenodo DOI
 :::
 
