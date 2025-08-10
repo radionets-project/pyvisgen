@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 import datetime
+import os
 import sys
 from pathlib import Path
 
@@ -22,17 +23,55 @@ extensions = [
     "sphinx.ext.todo",
     "sphinx.ext.coverage",
     "sphinx.ext.viewcode",
+    "sphinxcontrib.bibtex",
     "sphinx_automodapi.automodapi",
     "sphinx_automodapi.smart_resolver",
-    "matplotlib.sphinxext.plot_directive",
-    "numpydoc",
-    "sphinx_design",
     "IPython.sphinxext.ipython_console_highlighting",
+    "matplotlib.sphinxext.plot_directive",
+    "myst_parser",
+    "numpydoc",
     "sphinx_copybutton",
+    "sphinx_design",
+    "sphinx_tippy",
+    "sphinx_togglebutton",
 ]
 
 numpydoc_show_class_members = False
 numpydoc_class_members_toctree = False
+
+myst_enable_extensions = [
+    "amsmath",
+    "colon_fence",
+    "deflist",
+    "dollarmath",
+    "html_image",
+    "linkify",
+    "replacements",
+    "smartquotes",
+]
+
+myst_url_schemes = {
+    "http": None,
+    "https": None,
+    "wiki": "https://en.wikipedia.org/wiki/{{path}}#{{fragment}}",
+    "doi": "https://doi.org/{{path}}",
+    "gh-issue": {
+        "url": "https://github.com/radionets-project/pyvisgen/issue/{{path}}#{{fragment}}",
+        "title": "Issue #{{path}}",
+        "classes": ["github"],
+    },
+}
+
+bibtex_bibfiles = ["references.bib"]
+bibtex_encoding = "utf8"
+
+copybutton_exclude = ".linenos, .gp"
+copybutton_selector = "div:not(.no-copybutton) > div.highlight > pre"
+copybutton_image_svg = """
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 640 640"><!--!Font Awesome Free v7.0.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free Copyright 2025 Fonticons, Inc.-->
+    <path d="M480 400L288 400C279.2 400 272 392.8 272 384L272 128C272 119.2 279.2 112 288 112L421.5 112C425.7 112 429.8 113.7 432.8 116.7L491.3 175.2C494.3 178.2 496 182.3 496 186.5L496 384C496 392.8 488.8 400 480 400zM288 448L480 448C515.3 448 544 419.3 544 384L544 186.5C544 169.5 537.3 153.2 525.3 141.2L466.7 82.7C454.7 70.7 438.5 64 421.5 64L288 64C252.7 64 224 92.7 224 128L224 384C224 419.3 252.7 448 288 448zM160 192C124.7 192 96 220.7 96 256L96 512C96 547.3 124.7 576 160 576L352 576C387.3 576 416 547.3 416 512L416 496L368 496L368 512C368 520.8 360.8 528 352 528L160 528C151.2 528 144 520.8 144 512L144 256C144 247.2 151.2 240 160 240L176 240L176 192L160 192z"/>
+</svg>
+"""
 
 templates_path = ["_templates"]
 exclude_patterns = [
@@ -43,7 +82,7 @@ exclude_patterns = [
     "*.log",
 ]
 
-source_suffix = ".rst"
+source_suffix = {".rst": "restructuredtext", ".md": "markdown"}
 master_doc = "index"
 
 
@@ -65,24 +104,51 @@ version = pyvisgen.__version__
 release = version
 
 
+# -- Version switcher -----------------------------------------------------
+
+# Define the json_url for our version switcher.
+json_url = "https://pyvisgen.readthedocs.io/en/latest/_static/switcher.json"
+
+# Define the version we use for matching in the version switcher.,
+version_match = os.getenv("READTHEDOCS_VERSION")
+# If READTHEDOCS_VERSION doesn't exist, we're not on RTD
+# If it is an integer, we're in a PR build and the version isn't correct.
+if not version_match or version_match.isdigit():
+    # For local development, infer the version to match from the package.
+    if "dev" in release or "rc" in release:
+        version_match = "latest"
+    else:
+        version_match = release
+
+    # We want to keep the relative reference when on a pull request or locally
+    json_url = "_static/switcher.json"
+
+
 # -- Options for HTML output -------------------------------------------------
 # https://www.sphinx-doc.org/en/master/usage/configuration.html#options-for-html-output
 
 html_theme = "pydata_sphinx_theme"
 html_static_path = ["_static"]
-
 html_file_suffix = ".html"
 
-html_css_files = ["pyvisgen.css"]
+html_css_files = [
+    "css/pyvisgen.css",
+    "css/sphinx-design.css",
+    "css/tippy.css",
+]
 
 html_favicon = "_static/favicon/favicon.ico"
 
 html_theme_options = {
     "github_url": "https://github.com/radionets-project/pyvisgen",
     "header_links_before_dropdown": 5,
-    "navbar_start": ["navbar-logo"],
+    "navbar_start": ["navbar-logo", "version-switcher"],
+    "switcher": {
+        "version_match": version_match,
+        "json_url": json_url,
+    },
     "navigation_with_keys": False,
-    # "use_edit_page_button": True,
+    "show_version_warning_banner": True,
     "icon_links_label": "Quick Links",
     "icon_links": [
         {
@@ -119,9 +185,8 @@ intersphinx_mapping = {
     "pandas": ("https://pandas.pydata.org/pandas-docs/stable", None),
     "pytest": ("https://docs.pytest.org/en/stable", None),
     "python": ("https://docs.python.org/3", None),
+    "rich": ("https://rich.readthedocs.io/en/stable", None),
     "scipy": ("https://docs.scipy.org/doc/scipy", None),
-    "setuptools": ("https://setuptools.pypa.io/en/stable", None),
-    "sklearn": ("https://scikit-learn.org/stable", None),
     "torch": ("https://pytorch.org/docs/stable/", None),
 }
 

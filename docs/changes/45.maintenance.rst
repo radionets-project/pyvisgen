@@ -1,2 +1,0 @@
-- Switch README to reStructuredText
-- Add Codecov badge

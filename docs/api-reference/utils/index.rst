@@ -22,6 +22,7 @@ Submodules
 
   config
   data
+  logging
 
 
 Reference/API

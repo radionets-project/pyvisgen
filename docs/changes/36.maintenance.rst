@@ -1,4 +1,0 @@
-- fix package name and url in pyproject.toml
-- remove obsolete setup.py
-- fix setuptools find packages path in pyproject.toml
-- fix formatting of pyproject.toml

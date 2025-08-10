@@ -1,0 +1,41 @@
+# This CITATION.cff file was generated with cffinit.
+# Visit https://bit.ly/cffinit to generate yours today!
+
+cff-version: 1.2.0
+title: pyvisgen
+message: >-
+  If you use this software, please cite it using the
+  metadata from this file.
+type: software
+authors:
+  - family-names: Schmitz
+    given-names: Kevin
+    affiliation: TU Dortmund University
+    orcid: "https://orcid.org/0000-0002-9883-4454"
+  - family-names: Knierim
+    given-names: Anno
+    affiliation: TU Dortmund University
+    orcid: "https://orcid.org/0009-0004-8728-2879"
+  - family-names: Geyer
+    given-names: Felix
+    affiliation: TU Dortmund University
+    orcid: "https://orcid.org/0000-0002-5615-2498"
+  - family-names: Groß
+    given-names: Tom
+    affiliation: TU Dortmund University
+    orcid: "https://orcid.org/0009-0008-5497-0885"
+  - family-names: Fröse
+    given-names: Stefan
+    affiliation: Academia Sinica
+    orcid: "https://orcid.org/0000-0003-1832-4129"
+identifiers:
+  - type: doi
+    value: 10.5281/zenodo.10091310
+    description: latest version
+repository-code: 'https://github.com/radionets-project/pyvisgen/'
+url: 'https://pyvisgen.readthedocs.io/en/latest/'
+keywords:
+  - Astronomy
+  - Data Analysis
+  - Simulation
+license: MIT

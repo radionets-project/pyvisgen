@@ -3,8 +3,8 @@ docs/_build
 docs/api
 !docs/_static/*.png
 
-pyvisgen/_version_cache.py
-pyvisgen/_version.py
+src/pyvisgen/_version_cache.py
+src/pyvisgen/_version.py
 
 #slurm
 *.slurm
@@ -34,3 +34,8 @@ dist/
 coverage.xml
 *.fits
 *.swp
+*.whl
+
+.ruff_cache
+
+.coverage*
