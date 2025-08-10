@@ -31,6 +31,7 @@ jobs:
           restructuredtext-lint README.rst
 
   tests:
+    if: contains(github.event.pull_request.labels.*.name, 'documentation-only') == false
     runs-on: ${{ matrix.os }}
     strategy:
       matrix:
@@ -54,8 +55,10 @@ jobs:
         with:
           fetch-depth: 0
 
+      - uses: astral-sh/setup-uv@v6
+
       - name: Prepare mamba installation
-        if: matrix.install-method == 'mamba' &&  contains(github.event.pull_request.labels.*.name, 'documentation-only') == false
+        if: matrix.install-method == 'mamba'
         env:
           PYTHON_VERSION: ${{ matrix.python-version }}
         run: |
@@ -63,8 +66,8 @@ jobs:
           sed -i -e "s/- python.*/- python=$PYTHON_VERSION/g" environment.yml
 
       - name: mamba setup
-        if: matrix.install-method == 'mamba' &&  contains(github.event.pull_request.labels.*.name, 'documentation-only') == false
-        uses: mamba-org/setup-micromamba@v1
+        if: matrix.install-method == 'mamba'
+        uses: mamba-org/setup-micromamba@v2
         with:
           environment-file: environment.yml
           cache-downloads: true
@@ -74,10 +77,10 @@ jobs:
           PYTHON_VERSION: ${{ matrix.python-version }}
         run: |
           python --version
-          pip install --upgrade pip
-          pip install --group tests -e .
-          pip freeze
-          pip list
+          uv pip install --upgrade pip
+          uv pip install --group tests -e .
+          uv pip freeze
+          uv pip list
 
       - name: List installed package versions (conda)
         if: matrix.environment-type == 'mamba'
@@ -85,12 +88,18 @@ jobs:
 
       - name: Tests
         run: |
-          pytest -vv --cov --cov-report=xml
+          pytest -vv --cov --cov-report=xml --junitxml=junit.xml -o junit_family=legacy
 
       - name: Upload coverage to Codecov
-        uses: codecov/codecov-action@v4
+        uses: codecov/codecov-action@v5
         env:
           CODECOV_TOKEN: ${{ secrets.CODECOV_TOKEN }}
+
+      - name: Upload test results to Codecov
+        if: ${{ !cancelled() }}
+        uses: codecov/test-results-action@v1
+        with:
+          token: ${{ secrets.CODECOV_TOKEN }}
 
   docs:
     runs-on: ubuntu-latest
@@ -99,16 +108,18 @@ jobs:
         with:
           fetch-depth: 0
 
+      - uses: astral-sh/setup-uv@v6
+
       - name: Set up Python
         uses: actions/setup-python@v5
         with:
-          python-version: "3.10"
+          python-version: "3.11"
 
       - name: Install doc dependencies
         run: |
           sudo apt update --yes && sudo apt install --yes git
-          pip install -U pip towncrier
-          pip install --group docs -e .
+          uv pip install --system . -U pip towncrier
+          uv pip install --system . --group docs -e .
           git describe --tags
 
       - name: Build docs

@@ -18,8 +18,8 @@ pyvisgen |ci| |pre-commit| |codecov| |pypi| |zenodo| |license|
    :target: https://badge.fury.io/py/pyvisgen
    :alt: PyPI version
 
-.. |zenodo| image:: https://zenodo.org/badge/DOI/10.5281/zenodo.15791973.svg
-   :target: https://doi.org/10.5281/zenodo.15791973
+.. |zenodo| image:: https://zenodo.org/badge/333035370.svg
+   :target: https://zenodo.org/badge/latestdoi/333035370
    :alt: Zenodo DOI
 
 .. |license| image:: https://img.shields.io/badge/License-MIT-blue.svg

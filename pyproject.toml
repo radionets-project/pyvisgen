@@ -8,7 +8,11 @@ dynamic = ["version"]
 description = "Simulate radio interferometer observations and visibility generation with the RIME formalism."
 readme = "README.rst"
 authors = [
-  { name = "Kevin Schmitz, Felix Geyer, Stefan Fröse, Anno Knierim, Tom Groß" },
+  { name = "Kevin Schmitz", email = "kevin2.schmitz@tu-dortmund.de" },
+  { name = "Felix Geyer" },
+  { name = "Stefan Fröse" },
+  { name = "Anno Knierim", email = "anno.knierim@tu-dortmund.de" },
+  { name = "Tom Groß", email = "tom.gross@tu-dortmund.de" },
 ]
 maintainers = [
   { name = "Kevin Schmitz", email = "kevin2.schmitz@tu-dortmund.de" },
@@ -51,6 +55,11 @@ plot = [
   "matplotlib",
 ]
 
+tutorials = [
+  "matplotlib",
+  "pytorch_finufft"
+]
+
 [dependency-groups]
 tests = [
   "coverage!=6.3.0",
@@ -66,16 +75,21 @@ docs = [
   "graphviz",
   "ipython",
   "jupyter",
+  "linkify-it-py>=2.0.3",
   "matplotlib",
+  "myst-parser>=4.0.1",
   "nbsphinx",
   "notebook",
   "numpydoc",
   "pydata_sphinx_theme",
   "sphinx",
+  "sphinx-autobuild>=2024.10.3",
   "sphinx-changelog",
   "sphinx-copybutton",
   "sphinx-design",
   "sphinx-gallery >= 0.16.0",
+  "sphinx-tippy>=0.4.3",
+  "sphinx-togglebutton>=0.3.2",
   "sphinx_automodapi",
   "sphinxcontrib-bibtex",
   "tomli; python_version < '3.11'",
@@ -85,6 +99,7 @@ dev = [
   "ipython",
   "jupyter",
   "pre-commit",
+  "pytorch_finufft",
   {include-group = "tests"},
   {include-group = "docs"},
 ]
@@ -97,10 +112,13 @@ pyvisgen-quickstart = "pyvisgen.tools.quickstart:quickstart"
 source = "vcs"
 
 [tool.hatch.build.hooks.vcs]
-version-file = "pyvisgen/_version.py"
+version-file = "src/pyvisgen/_version.py"
 
 [tool.hatch.build.targets.wheel]
-include = ["pyvisgen"]
+include = ["src/pyvisgen"]
+
+[tool.hatch.build.targets.wheel.sources]
+"src/pyvisgen" = "pyvisgen"
 
 [tool.hatch.build.targets.wheel.shared-data]
 "resources" = "share/resources"
@@ -108,51 +126,14 @@ include = ["pyvisgen"]
 
 [tool.coverage.run]
 omit = [
-  "pyvisgen/version.py",
-  "pyvisgen/_version.py",
   "docs/*",
-  "pyvisgen/gridding/alt_gridder.py",
+  "src/pyvisgen/_version.py",
+  "src/pyvisgen/gridding/alt_gridder.py",
+  "src/pyvisgen/version.py",
 ]
 
 [tool.coverage.xml]
 output = "coverage.xml"
-
-[tool.towncrier]
-package = "pyvisgen"
-directory = "docs/changes"
-filename = "CHANGES.rst"
-template = "docs/changes/template.rst"
-# let towncrier create proper links to the merged PR
-issue_format = "`#{issue} <https://github.com/radionets-project/pyvisgen/pull/{issue}>`__"
-
-[tool.towncrier.fragment.feature]
-name = "New Features"
-showcontent = true
-
-[tool.towncrier.fragment.bugfix]
-name = "Bug Fixes"
-showcontent = true
-
-[tool.towncrier.fragment.api]
-name = "API Changes"
-showcontent = true
-
-[tool.towncrier.fragment.datamodel]
-name = "Data Model Changes"
-showcontent = true
-
-[tool.towncrier.fragment.optimization]
-name = "Refactoring and Optimization"
-showcontent = true
-
-[tool.towncrier.fragment.maintenance]
-name = "Maintenance"
-showcontent = true
-
-[[tool.towncrier.section]]
-name = ""
-path = ""
-
 
 [tool.ruff]
 target-version = "py311"
@@ -177,3 +158,35 @@ docstring-code-format = true
 
 [tool.ruff.lint.isort]
 known-first-party = ["pyvisgen"]
+
+[tool.towncrier]
+    package = "pyvisgen"
+    directory = "docs/changes"
+    filename = "CHANGES.rst"
+    template = "docs/changes/template.rst"
+    # let towncrier create proper links to the merged PR
+    issue_format = "`#{issue} <https://github.com/radionets-project/pyvisgen/pull/{issue}>`__"
+
+    [tool.towncrier.fragment.feature]
+        name = "New Features"
+        showcontent = true
+
+    [tool.towncrier.fragment.bugfix]
+        name = "Bug Fixes"
+        showcontent = true
+
+    [tool.towncrier.fragment.api]
+        name = "API Changes"
+        showcontent = true
+
+    [tool.towncrier.fragment.optimization]
+        name = "Refactoring and Optimization"
+        showcontent = true
+
+    [tool.towncrier.fragment.maintenance]
+        name = "Maintenance"
+        showcontent = true
+
+    [[tool.towncrier.section]]
+        name = ""
+        path = ""

@@ -6,7 +6,7 @@ import torch
 from astropy import units as un
 from astropy.time import Time
 from joblib import Parallel, delayed
-from rich import print
+from rich.pretty import pretty_repr
 from tqdm.auto import tqdm
 
 import pyvisgen.fits.writer as writer
@@ -22,6 +22,11 @@ from pyvisgen.simulation.observation import Observation
 from pyvisgen.simulation.visibility import vis_loop
 from pyvisgen.utils.config import read_data_set_conf
 from pyvisgen.utils.data import load_bundles, open_bundles
+from pyvisgen.utils.logging import setup_logger
+
+__all__ = ["SimulateDataSet"]
+
+LOGGER = setup_logger()
 
 DATEFMT = "%d-%m-%Y %H:%M:%S"
 
@@ -108,7 +113,8 @@ class SimulateDataSet:
         else:
             raise ValueError("Expected config to be one of str, Path or dict!")
 
-        print("Simulation Config:\n", cls.conf)
+        LOGGER.info("Simulation Config:")
+        LOGGER.info(pretty_repr(cls.conf))
 
         cls.device = cls.conf["device"]
 
@@ -122,7 +128,7 @@ class SimulateDataSet:
 
         cls.data_paths = load_bundles(cls.conf["in_path"])
 
-        if not cls.num_images:
+        if cls.num_images is None:
             data_bundles = tqdm(
                 range(len(cls.data_paths)),
                 position=0,
@@ -208,7 +214,7 @@ class SimulateDataSet:
                     truth_fft = convert_real_imag(truth_fft, sky_sim=True)
 
                 if sim_data.shape[1] != 2:
-                    raise ValueError("Expected sim_data axis 1 to be 2!")
+                    raise ValueError("Expected sim_data axis at index 1 to be 2!")
 
                 out = self.out_path / Path(
                     f"samp_{self.conf['file_prefix']}_" + str(i) + ".h5"
@@ -231,7 +237,7 @@ class SimulateDataSet:
                     f"samp_{self.conf['file_prefix']}_<id>.fits"
                 )
 
-        print(
+        LOGGER.info(
             f"Successfully simulated and saved {samp_opts_idx} images to '{path_msg}'!"
         )
 

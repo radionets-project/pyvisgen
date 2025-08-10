@@ -4,6 +4,9 @@ import torch
 from numpy.exceptions import AxisError
 
 from pyvisgen.gridding.alt_gridder import ms2dirty_python_fast
+from pyvisgen.utils.logging import setup_logger
+
+LOGGER = setup_logger()
 
 
 def ducc0_gridding(uv_data, freq_data):
