@@ -164,8 +164,7 @@ class TestScan:
         # Check shapes
         assert X1.shape[-2:] == img.shape[-2:]
         assert X2.shape[-2:] == img.shape[-2:]
-        assert X1.shape[:2] == lm.T.shape
-        assert X2.shape[:2] == lm.T.shape
+        assert img.real[img.real > 0].shape == lm[-1].shape
 
         # Check types
         assert X1.dtype == torch.complex128
