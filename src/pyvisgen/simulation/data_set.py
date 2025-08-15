@@ -6,8 +6,8 @@ import torch
 from astropy import units as un
 from astropy.time import Time
 from joblib import Parallel, delayed
+from rich.live import Live
 from rich.pretty import pretty_repr
-from tqdm.auto import tqdm
 
 import pyvisgen.fits.writer as writer
 import pyvisgen.layouts.layouts as layouts
@@ -19,6 +19,7 @@ from pyvisgen.gridding import (
     save_fft_pair,
 )
 from pyvisgen.simulation.observation import Observation
+from pyvisgen.simulation.utils import create_progress_tracker
 from pyvisgen.simulation.visibility import vis_loop
 from pyvisgen.utils.config import read_data_set_conf
 from pyvisgen.utils.data import load_bundles, open_bundles
@@ -38,6 +39,15 @@ GST_COEFFS = {
     "quadratic": 0.000387933,
     "cubic": -2.583e-8,
 }
+
+
+tracker = create_progress_tracker()
+progress_group = tracker["group"]
+overall_progress = tracker["overall"]
+counting_progress = tracker["counting"]
+testing_progress = tracker["testing"]
+bundles_progress = tracker["bundles"]
+current_bundle_progress = tracker["current_bundle"]
 
 
 class SimulateDataSet:
@@ -126,34 +136,40 @@ class SimulateDataSet:
         if not cls.out_path.is_dir():
             cls.out_path.mkdir(parents=True)
 
-        cls.data_paths = load_bundles(cls.conf["in_path"])
+        cls.data_paths = load_bundles(
+            cls.conf["in_path"], dataset_type=cls.conf["dataset_type"]
+        )
 
-        if cls.num_images is None:
-            data_bundles = tqdm(
-                range(len(cls.data_paths)),
-                position=0,
-                leave=False,
-                desc="Counting images",
-                colour="#754fc9",
-            )
-            # get number of random parameter draws from number of images in data
-            cls.num_images = np.sum(
-                [len(cls.get_images(bundle)) for bundle in data_bundles]
-            )
+        cls.overall_task_id = overall_progress.add_task(
+            f"Simulating {cls.conf['dataset_type']} dataset", total=3
+        )
+        with Live(progress_group):
+            if cls.num_images is None:
+                # get number of random parameter draws from number of images in data
+                counting_task_id = counting_progress.add_task(
+                    "", total=len(cls.data_paths)
+                )
 
-        if isinstance(cls.num_images, (int, float)):
+                num_images = []
+                for bundle_id in range(len(cls.data_paths)):
+                    num_images.append(len(cls.get_images(bundle_id)))
+                    counting_progress.update(counting_task_id, advance=1)
+
+                cls.num_images = np.sum(num_images)
+                overall_progress.update(cls.overall_task_id, advance=1)
+
             if int(cls.num_images) == 0:
                 raise ValueError(
                     "No images found in bundles! Please check your input path!"
                 )
 
-        if slurm:  # pragma: no cover
-            cls._run_slurm()
-            pass
-        else:
-            # draw parameters beforehand, i.e. outside the simulation loop
-            cls.create_sampling_rc(cls.num_images)
-            cls._run()
+            if slurm:  # pragma: no cover
+                cls._run_slurm()
+                pass
+            else:
+                # draw parameters beforehand, i.e. outside the simulation loop
+                cls.create_sampling_rc(cls.num_images)
+                cls._run()
 
         return cls
 
@@ -161,29 +177,18 @@ class SimulateDataSet:
         """Runs the simulation and saves visibility data either as
         bundled HDF5 files or as individual FITS files.
         """
-        data = tqdm(
-            range(len(self.data_paths)),
-            position=0,
-            desc="Processing bundles",
-            colour="#52ba66",
-        )
 
-        samp_opts_idx = 0
-        for i in data:
+        bundles_task_id = bundles_progress.add_task("", total=len(self.data_paths))
+        for i in range(len(self.data_paths)):
             SIs = self.get_images(i)
             truth_fft = calc_truth_fft(SIs)
 
-            SIs = tqdm(
-                SIs,
-                position=1,
-                desc=f"Bundle {i + 1}",
-                colour="#595cbd",
-                leave=False,
-            )
-
             sim_data = []
+            current_bundle_task_id = current_bundle_progress.add_task(
+                "", total=len(SIs), name=i + 1
+            )
             for SI in SIs:
-                obs = self.create_observation(samp_opts_idx)
+                obs = self.create_observation(i)
                 vis = vis_loop(
                     obs, SI, noisy=self.conf["noisy"], mode=self.conf["mode"]
                 )
@@ -201,7 +206,7 @@ class SimulateDataSet:
 
                     sim_data.append(gridded)
 
-                samp_opts_idx += 1
+                current_bundle_progress.update(current_bundle_task_id, advance=1)
 
             sim_data = np.array(sim_data)
 
@@ -237,9 +242,9 @@ class SimulateDataSet:
                     f"samp_{self.conf['file_prefix']}_<id>.fits"
                 )
 
-        LOGGER.info(
-            f"Successfully simulated and saved {samp_opts_idx} images to '{path_msg}'!"
-        )
+            bundles_progress.update(bundles_task_id, advance=1)
+
+        LOGGER.info(f"Successfully simulated and saved {i + 1} images to '{path_msg}'!")
 
     def _run_slurm(self) -> None:  # pragma: no cover
         """Runs the simulation in slurm and saves visibility data
@@ -376,14 +381,6 @@ class SimulateDataSet:
         # this is the randomly drawn, i.e. non-constant, part
         self.samp_opts = self.draw_sampling_opts(size)
 
-        test_idx = tqdm(
-            range(self.samp_opts["src_ra"].size()[0]),
-            position=0,
-            desc="Pre-drawing and testing sample parameters",
-            colour="#00c1a2",
-            leave=False,
-        )
-
         # get array for later use and also get lon/lat conversion
         self.array = layouts.get_array_layout(self.samp_opts_const["array_layout"])
         self.array_lat, self.array_lon = self._geocentric_to_spherical(
@@ -392,9 +389,13 @@ class SimulateDataSet:
             self.array.z.to(self.device),
         )
 
+        test_idx = range(self.samp_opts["src_ra"].size()[0])
+
+        self.testing_task_id = testing_progress.add_task("", total=len(test_idx))
         Parallel(n_jobs=self.multiprocess, backend="threading")(
             delayed(self.test_rand_opts)(i) for i in test_idx
         )
+        overall_progress.update(self.overall_task_id, advance=1)
 
     def draw_sampling_opts(self, size: int) -> dict:
         """Draws randomized sampling parameters for the simulation.
@@ -542,6 +543,8 @@ class SimulateDataSet:
 
             for key in keys:
                 self.samp_opts[key][i] = redrawn_samp_opts[key][0]
+
+        testing_progress.update(self.testing_task_id, advance=1)
 
     def calc_time_steps(self, i: int) -> Time:
         """Calculates time steps for given sampling
