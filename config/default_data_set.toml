@@ -1,6 +1,6 @@
 [sampling_options]
 mode = "full"
-device = "cpu"
+device = "cuda"
 seed = 1337
 layout = "vlba"
 img_size = 1024
