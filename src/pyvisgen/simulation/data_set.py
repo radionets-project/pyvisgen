@@ -222,28 +222,31 @@ class SimulateDataSet:
                     raise ValueError("Expected sim_data axis at index 1 to be 2!")
 
                 out = self.out_path / Path(
-                    f"samp_{self.conf['file_prefix']}_" + str(i) + ".h5"
+                    f"samp_{self.conf['dataset_type']}_" + str(i) + ".h5"
                 )
 
                 save_fft_pair(path=out, x=sim_data, y=truth_fft)
 
                 path_msg = Path(self.conf["out_path_gridded"]) / Path(
-                    f"samp_{self.conf['file_prefix']}_<id>.h5"
+                    f"samp_{self.conf['dataset_type']}_<id>.h5"
                 )
             else:
                 for i, vis_data in enumerate(sim_data):
                     out = self.out_path / Path(
-                        f"vis_{self.conf['file_prefix']}_" + str(i) + ".fits"
+                        f"vis_{self.conf['dataset_type']}_" + str(i) + ".fits"
                     )
                     hdu_list = writer.create_hdu_list(vis_data, obs)
                     hdu_list.writeto(out, overwrite=True)
 
                 path_msg = self.conf["out_path_fits"] / Path(
-                    f"samp_{self.conf['file_prefix']}_<id>.fits"
+                    f"samp_{self.conf['dataset_type']}_<id>.fits"
                 )
 
+            current_bundle_progress.stop_task(current_bundle_task_id)
+            current_bundle_progress.update(current_bundle_task_id, visible=False)
             bundles_progress.update(bundles_task_id, advance=1)
 
+        overall_progress.update(self.overall_task_id, advance=1)
         LOGGER.info(f"Successfully simulated and saved {i + 1} images to '{path_msg}'!")
 
     def _run_slurm(self) -> None:  # pragma: no cover

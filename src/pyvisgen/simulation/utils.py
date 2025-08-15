@@ -10,6 +10,7 @@ from rich.progress import (
     SpinnerColumn,
     TextColumn,
     TimeElapsedColumn,
+    TimeRemainingColumn,
 )
 
 if TYPE_CHECKING:
@@ -35,34 +36,50 @@ def create_progress_tracker(
         "overall": [
             SpinnerColumn("dots"),
             TimeElapsedColumn(),
-            TextColumn("{task.description}"),
+            TextColumn(
+                "[#aaaaaa]{task.description} ({task.completed} of {task.total} tasks completed)"
+            ),
         ],
         "counting": [
-            TextColumn("[bold green]Counting images: {task.percentage:.0f}%"),
+            TextColumn("[bold #40a02b]Counting images: {task.percentage:>29.0f}%"),
             BarColumn(),
-            TextColumn("({task.completed} of {task.total} bundles processed)"),
+            TextColumn("({task.completed} of {task.total} bundles processed) "),
+            TimeElapsedColumn(),
+            TextColumn(" "),
+            TimeRemainingColumn(),
         ],
         "testing": [
             TextColumn(
-                "[bold red]Pre-drawing and testing sample parameters: "
+                "[bold #e64553]Pre-drawing and testing sample parameters: "
                 "{task.percentage:.0f}%"
             ),
             BarColumn(),
             TextColumn(
-                "({task.completed} of {task.total} [bold]valid[/] parameter sets created)"
+                "({task.completed} of {task.total} [bold]valid[/] parameter sets created) "
             ),
+            TimeElapsedColumn(),
+            TextColumn(" "),
+            TimeRemainingColumn(),
         ],
         "bundles": [
-            TextColumn("[bold blue]Progress for all Bundles: {task.percentage:.0f}%"),
+            TextColumn(
+                "[bold #04a5e5]Progress for all Bundles: {task.percentage:>20.0f}%"
+            ),
             BarColumn(),
-            TextColumn("({task.completed} of {task.total} bundles saved)"),
+            TextColumn("({task.completed} of {task.total} bundles saved) "),
+            TimeElapsedColumn(),
+            TextColumn(" "),
+            TimeRemainingColumn(),
         ],
         "current_bundle": [
             TextColumn(
-                "[bold purple]Progress for bundle {task.fields[name]}: {task.percentage:.0f}%"
+                "[bold #7287fd]Progress for bundle {task.fields[name]}: {task.percentage:>23.0f}%"
             ),
             BarColumn(),
-            TextColumn("({task.completed} of {task.total} steps done)"),
+            TextColumn("({task.completed} of {task.total} steps done) "),
+            TimeElapsedColumn(),
+            TextColumn(" "),
+            TimeRemainingColumn(),
         ],
     }
 
@@ -76,7 +93,10 @@ def create_progress_tracker(
     _progress_bars.pop("overall")
 
     progress_group = Group(
-        Panel(Group(*_progress_bars.values())), progress_bars["overall"]
+        Panel(
+            Group(*_progress_bars.values()), title="Task Progress", title_align="left"
+        ),
+        progress_bars["overall"],
     )
 
     return {
