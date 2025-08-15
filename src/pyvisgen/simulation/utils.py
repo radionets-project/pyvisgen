@@ -6,6 +6,7 @@ from rich.console import Group
 from rich.panel import Panel
 from rich.progress import (
     BarColumn,
+    MofNCompleteColumn,
     Progress,
     SpinnerColumn,
     TextColumn,
@@ -43,9 +44,10 @@ def create_progress_tracker(
         "counting": [
             TextColumn("[bold #40a02b]Counting images: {task.percentage:>29.0f}%"),
             BarColumn(),
-            TextColumn("({task.completed} of {task.total} bundles processed) "),
+            MofNCompleteColumn(),
+            TextColumn(" bundles processed •"),
             TimeElapsedColumn(),
-            TextColumn(" "),
+            TextColumn("•"),
             TimeRemainingColumn(),
         ],
         "testing": [
@@ -54,11 +56,10 @@ def create_progress_tracker(
                 "{task.percentage:.0f}%"
             ),
             BarColumn(),
-            TextColumn(
-                "({task.completed} of {task.total} [bold]valid[/] parameter sets created) "
-            ),
+            MofNCompleteColumn(),
+            TextColumn("[bold]valid[/] parameter sets created •"),
             TimeElapsedColumn(),
-            TextColumn(" "),
+            TextColumn("•"),
             TimeRemainingColumn(),
         ],
         "bundles": [
@@ -66,9 +67,10 @@ def create_progress_tracker(
                 "[bold #04a5e5]Progress for all Bundles: {task.percentage:>20.0f}%"
             ),
             BarColumn(),
-            TextColumn("({task.completed} of {task.total} bundles saved) "),
+            MofNCompleteColumn(),
+            TextColumn("saved •"),
             TimeElapsedColumn(),
-            TextColumn(" "),
+            TextColumn("•"),
             TimeRemainingColumn(),
         ],
         "current_bundle": [
@@ -76,9 +78,10 @@ def create_progress_tracker(
                 "[bold #7287fd]Progress for bundle {task.fields[name]}: {task.percentage:>23.0f}%"
             ),
             BarColumn(),
-            TextColumn("({task.completed} of {task.total} steps done) "),
+            MofNCompleteColumn(),
+            TextColumn("images processed •"),
             TimeElapsedColumn(),
-            TextColumn(" "),
+            TextColumn("•"),
             TimeRemainingColumn(),
         ],
     }
