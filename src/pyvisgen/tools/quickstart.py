@@ -1,7 +1,7 @@
 import sysconfig
 from pathlib import Path
 
-import click
+import rich_click as click
 import toml
 from rich.pretty import pretty_repr
 

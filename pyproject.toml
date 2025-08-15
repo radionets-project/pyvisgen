@@ -43,6 +43,7 @@ dependencies = [
   "numpy",
   "pandas",
   "rich",
+  "rich-click>=1.8.9",
   "scipy",
   "toma",
   "toml",
