@@ -28,7 +28,7 @@ field_scale = [0, 1]  # scaling of the intensity of the polarization field
 field_threshold = "none"
 
 [bundle_options]
-file_prefix="train"  # e.g. train, test, or valid. If "none", no prefix will be applied
+dataset_type = "train"  # e.g. train, test, or valid. If "none", no prefix will be applied
 in_path = "/path/to/input/data/"
 out_path_fits = "/output/path/"
 out_path_gridded = "/output/path/for/gridding/"
