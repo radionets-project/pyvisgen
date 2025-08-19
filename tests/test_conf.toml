@@ -28,7 +28,7 @@ field_scale = [0, 1]  # scaling of the intensity of the polarization field
 field_threshold = "none"
 
 [bundle_options]
-file_prefix=""
+dataset_type=""
 in_path = "./tests/data"
 out_path_fits = "./tests/build/fits"
 out_path_gridded = "./tests/build/gridded"
