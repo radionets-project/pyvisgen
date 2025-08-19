@@ -13,7 +13,9 @@ if TYPE_CHECKING:
 __all__ = ["load_bundles", "open_bundles"]
 
 
-def load_bundles(data_path: Union(String, Path), dataset_type: String = "") -> list:
+def load_bundles(
+    data_path: Union(String, Path), dataset_type: Union(String, None) = None
+) -> list:
     """Loads bundle paths, filters for HDF5 files, and
     returns them in a naturally ordered list.
 
@@ -32,7 +34,12 @@ def load_bundles(data_path: Union(String, Path), dataset_type: String = "") -> l
     if isinstance(data_path, str):
         data_path = Path(data_path)
 
-    bundles = natsorted(list(data_path.glob(f"*{dataset_type}*.h5")))
+    if not dataset_type:
+        filter_fmt = "*.h5"
+    else:
+        filter_fmt = f"*{dataset_type}*.h5"
+
+    bundles = natsorted(list(data_path.glob(filter_fmt)))
 
     return bundles
 
