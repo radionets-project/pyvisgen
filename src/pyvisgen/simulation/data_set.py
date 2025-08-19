@@ -688,6 +688,10 @@ class SimulateDataSet:
 
         cls.device = cls.conf["device"]
 
+        cls.overall_task_id = overall_progress.add_task(
+            f"Simulating {cls.conf['dataset_type']} dataset", total=3
+        )
+
         cls.data_paths = load_bundles(cls.conf["in_path"])[0]
         cls.create_sampling_rc(1)
         obs = cls.create_observation(0)
