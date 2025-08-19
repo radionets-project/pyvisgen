@@ -712,7 +712,7 @@ class Observation:
 
         v_dense = u_dense
 
-        uu, vv = torch.meshgrid(u_dense, v_dense)
+        uu, vv = torch.meshgrid(u_dense, v_dense, indexing="xy")
         u = uu.flatten()
         v = vv.flatten()
 
@@ -964,8 +964,8 @@ class Observation:
         ).to(self.device)
         d = r + dec
 
-        R, _ = torch.meshgrid((r, r), indexing="ij")
-        _, D = torch.meshgrid((d, d), indexing="ij")
+        R, _ = torch.meshgrid((r, r), indexing="xy")
+        _, D = torch.meshgrid((d, d), indexing="xy")
         rd_grid = torch.cat([R[..., None], D[..., None]], dim=2)
 
         return rd_grid

@@ -259,8 +259,8 @@ a uniform grid in an equatorial coordinate system with coordinates RA (Right Asc
     ).to(device)
     d = r + dec
 
-    R, _ = torch.meshgrid((r, r), indexing="ij")
-    _, D = torch.meshgrid((d, d), indexing="ij")
+    R, _ = torch.meshgrid((r, r), indexing="xy")
+    _, D = torch.meshgrid((d, d), indexing="xy")
     rd_grid = torch.cat([R[..., None], D[..., None]], dim=2)
 
     return rd_grid
