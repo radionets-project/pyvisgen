@@ -6,6 +6,10 @@ import pandas as pd
 import torch
 from astropy.coordinates import EarthLocation
 
+from pyvisgen.utils.logging import setup_logger
+
+LOGGER = setup_logger()
+
 
 @dataclass
 class Stations:

@@ -1,15 +1,12 @@
 import sysconfig
 from pathlib import Path
 
-import click
+import rich_click as click
 import toml
-
-try:
-    from rich import print
-except ImportError:
-    pass
+from rich.pretty import pretty_repr
 
 from pyvisgen import __version__
+from pyvisgen.utils import setup_logger
 
 
 @click.command()
@@ -44,12 +41,11 @@ def quickstart(
     a file called 'pyvisgen_default_data_set_config.toml'
     inside that directory.
     """
-    # required below
-    write_file = True
+    log = setup_logger(tracebacks_suppress=[click])
 
-    msg = f"This is the pyvisgen v{__version__} quickstart tool"
-    print(msg)
-    print(len(msg) * "=", "\n")
+    msg = f"This is the pyvisgen [blue]v{__version__}[/] quickstart tool"
+    log.info(msg, extra={"markup": True, "highlighter": None})
+    log.info((len(msg) - len("[blue][/]")) * "=")
 
     if isinstance(config_path, str):
         config_path = Path(config_path)
@@ -60,14 +56,18 @@ def quickstart(
     with open(default_config_path, "r") as f:
         default_config = toml.load(f)
 
-    print("Loading default pyvisgen configuration:")
-    print(default_config)
+    log.info("Loading default pyvisgen configuration:")
+    log.info(pretty_repr(default_config))
 
     if config_path.is_dir():
         config_path /= "pyvisgen_default_data_set_config.toml"
 
+    # write_file is used below; the following if statement acts as
+    # a switch, toggling write_file to False if the user does not
+    # wish to overwrite
+    write_file = True
     if config_path.is_file() and not overwrite:
-        print("")
+        log.info("")
         write_file = click.confirm(
             f"{config_path} already exists! Overwrite?", default=False
         )
@@ -76,12 +76,11 @@ def quickstart(
         with open(config_path, "w") as f:
             toml.dump(default_config, f)
 
-        print(
-            "Configuration file was successfully written to",
-            f"{config_path.absolute()}",
+        log.info(
+            f"Configuration file was successfully written to {config_path.absolute()}",
         )
     else:
-        print("No file was written!")
+        log.warning("No output file was written!")
 
 
 if __name__ == "__main__":

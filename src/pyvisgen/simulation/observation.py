@@ -11,8 +11,10 @@ from tqdm.auto import tqdm
 
 from pyvisgen.layouts import layouts
 from pyvisgen.simulation.array import Array
+from pyvisgen.utils.logging import setup_logger
 
 torch.set_default_dtype(torch.float64)
+LOGGER = setup_logger()
 
 __all__ = ["Baselines", "ValidBaselineSubset", "Observation"]
 
@@ -1049,4 +1051,5 @@ class Observation:
                 "Expected u, v, and w to have the same shapes "
                 f"but got {u.shape}, {v.shape}, and {w.shape}."
             )
+
         return u, v, w

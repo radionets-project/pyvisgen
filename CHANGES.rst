@@ -1,3 +1,97 @@
+Pyvisgen 0.5.0 (2025-08-19)
+===========================
+
+
+API Changes
+-----------
+
+
+Bug Fixes
+---------
+
+
+New Features
+------------
+
+
+Maintenance
+-----------
+
+- Replaced all uses of ``tqdm`` with a multi-progress bar system using
+  ``rich.progress``
+- Added rich traceback for improved error reporting
+- Changed the config option ``file_prefix`` to ``dataset_type``
+  throughout the codebase and in the default config for clarity and better readability
+- Updated the device key value in the default config from ``"cpu"`` to ``"cuda"``,
+  CUDA is considered default from now on
+- Added ``rich-click`` as new dependency and replaced ``click`` with ``rich_click`` for
+  improved CLI appearance
+- Refactored :func:`~pyvisgen.utils.load_bundles` to directly filter HDF5 files by
+  ``dataset_type`` (using ``pathlib.Path.glob``)
+- Removed obsolete :func:`pyvisgen.utils.get_bundles` function [`#102 <https://github.com/radionets-project/pyvisgen/pull/102>`__]
+
+
+Refactoring and Optimization
+----------------------------
+
+Pyvisgen v0.4.0 (2025-08-05)
+============================
+
+
+API Changes
+-----------
+
+
+Bug Fixes
+---------
+
+
+New Features
+------------
+
+- Added a new `setup_logger` function in {mod}`pyvisgen.utils`
+- Added logging throughout the codebase
+- Replaced bare prints with `LOGGER.info` or `LOGGER.warning` for better status messages
+- Added exception logging before raising an exception, providing better tracebacks and error context [`#98 <https://github.com/radionets-project/pyvisgen/pull/98>`__]
+
+
+Maintenance
+-----------
+
+- Updated most of the docs to use myst parser
+- Updated user guide
+- Updated developer guide
+- Added contribution guide
+- Added coding style guide
+- Added "Cite Us" page [`#96 <https://github.com/radionets-project/pyvisgen/pull/96>`__]
+
+
+Refactoring and Optimization
+----------------------------
+
+Pyvisgen v0.4.0 (2025-08-05)
+============================
+
+
+API Changes
+-----------
+
+
+Bug Fixes
+---------
+
+
+New Features
+------------
+
+
+Maintenance
+-----------
+
+
+Refactoring and Optimization
+----------------------------
+
 Pyvisgen v0.3.0 (2025-07-02)
 ============================
 

@@ -43,6 +43,7 @@ dependencies = [
   "numpy",
   "pandas",
   "rich",
+  "rich-click>=1.8.9",
   "scipy",
   "toma",
   "toml",
@@ -53,6 +54,11 @@ dependencies = [
 [project.optional-dependencies]
 plot = [
   "matplotlib",
+]
+
+tutorials = [
+  "matplotlib",
+  "pytorch_finufft"
 ]
 
 [dependency-groups]
@@ -70,16 +76,21 @@ docs = [
   "graphviz",
   "ipython",
   "jupyter",
+  "linkify-it-py>=2.0.3",
   "matplotlib",
+  "myst-parser>=4.0.1",
   "nbsphinx",
   "notebook",
   "numpydoc",
   "pydata_sphinx_theme",
   "sphinx",
+  "sphinx-autobuild>=2024.10.3",
   "sphinx-changelog",
   "sphinx-copybutton",
   "sphinx-design",
   "sphinx-gallery >= 0.16.0",
+  "sphinx-tippy>=0.4.3",
+  "sphinx-togglebutton>=0.3.2",
   "sphinx_automodapi",
   "sphinxcontrib-bibtex",
   "tomli; python_version < '3.11'",
@@ -89,6 +100,7 @@ dev = [
   "ipython",
   "jupyter",
   "pre-commit",
+  "pytorch_finufft",
   {include-group = "tests"},
   {include-group = "docs"},
 ]
