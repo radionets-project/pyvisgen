@@ -86,6 +86,10 @@ jobs:
         if: matrix.environment-type == 'mamba'
         run: micromamba list
 
+      - name: Create CASA data directory
+        run: |
+          mkdir -p $HOME/.casa/data
+
       - name: Tests
         run: |
           pytest -vv --cov --cov-report=xml --junitxml=junit.xml -o junit_family=legacy
