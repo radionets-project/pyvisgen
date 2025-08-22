@@ -188,18 +188,18 @@ def calc_fourier(
         baseline axis.
     """
     # only use u, v, w valid
-    u_cmplt = bas[2]
-    v_cmplt = bas[5]
-    w_cmplt = bas[8]
+    u_valid = bas[2]
+    v_valid = bas[5]
+    w_valid = bas[8]
 
     l = lm[..., 0]  # noqa: E741
     m = lm[..., 1]
     n = torch.sqrt(1 - l**2 - m**2)
 
-    ul = u_cmplt[..., None] * l
-    vm = v_cmplt[..., None] * m
-    wn = w_cmplt[..., None] * (n - 1)
-    del l, m, n, u_cmplt, v_cmplt, w_cmplt
+    ul = u_valid[..., None] * l
+    vm = v_valid[..., None] * m
+    wn = w_valid[..., None] * (n - 1)
+    del l, m, n, u_valid, v_valid, w_valid
 
     K1 = torch.exp(-2 * pi * 1j * (ul + vm + wn) / c * spw_low)[..., None, None]
     K2 = torch.exp(-2 * pi * 1j * (ul + vm + wn) / c * spw_high)[..., None, None]

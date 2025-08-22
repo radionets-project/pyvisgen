@@ -146,7 +146,7 @@ def get_array_layout(
         )
 
     # drop name col and convert to tensor
-    tensor = torch.from_numpy(array.iloc[:, 1:].values)
+    tensor = torch.from_numpy(array.drop(labels="station_name", axis=1).values)
     # add st_num manually (station index)
     tensor = torch.cat([torch.arange(len(array))[..., None], tensor], dim=1)
     # swap axes for easy conversion into stations object

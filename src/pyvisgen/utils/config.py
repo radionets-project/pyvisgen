@@ -21,6 +21,7 @@ def read_data_set_conf(conf_toml: str | Path) -> dict:
     config = sanitize_conf(config)
     conf = {}
 
+    # Sampling Options
     conf["mode"] = config["sampling_options"]["mode"]
     conf["device"] = config["sampling_options"]["device"]
     conf["seed"] = config["sampling_options"]["seed"]
@@ -41,6 +42,7 @@ def read_data_set_conf(conf_toml: str | Path) -> dict:
     conf["noisy"] = config["sampling_options"]["noisy"]
     conf["sensitivty_cut"] = config["sampling_options"]["sensitivity_cut"]
 
+    # Polarization Options
     conf["polarization"] = config["polarization_options"]["mode"]
     conf["pol_delta"] = config["polarization_options"]["delta"]
     conf["pol_amp_ratio"] = config["polarization_options"]["amp_ratio"]
@@ -48,6 +50,7 @@ def read_data_set_conf(conf_toml: str | Path) -> dict:
     conf["field_scale"] = config["polarization_options"]["field_scale"]
     conf["field_threshold"] = config["polarization_options"]["field_threshold"]
 
+    # Bundle Options
     conf["num_test_images"] = config["bundle_options"]["num_test_images"]
     conf["bundle_size"] = config["bundle_options"]["bundle_size"]
     conf["train_valid_split"] = config["bundle_options"]["train_valid_split"]
@@ -57,11 +60,11 @@ def read_data_set_conf(conf_toml: str | Path) -> dict:
     conf["in_path"] = config["bundle_options"]["in_path"]
     conf["out_path_fits"] = config["bundle_options"]["out_path_fits"]
     conf["out_path_gridded"] = config["bundle_options"]["out_path_gridded"]
-    conf["file_prefix"] = config["bundle_options"]["file_prefix"]
+    conf["dataset_type"] = config["bundle_options"]["dataset_type"]
 
-    # handle case if file_prefix = None
-    if not conf["file_prefix"]:
-        conf["file_prefix"] = ""
+    # handle case if dataset_type = None
+    if not conf["dataset_type"]:
+        conf["dataset_type"] = ""
 
     return conf
 
