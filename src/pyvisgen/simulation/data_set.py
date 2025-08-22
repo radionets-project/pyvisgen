@@ -27,7 +27,7 @@ from pyvisgen.utils.logging import setup_logger
 
 __all__ = ["SimulateDataSet"]
 
-LOGGER = setup_logger()
+LOGGER = setup_logger(namespace=__name__)
 
 DATEFMT = "%d-%m-%Y %H:%M:%S"
 

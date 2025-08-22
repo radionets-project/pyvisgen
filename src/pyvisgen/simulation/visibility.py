@@ -9,7 +9,7 @@ import pyvisgen.simulation.scan as scan
 from pyvisgen.utils.logging import setup_logger
 
 torch.set_default_dtype(torch.float64)
-LOGGER = setup_logger()
+LOGGER = setup_logger(namespace=__name__)
 
 __all__ = [
     "Visibilities",
