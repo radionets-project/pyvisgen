@@ -41,7 +41,7 @@ def quickstart(
     a file called 'pyvisgen_default_data_set_config.toml'
     inside that directory.
     """
-    log = setup_logger(tracebacks_suppress=[click])
+    log = setup_logger(namespace=__name__, tracebacks_suppress=[click])
 
     msg = f"This is the pyvisgen [blue]v{__version__}[/] quickstart tool"
     log.info(msg, extra={"markup": True, "highlighter": None})

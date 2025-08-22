@@ -8,7 +8,7 @@ from astropy.coordinates import EarthLocation
 
 from pyvisgen.utils.logging import setup_logger
 
-LOGGER = setup_logger()
+LOGGER = setup_logger(namespace=__name__)
 
 
 @dataclass
