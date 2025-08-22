@@ -42,7 +42,7 @@ dependencies = [
   "natsort",
   "numpy",
   "pandas",
-  "pyvisgrid @ git+https://github.com/radionets-project/pyvisgrid#egg=main",
+  "pyvisgrid",
   "rich",
   "rich-click>=1.8.9",
   "scipy",
