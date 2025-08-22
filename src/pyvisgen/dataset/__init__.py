@@ -1,4 +1,4 @@
 from . import utils
-from .data_set import SimulateDataSet
+from .dataset import SimulateDataSet
 
 __all__ = ["SimulateDataSet", "utils"]
