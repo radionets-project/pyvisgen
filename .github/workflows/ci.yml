@@ -86,6 +86,10 @@ jobs:
         if: matrix.environment-type == 'mamba'
         run: micromamba list
 
+      - name: Create CASA data directory
+        run: |
+          mkdir -p $HOME/.casa/data
+
       - name: Tests
         run: |
           pytest -vv --cov --cov-report=xml --junitxml=junit.xml -o junit_family=legacy
@@ -121,6 +125,10 @@ jobs:
           uv pip install --system . -U pip towncrier
           uv pip install --system . --group docs -e .
           git describe --tags
+
+      - name: Create CASA data directory
+        run: |
+          mkdir -p $HOME/.casa/data
 
       - name: Build docs
         run: make -C docs html

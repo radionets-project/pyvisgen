@@ -40,7 +40,7 @@ def read_data_set_conf(conf_toml: str | Path) -> dict:
     conf["bandwidths"] = config["sampling_options"]["bandwidths"]
     conf["corrupted"] = config["sampling_options"]["corrupted"]
     conf["noisy"] = config["sampling_options"]["noisy"]
-    conf["sensitivty_cut"] = config["sampling_options"]["sensitivity_cut"]
+    conf["sensitivity_cut"] = config["sampling_options"]["sensitivity_cut"]
 
     # Polarization Options
     conf["polarization"] = config["polarization_options"]["mode"]

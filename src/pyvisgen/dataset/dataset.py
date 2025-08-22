@@ -6,16 +6,16 @@ import torch
 from astropy import units as un
 from astropy.time import Time
 from joblib import Parallel, delayed
+from pyvisgrid import Gridder
 from rich.live import Live
 from rich.pretty import pretty_repr
 
 import pyvisgen.fits.writer as writer
 import pyvisgen.layouts.layouts as layouts
-from pyvisgen.gridding import (
+from pyvisgen.dataset.utils import (
     calc_truth_fft,
     convert_amp_phase,
     convert_real_imag,
-    grid_vis_loop_data,
     save_fft_pair,
 )
 from pyvisgen.simulation.observation import Observation
@@ -194,17 +194,16 @@ class SimulateDataSet:
                 )
 
                 if self.grid:
-                    gridded = grid_vis_loop_data(
-                        vis.u,
-                        vis.v,
-                        vis.get_values(),
-                        self.freq_bands,
-                        self.conf,
-                        self.stokes_comp,
-                        self.conf["polarization"],
-                    )
+                    grid_data = Gridder.from_pyvisgen(
+                        vis_data=vis,
+                        obs=obs,
+                        img_size=self.conf["grid_size"],
+                        fov=self.conf["grid_fov"],
+                        stokes_components=self.stokes_comp,
+                        polarizations=self.conf["polarization"],
+                    ).grid()
 
-                    sim_data.append(gridded)
+                    sim_data.append(np.array(grid_data.get_mask_real_imag()))
 
                 current_bundle_progress.update(current_bundle_task_id, advance=1)
 
@@ -376,7 +375,7 @@ class SimulateDataSet:
             bandwidths=self.conf["bandwidths"],
             corrupted=self.conf["corrupted"],
             device=self.conf["device"],
-            sensitivity_cut=self.conf["sensitivty_cut"],
+            sensitivity_cut=self.conf["sensitivity_cut"],
             polarization=self.conf["polarization"],
         )  # NOTE: scan_separation and integration_time may change in the future
 
@@ -565,7 +564,7 @@ class SimulateDataSet:
 
         See Also
         --------
-        pyvisgen.simulation.data_set.SimulateDataSet.test_rand_opts :
+        pyvisgen.dataset.SimulateDataSet.test_rand_opts :
             Tests randomized sampling parameters.
         """
         start_time = Time(self.samp_opts["start_time"][i].isoformat(), format="isot")
