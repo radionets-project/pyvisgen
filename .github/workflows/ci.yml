@@ -126,6 +126,10 @@ jobs:
           uv pip install --system . --group docs -e .
           git describe --tags
 
+      - name: Create CASA data directory
+        run: |
+          mkdir -p $HOME/.casa/data
+
       - name: Build docs
         run: make -C docs html
 
