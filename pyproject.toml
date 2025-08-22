@@ -42,7 +42,7 @@ dependencies = [
   "natsort",
   "numpy",
   "pandas",
-  "pyvisgrid@git+https://github.com/radionets-project/pyvisgrid#egg=main",
+  "pyvisgrid @ git+https://github.com/radionets-project/pyvisgrid#egg=main",
   "rich",
   "rich-click>=1.8.9",
   "scipy",
@@ -120,6 +120,9 @@ include = ["src/pyvisgen"]
 [tool.hatch.build.targets.wheel.shared-data]
 "resources" = "share/resources"
 "config" = "share/configs"
+
+[tool.hatch.metadata]
+"allow-direct-references" = true
 
 [tool.coverage.run]
 omit = [
