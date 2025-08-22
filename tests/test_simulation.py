@@ -26,7 +26,7 @@ class TestSimulateDataSet:
 
     def setup_class(self):
         """Set up common objects and variables for the following tests."""
-        from pyvisgen.simulation.data_set import SimulateDataSet
+        from pyvisgen.dataset import SimulateDataSet
 
         self.s = SimulateDataSet
 
@@ -69,7 +69,7 @@ class TestVisLoop:
 
     def setup_class(self):
         """Set up common objects and variables for the following tests."""
-        from pyvisgen.simulation.data_set import SimulateDataSet
+        from pyvisgen.dataset import SimulateDataSet
 
         self.s = SimulateDataSet
 
@@ -217,7 +217,7 @@ class TestPolarization:
 
     def setup_class(self):
         """Set up common objects and variables for the following tests."""
-        from pyvisgen.simulation.data_set import SimulateDataSet
+        from pyvisgen.dataset import SimulateDataSet
         from pyvisgen.simulation.observation import (
             DEFAULT_FIELD_KWARGS,
             DEFAULT_POL_KWARGS,

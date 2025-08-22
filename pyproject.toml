@@ -42,6 +42,7 @@ dependencies = [
   "natsort",
   "numpy",
   "pandas",
+  "pyvisgrid@git+https://github.com/radionets-project/pyvisgrid#egg=main",
   "rich",
   "rich-click>=1.8.9",
   "scipy",
@@ -52,14 +53,9 @@ dependencies = [
 ]
 
 [project.optional-dependencies]
-plot = [
-  "matplotlib",
-]
+plot = ["matplotlib"]
 
-tutorials = [
-  "matplotlib",
-  "pytorch_finufft"
-]
+tutorials = ["matplotlib", "pytorch_finufft"]
 
 [dependency-groups]
 tests = [
@@ -101,12 +97,12 @@ dev = [
   "jupyter",
   "pre-commit",
   "pytorch_finufft",
-  {include-group = "tests"},
-  {include-group = "docs"},
+  { include-group = "tests" },
+  { include-group = "docs" },
 ]
 
 [project.scripts]
-pyvisgen-simulate = "pyvisgen.simulation.scripts.create_dataset:main"
+pyvisgen-simulate = "pyvisgen.dataset.scripts.create_dataset:main"
 pyvisgen-quickstart = "pyvisgen.tools.quickstart:quickstart"
 
 [tool.hatch.version]
@@ -143,7 +139,7 @@ extend-exclude = ["tests", "examples"]
 
 [tool.ruff.lint]
 extend-select = [
-  "I",  # isort
+  "I", # isort
 ]
 ignore = []
 
@@ -161,33 +157,33 @@ docstring-code-format = true
 known-first-party = ["pyvisgen"]
 
 [tool.towncrier]
-    package = "pyvisgen"
-    directory = "docs/changes"
-    filename = "CHANGES.rst"
-    template = "docs/changes/template.rst"
-    # let towncrier create proper links to the merged PR
-    issue_format = "`#{issue} <https://github.com/radionets-project/pyvisgen/pull/{issue}>`__"
+package = "pyvisgen"
+directory = "docs/changes"
+filename = "CHANGES.rst"
+template = "docs/changes/template.rst"
+# let towncrier create proper links to the merged PR
+issue_format = "`#{issue} <https://github.com/radionets-project/pyvisgen/pull/{issue}>`__"
 
-    [tool.towncrier.fragment.feature]
-        name = "New Features"
-        showcontent = true
+[tool.towncrier.fragment.feature]
+name = "New Features"
+showcontent = true
 
-    [tool.towncrier.fragment.bugfix]
-        name = "Bug Fixes"
-        showcontent = true
+[tool.towncrier.fragment.bugfix]
+name = "Bug Fixes"
+showcontent = true
 
-    [tool.towncrier.fragment.api]
-        name = "API Changes"
-        showcontent = true
+[tool.towncrier.fragment.api]
+name = "API Changes"
+showcontent = true
 
-    [tool.towncrier.fragment.optimization]
-        name = "Refactoring and Optimization"
-        showcontent = true
+[tool.towncrier.fragment.optimization]
+name = "Refactoring and Optimization"
+showcontent = true
 
-    [tool.towncrier.fragment.maintenance]
-        name = "Maintenance"
-        showcontent = true
+[tool.towncrier.fragment.maintenance]
+name = "Maintenance"
+showcontent = true
 
-    [[tool.towncrier.section]]
-        name = ""
-        path = ""
+[[tool.towncrier.section]]
+name = ""
+path = ""

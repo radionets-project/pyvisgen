@@ -1,6 +1,6 @@
 import rich_click as click
 
-from pyvisgen.simulation.data_set import SimulateDataSet
+from pyvisgen.dataset import SimulateDataSet
 
 
 @click.command()
