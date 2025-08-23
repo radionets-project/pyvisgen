@@ -6,12 +6,12 @@ import torch
 from astropy import units as un
 from astropy.time import Time
 from joblib import Parallel, delayed
-from pyvisgrid import Gridder
 from rich.live import Live
 from rich.pretty import pretty_repr
 
 import pyvisgen.fits.writer as writer
 import pyvisgen.layouts.layouts as layouts
+from pyvisgen._plugin_manager import PluginManager
 from pyvisgen.dataset.utils import (
     calc_truth_fft,
     convert_amp_phase,
@@ -101,77 +101,81 @@ class SimulateDataSet:
             sampling and testing phase. If -1 or ``'all'``,
             use all available cores. Default: 1
         """
-        cls = cls()
-        cls.key = image_key
-        cls.grid = grid
-        cls.slurm = slurm
-        cls.job_id = slurm_job_id
-        cls.n = slurm_n
-        cls.date_fmt = date_fmt
-        cls.num_images = num_images
-        cls.multiprocess = multiprocess
+        instance = cls()
+        instance.key = image_key
+        instance.grid = grid
+        instance.slurm = slurm
+        instance.job_id = slurm_job_id
+        instance.n = slurm_n
+        instance.date_fmt = date_fmt
+        instance.num_images = num_images
+        instance.multiprocess = multiprocess
 
-        cls.stokes_comp = stokes
+        instance.stokes_comp = stokes
 
         if multiprocess in ["all"]:
-            cls.multiprocess = -1
+            instance.multiprocess = -1
 
         if isinstance(config, (str, Path)):
-            cls.conf = read_data_set_conf(config)
+            instance.conf = read_data_set_conf(config)
         elif isinstance(config, dict):
-            cls.conf = config
+            instance.conf = config
         else:
             raise ValueError("Expected config to be one of str, Path or dict!")
 
         LOGGER.info("Simulation Config:")
-        LOGGER.info(pretty_repr(cls.conf))
+        LOGGER.info(pretty_repr(instance.conf))
 
-        cls.device = cls.conf["device"]
+        instance.device = instance.conf["device"]
 
         if grid:
-            cls.out_path = Path(cls.conf["out_path_gridded"])
+            instance.out_path = Path(instance.conf["out_path_gridded"])
+
+            # Get gridder from plugin, otherwise fallback to default
+            instance.gridder = instance._get_gridder()
         else:
-            cls.out_path = Path(cls.conf["out_path_fits"])
+            instance.out_path = Path(instance.conf["out_path_fits"])
 
-        if not cls.out_path.is_dir():
-            cls.out_path.mkdir(parents=True)
+        if not instance.out_path.is_dir():
+            instance.out_path.mkdir(parents=True)
 
-        cls.data_paths = load_bundles(
-            cls.conf["in_path"], dataset_type=cls.conf["dataset_type"]
+        instance.data_paths = load_bundles(
+            instance.conf["in_path"], dataset_type=instance.conf["dataset_type"]
         )
 
-        cls.overall_task_id = overall_progress.add_task(
-            f"Simulating {cls.conf['dataset_type']} dataset", total=3
+        instance.overall_task_id = overall_progress.add_task(
+            f"Simulating {instance.conf['dataset_type']} dataset", total=3
         )
+
         with Live(progress_group):
-            if cls.num_images is None:
+            if instance.num_images is None:
                 # get number of random parameter draws from number of images in data
                 counting_task_id = counting_progress.add_task(
-                    "", total=len(cls.data_paths)
+                    "", total=len(instance.data_paths)
                 )
 
                 num_images = []
-                for bundle_id in range(len(cls.data_paths)):
-                    num_images.append(len(cls.get_images(bundle_id)))
+                for bundle_id in range(len(instance.data_paths)):
+                    num_images.append(len(instance.get_images(bundle_id)))
                     counting_progress.update(counting_task_id, advance=1)
 
-                cls.num_images = np.sum(num_images)
-                overall_progress.update(cls.overall_task_id, advance=1)
+                instance.num_images = np.sum(num_images)
+                overall_progress.update(instance.overall_task_id, advance=1)
 
-            if int(cls.num_images) == 0:
+            if int(instance.num_images) == 0:
                 raise ValueError(
                     "No images found in bundles! Please check your input path!"
                 )
 
             if slurm:  # pragma: no cover
-                cls._run_slurm()
+                instance._run_slurm()
                 pass
             else:
                 # draw parameters beforehand, i.e. outside the simulation loop
-                cls.create_sampling_rc(cls.num_images)
-                cls._run()
+                instance.create_sampling_rc(instance.num_images)
+                instance._run()
 
-        return cls
+        return instance
 
     def _run(self) -> None:
         """Runs the simulation and saves visibility data either as
@@ -194,7 +198,7 @@ class SimulateDataSet:
                 )
 
                 if self.grid:
-                    grid_data = Gridder.from_pyvisgen(
+                    grid_data = self.gridder.from_pyvisgen(
                         vis_data=vis,
                         obs=obs,
                         img_size=self.conf["grid_size"],
@@ -202,6 +206,9 @@ class SimulateDataSet:
                         stokes_components=self.stokes_comp,
                         polarizations=self.conf["polarization"],
                     ).grid()
+                    # TODO: We should think about changing the API
+                    # here from gridder.from_pyvisgen().grid()
+                    # to something more generic, i.e. accessible
 
                     sim_data.append(np.array(grid_data.get_mask_real_imag()))
 
@@ -269,6 +276,24 @@ class SimulateDataSet:
 
         hdu_list = writer.create_hdu_list(vis_data, obs)
         hdu_list.writeto(out, overwrite=True)
+
+    def _get_gridder(self):
+        if self.conf["gridder"] == "default":
+            from pyvisgen.gridding.default_gridder import DefaultGridder
+
+            gridder = DefaultGridder
+        else:
+            try:
+                gridder = PluginManager.get_gridder(self.conf["gridder"])
+            except ValueError as e:
+                from pyvisgen.gridding.default_gridder import DefaultGridder
+
+                LOGGER.warn(e)
+                LOGGER.warn("Falling back to default gridder!")
+
+                gridder = DefaultGridder
+
+        return gridder
 
     def get_images(self, i: int) -> torch.tensor:
         """Opens bundle with index i and returns :func:`~torch.tensor`
