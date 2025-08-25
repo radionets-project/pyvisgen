@@ -45,7 +45,7 @@ class Manager(ABC):
         plugins = self._get_avail_plugins(group=group)
         if not list(plugins.keys()):
             raise ValueError(
-                "No plugins available in entry point group 'pyvisgen.gridding'! "
+                f"No plugins available in entry point group '{group}'! "
                 "Make sure you have installed a package providing plugins compatible "
                 f"with pyvisgen {__version__}, e.g. pyvisgrid.gridder from pyvisgrid "
                 "(uv pip install pyvisgrid)!"
@@ -122,6 +122,6 @@ class PluginManager(Manager):
             If plugin 'name' was not found.
         """
         instance = cls()
-        ft_plugin = instance.__get_plugin(name, group="pyvisgen.ft")
+        ft_plugin = instance._get_plugin(name, group="pyvisgen.ft")
 
         return ft_plugin
