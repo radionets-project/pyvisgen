@@ -120,8 +120,8 @@ include = ["src/pyvisgen"]
 "resources" = "share/resources"
 "config" = "share/configs"
 
-[tool.hatch.metadata]
-"allow-direct-references" = true
+[project.entry-points."pyvisgen.gridding"]
+default = "pyvisgen.gridding.default_gridder:DefaultGridder"
 
 [tool.coverage.run]
 omit = [

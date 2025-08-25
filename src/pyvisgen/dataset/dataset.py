@@ -275,20 +275,15 @@ class SimulateDataSet:
         hdu_list.writeto(out, overwrite=True)
 
     def _get_gridder(self):
-        if self.conf["gridder"] == "default":
+        try:
+            gridder = PluginManager.get_gridder(self.conf["gridder"])
+        except ValueError as e:
             from pyvisgen.gridding.default_gridder import DefaultGridder
 
+            LOGGER.warn(e)
+            LOGGER.warn("Falling back to default gridder!")
+
             gridder = DefaultGridder
-        else:
-            try:
-                gridder = PluginManager.get_gridder(self.conf["gridder"])
-            except ValueError as e:
-                from pyvisgen.gridding.default_gridder import DefaultGridder
-
-                LOGGER.warn(e)
-                LOGGER.warn("Falling back to default gridder!")
-
-                gridder = DefaultGridder
 
         return gridder
 
