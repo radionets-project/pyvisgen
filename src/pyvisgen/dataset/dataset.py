@@ -198,7 +198,7 @@ class SimulateDataSet:
                 )
 
                 if self.grid:
-                    grid_data = self.gridder.from_pyvisgen(
+                    grid_data = self.gridder.pyvisgen(
                         vis_data=vis,
                         obs=obs,
                         img_size=self.conf["grid_size"],
@@ -206,9 +206,6 @@ class SimulateDataSet:
                         stokes_components=self.stokes_comp,
                         polarizations=self.conf["polarization"],
                     ).grid()
-                    # TODO: We should think about changing the API
-                    # here from gridder.from_pyvisgen().grid()
-                    # to something more generic, i.e. accessible
 
                     sim_data.append(np.array(grid_data.get_mask_real_imag()))
 
