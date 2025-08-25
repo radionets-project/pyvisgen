@@ -42,7 +42,6 @@ dependencies = [
   "natsort",
   "numpy",
   "pandas",
-  "pyvisgrid",
   "rich",
   "rich-click>=1.8.9",
   "scipy",
