@@ -40,6 +40,7 @@ def test_read_config():
         "out_path_fits",
         "out_path_gridded",
         "dataset_type",
+        "gridder",
     ]
 
 
