@@ -21,7 +21,6 @@ Submodules
   :glob:
 
   array
-  data_set
   observation
   scan
   visibility
