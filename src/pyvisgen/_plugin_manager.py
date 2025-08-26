@@ -4,7 +4,7 @@ from abc import ABC
 from importlib.metadata import entry_points
 from typing import TYPE_CHECKING
 
-if TYPE_CHECKING:
+if TYPE_CHECKING:  # pragma: no cover
     from collections.abc import Callable
 
 from pyvisgen import __version__
@@ -29,6 +29,9 @@ class Manager(ABC):
         self.plugins = {}
 
         eps = entry_points()
+        if group not in eps.groups:
+            raise ValueError(f"Entry point group '{group}' not found!")
+
         if hasattr(eps, "select"):
             gridding_plugins = eps.select(group=group)
 
@@ -36,14 +39,14 @@ class Manager(ABC):
             try:
                 plugin_class = entry_point.load()
                 self.plugins[entry_point.name] = plugin_class
-            except ImportError as e:
+            except ImportError as e:  # pragma: no cover
                 LOGGER.warn(f"Failed to load plugin {entry_point.name} in {group}: {e}")
 
         return self.plugins
 
     def _get_plugin(self, name, group):
         plugins = self._get_avail_plugins(group=group)
-        if not list(plugins.keys()):
+        if not list(plugins.keys()):  # pragma: no cover
             raise ValueError(
                 f"No plugins available in entry point group '{group}'! "
                 "Make sure you have installed a package providing plugins compatible "
