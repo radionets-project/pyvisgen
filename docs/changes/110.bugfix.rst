@@ -1,0 +1,1 @@
+Fixed a bug which raised an AttributeError when using a :func:`~torch.tensor` in an :class:`~astropy.coordinates.SkyCoord` object
