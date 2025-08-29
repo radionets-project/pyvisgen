@@ -856,7 +856,9 @@ class Observation:
         if time.shape == ():
             time = time[None]
 
-        src_crd = SkyCoord(ra=self.ra, dec=self.dec, unit=(un.deg, un.deg))
+        src_crd = SkyCoord(
+            ra=self.ra.numpy(), dec=self.dec.numpy(), unit=(un.deg, un.deg)
+        )
         # Calculate for all times
         # calculate GHA, Greenwich as reference
         GHA = time.sidereal_time("apparent", "greenwich") - src_crd.ra.to(un.hourangle)
