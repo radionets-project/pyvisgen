@@ -42,7 +42,6 @@ dependencies = [
   "natsort",
   "numpy",
   "pandas",
-  "pyvisgrid",
   "rich",
   "rich-click>=1.8.9",
   "scipy",
@@ -121,8 +120,8 @@ include = ["src/pyvisgen"]
 "resources" = "share/resources"
 "config" = "share/configs"
 
-[tool.hatch.metadata]
-"allow-direct-references" = true
+[project.entry-points."pyvisgen.gridding"]
+default = "pyvisgen.gridding.default_gridder:DefaultGridder"
 
 [tool.coverage.run]
 omit = [
@@ -134,6 +133,14 @@ omit = [
 
 [tool.coverage.xml]
 output = "coverage.xml"
+
+[tool.coverage.report]
+exclude_also = [
+    'def __repr__',
+    'raise NotImplementedError',
+    'if __name__ == .__main__.:',
+    'if TYPE_CHECKING:',
+]
 
 [tool.ruff]
 target-version = "py311"
