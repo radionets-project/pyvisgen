@@ -1,13 +1,18 @@
 from math import pi
 
 import torch
+from radioft.dft.dft import HybridPyTorchCudaDFT
 from scipy.constants import c
 from torch.special import bessel_j1
 
 torch.set_default_dtype(torch.float64)
 
+
+hybrid_dft = HybridPyTorchCudaDFT(device="cuda")
+
 __all__ = [
     "rime",
+    "calc_dft",
     "calc_fourier",
     "calc_feed_rotation",
     "calc_beam",
@@ -31,6 +36,7 @@ def rime(
     polarization,
     mode,
     corrupted=False,
+    ft="standard",
 ):
     """Calculates visibilities using RIME
 
@@ -54,22 +60,101 @@ def rime(
     2d tensor
         Returns visibility for every baseline
     """
-    with torch.no_grad():
-        X1, X2 = calc_fourier(img, bas, lm, spw_low, spw_high)
+    if ft == "standard":
+        with torch.no_grad():
+            X1 = img.clone()
+            X2 = img.clone()
+            X1, X2 = calc_fourier(X1, X2, bas, lm, spw_low, spw_high)
 
-        if polarization and mode != "dense":
-            X1, X2 = calc_feed_rotation(X1, X2, bas, polarization)
+            if polarization and mode != "dense":
+                X1, X2 = calc_feed_rotation(X1, X2, bas, polarization)
 
-        if corrupted:
-            X1, X2 = calc_beam(X1, X2, rd, ra, dec, ant_diam, spw_low, spw_high)
+            if corrupted:
+                X1, X2 = calc_beam(X1, X2, rd, ra, dec, ant_diam, spw_low, spw_high)
 
-        vis = integrate(X1, X2)
+            vis = integrate(X1, X2)
+    if ft == "reversed":
+        with torch.no_grad():
+            img = torch.repeat_interleave(img.clone()[None], len(bas[2]), dim=0)
+            X1 = img.clone()
+            X2 = img.clone()
+            if polarization and mode != "dense":
+                X1, X2 = calc_feed_rotation(X1, X2, bas, polarization)
+
+            if corrupted:
+                X1, X2 = calc_beam(X1, X2, rd, ra, dec, ant_diam, spw_low, spw_high)
+
+            X1, X2 = calc_fourier(X1, X2, bas, lm, spw_low, spw_high)
+            vis = integrate(X1, X2)
+    if ft == "dft":
+        with torch.no_grad():
+            X1 = img.clone()
+            X2 = img.clone()
+            # if polarization and mode != "dense":
+            #     X1, X2 = calc_feed_rotation(X1, X2, bas, polarization)
+
+            if corrupted:
+                X1, X2 = calc_beam(X1, X2, rd, ra, dec, ant_diam, spw_low, spw_high)
+
+            vis = calc_dft(X1, X2, bas, lm, spw_low, spw_high)
+    return vis
+
+
+@torch.compile
+def calc_dft(
+    X1: torch.tensor,
+    X2: torch.tensor,
+    bas,
+    lm: torch.tensor,
+    spw_low: float,
+    spw_high: float,
+) -> tuple[torch.tensor, torch.tensor]:
+    l_coords = lm[..., 0]
+    m_coords = lm[..., 1]
+    n_coords = torch.sqrt(1 - l_coords**2 - m_coords**2)
+
+    u_coords_low = bas[2] / c * spw_low
+    v_coords_low = bas[5] / c * spw_low
+    w_coords_low = bas[8] / c * spw_low
+
+    u_coords_high = bas[2] / c * spw_high
+    v_coords_high = bas[5] / c * spw_high
+    w_coords_high = bas[8] / c * spw_high
+
+    X1 = X1.flatten(1).swapaxes(0, 1)
+    X2 = X2.flatten(1).swapaxes(0, 1)
+    vis = torch.empty([X1.shape[0], 2, 2], dtype=torch.complex128)
+    vis_low = hybrid_dft.forward(
+        X1,
+        l_coords,
+        m_coords,
+        n_coords,
+        u_coords_low,
+        v_coords_low,
+        w_coords_low,
+        dtype=torch.double,
+        max_memory_gb=60,
+    )
+    vis_high = hybrid_dft.forward(
+        X2,
+        l_coords,
+        m_coords,
+        n_coords,
+        u_coords_high,
+        v_coords_high,
+        w_coords_high,
+        dtype=torch.double,
+        max_memory_gb=60,
+    )
+
+    vis = ((vis_low + vis_high) / 2).swapaxes(1, 0).reshape(-1, 2, 2)
     return vis
 
 
 @torch.compile
 def calc_fourier(
-    img: torch.tensor,
+    X1: torch.tensor,
+    X2: torch.tensor,
     bas,
     lm: torch.tensor,
     spw_low: float,
@@ -80,8 +165,10 @@ def calc_fourier(
 
     Parameters
     ----------
-    img : :func:`~torch.tensor`
-        Sky distribution.
+    X1 : :func:`~torch.tensor`
+        Sky tensor.
+    X2 : :func:`~torch.tensor`
+        Sky tensor.
     bas : :class:`~pyvisgen.simulation.ValidBaselineSubset`
         :class:`~pyvisgen.simulation.Baselines` dataclass
         object containing information on u, v, and w coverage,
@@ -117,7 +204,7 @@ def calc_fourier(
     K1 = torch.exp(-2 * pi * 1j * (ul + vm + wn) / c * spw_low)[..., None, None]
     K2 = torch.exp(-2 * pi * 1j * (ul + vm + wn) / c * spw_high)[..., None, None]
     del ul, vm, wn
-    return img * K1, img * K2
+    return X1 * K1, X2 * K2
 
 
 @torch.compile
@@ -221,7 +308,6 @@ def calc_beam(
 
     E1 = jinc(2 * pi / c * spw_low * tds)
     E2 = jinc(2 * pi / c * spw_high * tds)
-
     assert E1.shape == E2.shape
 
     EXE1 = E1[..., None] * X1 * E1[..., None]
