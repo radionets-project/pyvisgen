@@ -50,10 +50,11 @@ def read_data_set_conf(conf_toml: str | Path) -> dict:
     conf["field_scale"] = config["polarization_options"]["field_scale"]
     conf["field_threshold"] = config["polarization_options"]["field_threshold"]
 
+    print(config)
+
     # Bundle Options
-    conf["num_test_images"] = config["bundle_options"]["num_test_images"]
-    conf["bundle_size"] = config["bundle_options"]["bundle_size"]
-    conf["train_valid_split"] = config["bundle_options"]["train_valid_split"]
+    conf["file_type"] = config["bundle_options"]["file_type"]
+    conf["overlap"] = config["bundle_options"]["overlap"]
     conf["grid_size"] = config["bundle_options"]["grid_size"]
     conf["grid_fov"] = config["bundle_options"]["grid_fov"]
     conf["amp_phase"] = config["bundle_options"]["amp_phase"]
@@ -70,7 +71,7 @@ def read_data_set_conf(conf_toml: str | Path) -> dict:
 
 
 def sanitize_conf(conf: dict) -> dict:
-    """Sanitizes a given dict by replacinginstances of
+    """Sanitizes a given dict by replacing instances of
     'none' str with None.
 
     Parameters

@@ -16,7 +16,8 @@ from pyvisgen.dataset.utils import (
     calc_truth_fft,
     convert_amp_phase,
     convert_real_imag,
-    save_fft_pair,
+    save_h5,
+    save_pt,
 )
 from pyvisgen.simulation.observation import Observation
 from pyvisgen.simulation.utils import create_progress_tracker
@@ -145,7 +146,7 @@ class SimulateDataSet:
         )
         with Live(progress_group):
             if cls.num_images is None:
-                # get number of random parameter draws from number of images in data
+                # get number of random parameter, draws from number of images in data
                 counting_task_id = counting_progress.add_task(
                     "", total=len(cls.data_paths)
                 )
@@ -174,13 +175,10 @@ class SimulateDataSet:
         return cls
 
     def _run(self) -> None:
-        """Runs the simulation and saves visibility data either as
-        bundled HDF5 files or as individual FITS files.
-        """
-
         bundles_task_id = bundles_progress.add_task("", total=len(self.data_paths))
         for i in range(len(self.data_paths)):
             SIs = self.get_images(i)
+            bundle_length = SIs.shape[0]
             truth_fft = calc_truth_fft(SIs)
 
             sim_data = []
@@ -208,6 +206,7 @@ class SimulateDataSet:
                 current_bundle_progress.update(current_bundle_task_id, advance=1)
 
             sim_data = np.array(sim_data)
+            path_msg = f"samp_{self.conf['dataset_type']}_<id>"
 
             if self.grid:
                 if self.conf["amp_phase"]:
@@ -220,33 +219,52 @@ class SimulateDataSet:
                 if sim_data.shape[1] != 2:
                     raise ValueError("Expected sim_data axis at index 1 to be 2!")
 
-                out = self.out_path / Path(
-                    f"samp_{self.conf['dataset_type']}_" + str(i) + ".h5"
-                )
+                file_stem = f"samp_{self.conf['dataset_type']}"
 
-                save_fft_pair(path=out, x=sim_data, y=truth_fft)
+                if self.conf["file_type"] == "pt":
+                    path_msg += ".pt"
 
-                path_msg = Path(self.conf["out_path_gridded"]) / Path(
-                    f"samp_{self.conf['dataset_type']}_<id>.h5"
-                )
+                    for idx in range(bundle_length):
+                        save_pt(
+                            path=self.out_path
+                            / f"{file_stem}_{idx + i * bundle_length}.pt",
+                            overlap=self.conf["overlap"],
+                            x=sim_data,
+                            y=truth_fft,
+                        )
+
+                elif self.conf["file_type"] == "h5":
+                    out = self.out_path / f"{file_stem}_{i}.h5"
+                    path_msg += ".h5"
+
+                    save_h5(
+                        path=out, overlap=self.conf["overlap"], x=sim_data, y=truth_fft
+                    )
+
+                else:
+                    raise ValueError(
+                        "The given file type is not supported! "
+                        "Currently only h5 and pt files are supported!"
+                    )
             else:
                 for i, vis_data in enumerate(sim_data):
                     out = self.out_path / Path(
                         f"vis_{self.conf['dataset_type']}_" + str(i) + ".fits"
                     )
+                    path_msg += ".fits"
+
                     hdu_list = writer.create_hdu_list(vis_data, obs)
                     hdu_list.writeto(out, overwrite=True)
-
-                path_msg = self.conf["out_path_fits"] / Path(
-                    f"samp_{self.conf['dataset_type']}_<id>.fits"
-                )
 
             current_bundle_progress.stop_task(current_bundle_task_id)
             current_bundle_progress.update(current_bundle_task_id, visible=False)
             bundles_progress.update(bundles_task_id, advance=1)
 
         overall_progress.update(self.overall_task_id, advance=1)
-        LOGGER.info(f"Successfully simulated and saved {i + 1} images to '{path_msg}'!")
+
+        LOGGER.info(
+            f"Successfully simulated and saved {i + 1} images to '{self.out_path / path_msg}'!"
+        )
 
     def _run_slurm(self) -> None:  # pragma: no cover
         """Runs the simulation in slurm and saves visibility data
