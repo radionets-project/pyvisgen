@@ -77,10 +77,10 @@ jobs:
           PYTHON_VERSION: ${{ matrix.python-version }}
         run: |
           python --version
-          uv pip install --upgrade pip
-          uv pip install --group tests -e .
-          uv pip freeze
-          uv pip list
+          pip install --upgrade pip
+          pip install --group tests -e .
+          pip freeze
+          pip list
 
       - name: List installed package versions (conda)
         if: matrix.environment-type == 'mamba'
@@ -122,8 +122,8 @@ jobs:
       - name: Install doc dependencies
         run: |
           sudo apt update --yes && sudo apt install --yes git
-          uv pip install --system . -U pip towncrier
-          uv pip install --system . --group docs -e .
+          pip install --system . -U pip towncrier
+          pip install --system . --group docs -e .
           git describe --tags
 
       - name: Create CASA data directory
