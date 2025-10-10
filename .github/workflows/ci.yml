@@ -119,7 +119,6 @@ jobs:
         run: |
           sudo apt update --yes && sudo apt install --yes git
           pip install . -U pip towncrier
-          pip install -e .
           pip install --group docs -e .
           git describe --tags
 
