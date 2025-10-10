@@ -86,10 +86,6 @@ jobs:
         if: matrix.environment-type == 'mamba'
         run: micromamba list
 
-      - name: Create CASA data directory
-        run: |
-          mkdir -p $HOME/.casa/data
-
       - name: Tests
         run: |
           pytest -vv --cov --cov-report=xml --junitxml=junit.xml -o junit_family=legacy
@@ -122,8 +118,8 @@ jobs:
       - name: Install doc dependencies
         run: |
           sudo apt update --yes && sudo apt install --yes git
-          pip install --system . -U pip towncrier
-          pip install --system . --group docs -e .
+          pip install . -U pip towncrier
+          pip install . --group docs -e .
           git describe --tags
 
       - name: Create CASA data directory
