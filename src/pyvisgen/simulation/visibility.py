@@ -313,7 +313,7 @@ class Polarization:
             B[..., 1, 1] = self.I[..., 0] - self.I[..., 1]  # I - Q
 
         # calculations only for px > sensitivity cut
-        mask = (self.SI >= self.sensitivity_cut)[..., 0]
+        mask = (self.sensitivity_cut <= self.SI)[..., 0]
         B = B[mask]
 
         return B, mask, self.lin_dop, self.circ_dop

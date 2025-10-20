@@ -15,12 +15,12 @@ from rich.progress import (
 )
 
 if TYPE_CHECKING:
-    from typing import Any, Dict, List, Optional
+    from typing import Any
 
 
 def create_progress_tracker(
-    custom_configs: Optional[Dict[str, List[Any]]] = None,
-) -> Dict[str, Any]:
+    custom_configs: dict[str, list[Any]] | None = None,
+) -> dict[str, Any]:
     """
     Factory function to create customizable progress trackers
 
