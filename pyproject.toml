@@ -42,6 +42,7 @@ dependencies = [
   "natsort",
   "numpy",
   "pandas",
+  "pyvisgrid",
   "rich",
   "rich-click>=1.8.9",
   "scipy",
@@ -119,9 +120,6 @@ include = ["src/pyvisgen"]
 [tool.hatch.build.targets.wheel.shared-data]
 "resources" = "share/resources"
 "config" = "share/configs"
-
-[project.entry-points."pyvisgen.gridding"]
-default = "pyvisgen.gridding.default_gridder:DefaultGridder"
 
 [tool.coverage.run]
 omit = [
