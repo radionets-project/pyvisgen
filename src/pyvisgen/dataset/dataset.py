@@ -198,7 +198,7 @@ class SimulateDataSet:
                 )
 
                 if self.grid:
-                    grid_data = self.gridder.pyvisgen(
+                    grid_data = self.gridder.from_pyvisgen(
                         vis_data=vis,
                         obs=obs,
                         img_size=self.conf["grid_size"],
@@ -278,12 +278,12 @@ class SimulateDataSet:
         try:
             gridder = PluginManager.get_gridder(self.conf["gridder"])
         except ValueError as e:
-            from pyvisgen.gridding.default_gridder import DefaultGridder
+            from pyvisgrid.core.gridder import Gridder
 
-            LOGGER.warn(e)
-            LOGGER.warn("Falling back to default gridder!")
+            LOGGER.warning(e)
+            LOGGER.warning("Falling back to default gridder!")
 
-            gridder = DefaultGridder
+            gridder = Gridder
 
         return gridder
 
