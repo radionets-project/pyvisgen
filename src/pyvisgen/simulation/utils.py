@@ -15,12 +15,12 @@ from rich.progress import (
 )
 
 if TYPE_CHECKING:
-    from typing import Any, Dict, List, Optional
+    from typing import Any
 
 
 def create_progress_tracker(
-    custom_configs: Optional[Dict[str, List[Any]]] = None,
-) -> Dict[str, Any]:
+    custom_configs: dict[str, list[Any]] | None = None,
+) -> dict[str, Any]:
     """
     Factory function to create customizable progress trackers
 
@@ -38,7 +38,7 @@ def create_progress_tracker(
             SpinnerColumn("dots"),
             TimeElapsedColumn(),
             TextColumn(
-                "[#aaaaaa]{task.description} ({task.completed} of {task.total} tasks completed)"
+                "[#aaaaaa]{task.description} ({task.completed} of {task.total} tasks completed)"  # noqa: E501
             ),
         ],
         "counting": [
@@ -75,7 +75,7 @@ def create_progress_tracker(
         ],
         "current_bundle": [
             TextColumn(
-                "[bold #7287fd]Progress for bundle {task.fields[name]}: {task.percentage:>23.0f}%"
+                "[bold #7287fd]Progress for bundle {task.fields[name]}: {task.percentage:>23.0f}%"  # noqa: E501
             ),
             BarColumn(),
             MofNCompleteColumn(),
