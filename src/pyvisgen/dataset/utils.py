@@ -14,8 +14,8 @@ def save_fft_pair(path, x, y, name_x="x", name_y="y"):
     write fft_pairs created in second analysis step to h5 file
     """
     half_image = x.shape[2] // 2
-    x = x[:, :, : half_image + 1, :]
-    y = y[:, :, : half_image + 1, :]
+    x = x[:, :, : half_image + 5, :]
+    y = y[:, :, : half_image + 5, :]
 
     test_shapes(x, "x")
     test_shapes(y, "y")
