@@ -54,8 +54,8 @@ dependencies = [
 
 [project.optional-dependencies]
 plot = ["matplotlib"]
-
 tutorials = ["matplotlib", "pytorch_finufft"]
+webdataset = ["webdataset", "pyarrow"]
 
 [dependency-groups]
 tests = [
