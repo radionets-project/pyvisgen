@@ -12,6 +12,7 @@ from rich.pretty import pretty_repr
 
 import pyvisgen.fits.writer as writer
 import pyvisgen.layouts.layouts as layouts
+from pyvisgen.dataset._webdataset import _WDS_AVAIL
 from pyvisgen.dataset.utils import (
     calc_truth_fft,
     convert_amp_phase,
@@ -24,6 +25,10 @@ from pyvisgen.simulation.visibility import vis_loop
 from pyvisgen.utils.config import read_data_set_conf
 from pyvisgen.utils.data import load_bundles, open_bundles
 from pyvisgen.utils.logging import setup_logger
+
+if _WDS_AVAIL:
+    from pyvisgen.dataset._webdataset import WDSShardWriter
+
 
 __all__ = ["SimulateDataSet"]
 
@@ -69,6 +74,7 @@ class SimulateDataSet:
         num_images: int | None = None,
         multiprocess: int | str = 1,
         stokes: str = "I",
+        output_format: str = "wds",
     ):
         """Simulates data from parameters in a config file.
 
@@ -110,6 +116,7 @@ class SimulateDataSet:
         cls.date_fmt = date_fmt
         cls.num_images = num_images
         cls.multiprocess = multiprocess
+        cls.output_format = output_format
 
         cls.stokes_comp = stokes
 
@@ -155,10 +162,10 @@ class SimulateDataSet:
                     num_images.append(len(cls.get_images(bundle_id)))
                     counting_progress.update(counting_task_id, advance=1)
 
-                cls.num_images = np.sum(num_images)
+                cls.num_images = int(np.sum(num_images))
                 overall_progress.update(cls.overall_task_id, advance=1)
 
-            if int(cls.num_images) == 0:
+            if cls.num_images == 0:
                 raise ValueError(
                     "No images found in bundles! Please check your input path!"
                 )
@@ -169,7 +176,23 @@ class SimulateDataSet:
             else:
                 # draw parameters beforehand, i.e. outside the simulation loop
                 cls.create_sampling_rc(cls.num_images)
-                cls._run()
+
+                if output_format.lower() in ["webdataset", "wds"] and _WDS_AVAIL:
+                    with WDSShardWriter(
+                        output_path=cls.out_path,
+                        total_samples=cls.num_images,
+                        shard_pattern=f"{cls.conf['dataset_type']}-%06d.tar",
+                        compress=False,
+                    ) as cls.wds_writer:
+                        cls._run()
+                elif output_format.lower() in ["webdataset", "wds"] and not _WDS_AVAIL:
+                    raise ImportError(
+                        "Could not find an installation of 'webdataset'. "
+                        "Please install 'webdataset' if you want to use the "
+                        "'webdataset' format."
+                    )
+                else:
+                    cls._run()
 
         return cls
 
@@ -224,7 +247,15 @@ class SimulateDataSet:
                     f"samp_{self.conf['dataset_type']}_" + str(i) + ".h5"
                 )
 
-                save_fft_pair(path=out, x=sim_data, y=truth_fft)
+                if self.output_format.lower() in ["h5", "hdf5"]:
+                    save_fft_pair(path=out, x=sim_data, y=truth_fft)
+                elif self.output_format.lower() in ["webdataset", "wds"]:
+                    self.wds_writer.write_shard(
+                        inputs=sim_data,
+                        targets=truth_fft,
+                        bundle_id=i,
+                        mode=self.conf["dataset_type"],
+                    )
 
                 path_msg = Path(self.conf["out_path_gridded"]) / Path(
                     f"samp_{self.conf['dataset_type']}_<id>.h5"
