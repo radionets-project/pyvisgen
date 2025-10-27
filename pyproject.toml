@@ -42,6 +42,7 @@ dependencies = [
   "natsort",
   "numpy",
   "pandas",
+  "pydantic>=2.12.3",
   "pyvisgrid",
   "rich",
   "rich-click>=1.8.9",
