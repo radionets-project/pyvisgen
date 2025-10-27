@@ -117,6 +117,8 @@ class SimulateDataSet:
 
         if isinstance(config, (str, Path)):
             cls.conf = Config.from_toml(config)
+        elif isinstance(config, Config):
+            cls.conf = config
         elif isinstance(config, dict):
             cls.conf = Config.model_validate(config)
         else:
