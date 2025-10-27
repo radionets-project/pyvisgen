@@ -10,17 +10,16 @@ from pyvisgrid import Gridder
 from rich.live import Live
 from rich.pretty import pretty_repr
 
-import pyvisgen.fits.writer as writer
 import pyvisgen.layouts.layouts as layouts
 from pyvisgen.dataset.utils import (
     calc_truth_fft,
     convert_amp_phase,
     convert_real_imag,
 )
+from pyvisgen.io import Config
 from pyvisgen.simulation.observation import Observation
 from pyvisgen.simulation.utils import create_progress_tracker
 from pyvisgen.simulation.visibility import vis_loop
-from pyvisgen.utils.config import read_data_set_conf
 from pyvisgen.utils.data import load_bundles, open_bundles
 from pyvisgen.utils.logging import setup_logger
 
@@ -101,6 +100,7 @@ class SimulateDataSet:
             use all available cores. Default: 1
         """
         cls = cls()
+        cls.conf = config
         cls.key = image_key
         cls.grid = grid
         cls.slurm = slurm
@@ -115,12 +115,12 @@ class SimulateDataSet:
         if multiprocess in ["all"]:
             cls.multiprocess = -1
 
-        # if isinstance(config, (str, Path)):
-        #     cls.conf = read_data_set_conf(config)
-        # elif isinstance(config, dict):
-        #     cls.conf = config
-        # else:
-        #     raise ValueError("Expected config to be one of str, Path or dict!")
+        if isinstance(config, (str, Path)):
+            cls.conf = Config.from_toml(config)
+        elif isinstance(config, dict):
+            cls.conf = Config.model_validate(config)
+        else:
+            raise ValueError("Expected config to be one of str, Path or dict!")
 
         LOGGER.info("Simulation Config:")
         LOGGER.info(pretty_repr(cls.conf))
@@ -139,34 +139,39 @@ class SimulateDataSet:
         cls.overall_task_id = overall_progress.add_task(
             f"Simulating {cls.conf.bundle.dataset_type} dataset", total=3
         )
-        with Live(progress_group):
-            with cls.conf.bundle.output_format() as cls.writer:
-                if cls.num_images is None:
-                    # get number of random parameter draws from number of images in data
-                    counting_task_id = counting_progress.add_task(
-                        "", total=len(cls.data_paths)
-                    )
+        with (
+            Live(progress_group),
+            cls.conf.bundle.output_format(
+                output_path=cls.out_path,
+                dataset_type=cls.conf.bundle.dataset_type,
+            ) as cls.writer,
+        ):
+            if cls.num_images is None:
+                # get number of random parameter draws from number of images in data
+                counting_task_id = counting_progress.add_task(
+                    "", total=len(cls.data_paths)
+                )
 
-                    num_images = []
-                    for bundle_id in range(len(cls.data_paths)):
-                        num_images.append(len(cls.get_images(bundle_id)))
-                        counting_progress.update(counting_task_id, advance=1)
+                num_images = []
+                for bundle_id in range(len(cls.data_paths)):
+                    num_images.append(len(cls.get_images(bundle_id)))
+                    counting_progress.update(counting_task_id, advance=1)
 
-                    cls.num_images = np.sum(num_images)
-                    overall_progress.update(cls.overall_task_id, advance=1)
+                cls.num_images = np.sum(num_images)
+                overall_progress.update(cls.overall_task_id, advance=1)
 
-                if int(cls.num_images) == 0:
-                    raise ValueError(
-                        "No images found in bundles! Please check your input path!"
-                    )
+            if int(cls.num_images) == 0:
+                raise ValueError(
+                    "No images found in bundles! Please check your input path!"
+                )
 
-                if slurm:  # pragma: no cover
-                    cls._run_slurm()
-                    pass
-                else:
-                    # draw parameters beforehand, i.e. outside the simulation loop
-                    cls.create_sampling_rc(cls.num_images)
-                    cls._run()
+            if slurm:  # pragma: no cover
+                cls._run_slurm()
+                pass
+            else:
+                # draw parameters beforehand, i.e. outside the simulation loop
+                cls.create_sampling_rc(cls.num_images)
+                cls._run()
 
         return cls
 
@@ -218,24 +223,16 @@ class SimulateDataSet:
                     truth_fft = convert_real_imag(truth_fft, sky_sim=True)
 
                 if sim_data.shape[1] != 2:
-                    raise ValueError("Expected sim_data axis at index 1 to be 2!")
+                    raise ValueError("Expected 'sim_data' axis at index 1 to be 2!")
 
-                out = self.out_path / Path(
-                    f"samp_{self.conf.bundle.dataset_type}_" + str(i) + ".h5"
-                )
-
-                self.writer.write(path=out, x=sim_data, y=truth_fft)
+                self.writer.write(x=sim_data, y=truth_fft, index=i)
 
                 path_msg = Path(self.conf.bundle.out_path) / Path(
-                    f"samp_{self.conf.bundle.dataset_type}_<id>.h5"
+                    f"samp_{self.conf.bundle.dataset_type}_<id>"
                 )
             else:
                 for i, vis_data in enumerate(sim_data):
-                    out = self.out_path / Path(
-                        f"vis_{self.conf.bundle.dataset_type}_" + str(i) + ".fits"
-                    )
-                    hdu_list = writer.create_hdu_list(vis_data, obs)
-                    hdu_list.writeto(out, overwrite=True)
+                    self.writer.write(vis_data, obs, index=i, overwrite=True)
 
                 path_msg = self.conf.bundle.out_path / Path(
                     f"samp_{self.conf.bundle.dataset_type}_<id>.fits"
@@ -253,8 +250,6 @@ class SimulateDataSet:
         as individual FITS files.
         """
         job_id = int(self.slurm_job_id + self.slurm_n * 500)
-        out = self.conf.bundle.out_path / Path("vis_" + str(job_id) + ".fits")
-
         bundle = torch.div(job_id, self.num_images, rounding_mode="floor")
         image = job_id - bundle * self.num_images
 
@@ -269,8 +264,7 @@ class SimulateDataSet:
             obs, SI, noisy=self.conf.sampling.noisy, mode=self.conf.sampling.mode
         )
 
-        hdu_list = writer.create_hdu_list(vis_data, obs)
-        hdu_list.writeto(out, overwrite=True)
+        self.writer.write(vis_data, obs, index=job_id, overwrite=True)
 
     def get_images(self, i: int) -> torch.tensor:
         """Opens bundle with index i and returns :func:`~torch.tensor`
@@ -696,9 +690,9 @@ class SimulateDataSet:
         cls.multiprocess = 1
 
         if isinstance(config, (str, Path)):
-            cls.conf = read_data_set_conf(config)
+            cls.conf = Config.from_toml(config)
         elif isinstance(config, dict):
-            cls.conf = config
+            cls.conf = Config.model_validate(config)
         else:
             raise ValueError("Expected config to be one of str, Path or dict!")
 
