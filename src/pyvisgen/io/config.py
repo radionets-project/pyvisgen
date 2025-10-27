@@ -1,7 +1,7 @@
 import inspect
 import tomllib
 from pathlib import Path
-from typing import Literal
+from typing import Callable, Literal
 
 from pydantic import BaseModel, Field, field_validator
 
@@ -74,7 +74,7 @@ class BundleConfig(BaseModel):
     dataset_type: Literal["train", "test", "valid", "none"] = "train"
     in_path: str | Path = "/path/to/input/data/"
     out_path: str | Path = "/output/path/"
-    output_format: Literal["h5", "hdf5", "wds", "webdataset"] = "h5"
+    output_format: Literal["h5", "hdf5", "wds", "webdataset"] | Callable = "h5"
     grid_size: int = Field(default=1024, gt=0)
     fov_size: float = Field(default=0.24, gt=0)
     amp_phase: bool = False
@@ -84,6 +84,9 @@ class BundleConfig(BaseModel):
     def expand_path(cls, v: Path) -> Path:
         """Expand and resolve paths."""
 
+        if isinstance(v, str):
+            v = Path(v)
+
         if v in {None, False}:
             v = None
         else:
@@ -91,9 +94,9 @@ class BundleConfig(BaseModel):
 
         return v
 
-    @field_validator("output_format", mode="after")
+    @field_validator("output_format")
     @classmethod
-    def setup_output_writer(cls, output_format) -> datawriters.DataWriter:
+    def setup_output_writer(cls, output_format) -> Callable:
         avail_writers = {}
 
         for member in inspect.getmembers(datawriters):
@@ -101,13 +104,15 @@ class BundleConfig(BaseModel):
                 avail_writers[member[0]] = member[1]
 
         if output_format in ["h5", "hdf5"]:
-            return avail_writers["H5DataWriter"]
+            writer = avail_writers["H5Writer"]
 
         elif output_format in ["wds", "webdataset"]:
             raise NotImplementedError(
                 "The WebDataset functionality will be implemented in a future release "
                 "of pyvisgen."
             )
+
+        return writer
 
 
 class Config(BaseModel):
