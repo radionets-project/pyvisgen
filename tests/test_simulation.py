@@ -41,7 +41,7 @@ class TestSimulateDataSet:
         self.s.from_config(CONFIG, num_images=50)
 
     def test_run_no_slurm_amp_phase_false(self):
-        config = conf.copy()
+        config = conf.model_copy(deep=True)
         config.bundle.amp_phase = False
         self.s.from_config(config)
 
@@ -49,12 +49,12 @@ class TestSimulateDataSet:
         assert_raises(ValueError, self.s.from_config, 42)
 
     def test_run_dense(self):
-        config = conf.copy()
+        config = conf.model_copy(deep=True)
         config.sampling.mode = "dense"
         assert_raises(ValueError, self.s.from_config, config)
 
     def test_run_polarization(self):
-        config = conf.copy()
+        config = conf.model_copy(deep=True)
         config.polarization.mode = "linear"
         self.s.from_config(config)
 
@@ -97,7 +97,7 @@ class TestVisLoop:
         assert torch.is_tensor(vis_data[0].w)
         assert (vis_data[0].date).dtype == torch.float64
 
-        out_path = Path(conf.bunlde.out_path_fits)
+        out_path = Path(conf.bundle.out_path)
         out = out_path / Path("vis_0.fits")
         hdu_list = writer.create_hdu_list(vis_data, obs)
         hdu_list.writeto(out, overwrite=True)
@@ -125,7 +125,7 @@ class TestVisLoop:
         assert torch.is_tensor(vis_data[0].w)
         assert (vis_data[0].date).dtype == torch.float64
 
-        out_path = Path(conf.bundle.out_path_fits)
+        out_path = Path(conf.bundle.out_path)
         out = out_path / Path("vis_0.fits")
         hdu_list = writer.create_hdu_list(vis_data, obs)
         hdu_list.writeto(out, overwrite=True)
@@ -143,8 +143,8 @@ class TestVisLoop:
         vis_data = vis_loop(
             obs,
             SI,
-            noisy=conf["noisy"],
-            mode=conf["mode"],
+            noisy=conf.sampling.noisy,
+            mode=conf.sampling.mode,
             batch_size="auto",
         )
 
