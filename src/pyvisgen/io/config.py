@@ -3,7 +3,7 @@ import tomllib
 from pathlib import Path
 from typing import Callable, Literal
 
-from pydantic import BaseModel, Field, field_validator
+from pydantic import BaseModel, Field, ValidationInfo, field_validator
 
 from pyvisgen.io import datawriters
 from pyvisgen.layouts import get_array_names
@@ -16,7 +16,7 @@ __all__ = [
 ]
 
 
-class SamplingConfig(BaseModel):
+class SamplingConfig(BaseModel, validate_assignment=True):
     """Sampling config BaseModel"""
 
     mode: Literal["full", "grid", "dense"] = "full"
@@ -59,15 +59,15 @@ class SamplingConfig(BaseModel):
         return v
 
 
-class PolarizationConfig(BaseModel):
+class PolarizationConfig(BaseModel, validate_assignment=True):
     """Polarization config BaseModel"""
 
-    mode: Literal["linear", "circular", "none"] = "none"
+    mode: Literal["linear", "circular", "none"] | None = None
     delta: float = Field(default=45)
     amp_ratio: float = Field(default=0.5)
     field_order: list[float] = [0.01, 0.01]
     field_scale: list[float] = [0, 1]
-    field_threshold: float | Literal["none"] = "none"
+    field_threshold: float | Literal["none"] | None = None
 
     @field_validator("mode", "field_threshold")
     @classmethod
@@ -78,7 +78,7 @@ class PolarizationConfig(BaseModel):
         return v
 
 
-class BundleConfig(BaseModel):
+class BundleConfig(BaseModel, validate_assignment=True):
     """Bundle config BaseModel"""
 
     dataset_type: Literal["train", "test", "valid", "none", ""] = "train"
@@ -91,11 +91,11 @@ class BundleConfig(BaseModel):
 
     @field_validator("in_path", "out_path")
     @classmethod
-    def expand_path(cls, v: Path) -> Path:
+    def expand_path(cls, v: Path, info: ValidationInfo) -> Path:
         """Expand and resolve paths."""
 
         if v in {None, False, "none", ""}:
-            v = None
+            raise ValueError(f"'{info.field_name}' cannot be empty!")
         else:
             v = Path(v)
             v.expanduser().resolve()
@@ -105,6 +105,11 @@ class BundleConfig(BaseModel):
     @field_validator("output_writer")
     @classmethod
     def setup_output_writer(cls, output_writer) -> Callable:
+        if isinstance(output_writer, Callable) and issubclass(
+            output_writer, datawriters.DataWriter
+        ):
+            return output_writer
+
         _avail_writers = {}
 
         for member in inspect.getmembers(datawriters):
