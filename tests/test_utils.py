@@ -1,10 +1,15 @@
 def test_read_config():
-    from pyvisgen.utils.config import read_data_set_conf
+    from pydantic import BaseModel
 
-    conf = read_data_set_conf("config/default_data_set.toml")
+    from pyvisgen.io import Config
 
-    assert type(conf) is dict
-    assert list(conf.keys()) == [
+    config = Config.from_toml("config/default_data_set.toml")
+
+    assert issubclass(type(config), BaseModel)
+
+    config_dict = config.to_dict()
+    assert list(config_dict.keys()) == ["sampling", "polarization", "bundle"]
+    assert list(config_dict["sampling"].keys()) == [
         "mode",
         "device",
         "seed",
@@ -21,25 +26,26 @@ def test_read_config():
         "ref_frequency",
         "frequency_offsets",
         "bandwidths",
-        "corrupted",
         "noisy",
+        "corrupted",
         "sensitivity_cut",
-        "polarization",
-        "pol_delta",
-        "pol_amp_ratio",
+    ]
+    assert list(config_dict["polarization"].keys()) == [
+        "mode",
+        "delta",
+        "amp_ratio",
         "field_order",
         "field_scale",
-        "field_threshold",
-        "num_test_images",
-        "bundle_size",
-        "train_valid_split",
+        "field_threshold"
+    ]
+    assert list(config_dict["bundle"].keys()) == [
+        "dataset_type",
+        "in_path",
+        "out_path",
+        "output_writer",
         "grid_size",
         "grid_fov",
-        "amp_phase",
-        "in_path",
-        "out_path_fits",
-        "out_path_gridded",
-        "dataset_type",
+        "amp_phase"
     ]
 
 
