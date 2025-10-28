@@ -195,7 +195,8 @@ class H5Writer(DataWriter):
     >>> writer = H5Writer(output_path="./data", dataset_type="train")
     >>> writer.write(x_data, y_data, index=0)
 
-    Or using as a context manager:
+    Or as a context manager:
+
     >>> rng = np.random.default_rng()
     >>>
     >>> with H5Writer(output_path="./data", dataset_type="train") as writer:
@@ -293,8 +294,9 @@ class FITSWriter(DataWriter):
     >>> writer = FITSWriter(output_path="./data")
     >>> writer.write(vis_data, obs, index=0)
 
-    Or using context manager:
-    >>> with FITSWriter(output_path="./data", dataset_type="train") as writer:
+    Or as a context manager:
+
+    >>> with FITSWriter(output_path="./data") as writer:
     ...     writer.write(vis_data, obs, index=0)
     """
 
@@ -335,12 +337,12 @@ class FITSWriter(DataWriter):
 
         See Also
         --------
-        See :func:`~pyvisgen.fits.create_hdu_list` for more information on
-        the parameters.
+        pyvisgen.fits.writer.create_hdu_list : For more information on
+            the parameters.
 
         Examples
         --------
-        >>> writer = FITSWriter(output_path="./data", dataset_type="train")
+        >>> writer = FITSWriter(output_path="./data")
         >>> writer.write(vis, obs, index=0)
         >>> # Creates file: ./data/vis_train_0.fits
 
