@@ -41,12 +41,15 @@ class SamplingConfig(BaseModel):
             raise ValueError(
                 f"expected 'layout' to be one of {_avail_layouts} but got {layout}"
             )
+        return layout
 
     @field_validator("scan_start")
     @classmethod
     def validate_dates(cls, v: list[str]) -> None:
         if len(v) != 2:
             raise ValueError("expected 'scan_start' to be a list of len 2")
+
+        return v
 
 
 class PolarizationConfig(BaseModel):
@@ -71,12 +74,12 @@ class PolarizationConfig(BaseModel):
 class BundleConfig(BaseModel):
     """Bundle config BaseModel"""
 
-    dataset_type: Literal["train", "test", "valid", "none"] = "train"
+    dataset_type: Literal["train", "test", "valid", "none", ""] = "train"
     in_path: str | Path = "/path/to/input/data/"
     out_path: str | Path = "/output/path/"
-    output_format: Literal["h5", "hdf5", "wds", "webdataset"] | Callable = "h5"
+    output_writer: str | Callable = datawriters.H5Writer
     grid_size: int = Field(default=1024, gt=0)
-    fov_size: float = Field(default=0.24, gt=0)
+    grid_fov: float = Field(default=0.24, gt=0)
     amp_phase: bool = False
 
     @field_validator("in_path", "out_path")
@@ -84,29 +87,27 @@ class BundleConfig(BaseModel):
     def expand_path(cls, v: Path) -> Path:
         """Expand and resolve paths."""
 
-        if isinstance(v, str):
-            v = Path(v)
-
-        if v in {None, False}:
+        if v in {None, False, "none", ""}:
             v = None
         else:
+            v = Path(v)
             v.expanduser().resolve()
 
         return v
 
-    @field_validator("output_format")
+    @field_validator("output_writer")
     @classmethod
-    def setup_output_writer(cls, output_format) -> Callable:
-        avail_writers = {}
+    def setup_output_writer(cls, output_writer) -> Callable:
+        _avail_writers = {}
 
         for member in inspect.getmembers(datawriters):
             if inspect.isclass(member[1]):
-                avail_writers[member[0]] = member[1]
+                _avail_writers[member[0]] = member[1]
 
-        if output_format in ["h5", "hdf5"]:
-            writer = avail_writers["H5Writer"]
+        if output_writer.lower() in ["h5", "hdf5"] or output_writer == "H5Writer":
+            writer = _avail_writers["H5Writer"]
 
-        elif output_format in ["wds", "webdataset"]:
+        elif output_writer in ["wds", "webdataset"]:
             raise NotImplementedError(
                 "The WebDataset functionality will be implemented in a future release "
                 "of pyvisgen."
