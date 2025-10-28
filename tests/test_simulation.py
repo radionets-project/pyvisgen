@@ -3,7 +3,6 @@ from pathlib import Path
 import torch
 from numpy.testing import assert_array_equal, assert_raises
 
-from pyvisgen.utils.config import read_data_set_conf
 from pyvisgen.io import Config
 
 torch.manual_seed(1)
