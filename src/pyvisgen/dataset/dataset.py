@@ -143,7 +143,7 @@ class SimulateDataSet:
         )
         with (
             Live(progress_group),
-            cls.conf.bundle.output_format(
+            cls.conf.bundle.output_writer(
                 output_path=cls.out_path,
                 dataset_type=cls.conf.bundle.dataset_type,
             ) as cls.writer,
@@ -363,8 +363,8 @@ class SimulateDataSet:
         # samps_ops_const is always the same, values in
         # samps_ops, however, will be drawn randomly.
         self.samp_opts_const = dict(
-            array_layout=self.conf.sampling.layout[0],
-            image_size=self.conf.sampling.img_size[0],
+            array_layout=self.conf.sampling.layout,
+            image_size=self.conf.sampling.img_size,
             fov=self.conf.sampling.fov_size,
             integration_time=self.conf.sampling.corr_int_time,
             scan_separation=self.conf.sampling.scan_separation,
@@ -374,7 +374,7 @@ class SimulateDataSet:
             corrupted=self.conf.sampling.corrupted,
             device=self.conf.sampling.device,
             sensitivity_cut=self.conf.sampling.sensitivity_cut,
-            polarization=self.conf.sampling.polarization,
+            polarization=self.conf.polarization.mode,
         )  # NOTE: scan_separation and integration_time may change in the future
 
         # get second half of the sampling options;
@@ -411,13 +411,13 @@ class SimulateDataSet:
             Sampling options/parameters stored inside a dictionary.
         """
         ra = self.rng.uniform(
-            self.conf.sampling.fov_center_ra[0][0],
-            self.conf.sampling.fov_center_ra[0][1],
+            self.conf.sampling.fov_center_ra[0],
+            self.conf.sampling.fov_center_ra[1],
             size,
         )
         dec = self.rng.uniform(
-            self.conf.sampling.fov_center_dec[0][0],
-            self.conf.sampling.fov_center_dec[0][1],
+            self.conf.sampling.fov_center_dec[0],
+            self.conf.sampling.fov_center_dec[1],
             size,
         )
 
@@ -463,7 +463,7 @@ class SimulateDataSet:
                 delta = self.rng.uniform(0, 180, size)
 
             if self.conf.polarization.amp_ratio:
-                amp_ratio = np.repeat(self.conf.polarization.pol_amp_ratio, size)
+                amp_ratio = np.repeat(self.conf.polarization.amp_ratio, size)
             else:
                 amp_ratio = self.rng.uniform(0, 1, size)
 
@@ -693,6 +693,8 @@ class SimulateDataSet:
 
         if isinstance(config, (str, Path)):
             cls.conf = Config.from_toml(config)
+        elif isinstance(config, Config):
+            cls.conf = config
         elif isinstance(config, dict):
             cls.conf = Config.model_validate(config)
         else:
