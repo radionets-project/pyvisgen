@@ -44,7 +44,7 @@ class DataWriter(ABC):
         return None
 
 
-class H5Writer:
+class H5Writer(DataWriter):
     def __init__(self, output_path, dataset_type) -> None:
         self.output_path = output_path
         self.dataset_type = dataset_type
@@ -67,7 +67,7 @@ class H5Writer:
             f.create_dataset(name_y, data=y)
 
 
-class FITSWriter:
+class FITSWriter(DataWriter):
     def __init__(self, output_path, dataset_type) -> None:
         self.output_path = output_path
         self.dataset_type = dataset_type
