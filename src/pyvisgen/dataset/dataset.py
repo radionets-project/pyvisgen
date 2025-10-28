@@ -122,7 +122,9 @@ class SimulateDataSet:
         elif isinstance(config, dict):
             cls.conf = Config.model_validate(config)
         else:
-            raise ValueError("Expected config to be one of str, Path or dict!")
+            raise ValueError(
+                "Expected config to be one of str, Path, dict, or pyvisgen.io.Config!"
+            )
 
         LOGGER.info("Simulation Config:")
         LOGGER.info(pretty_repr(cls.conf))
@@ -698,7 +700,9 @@ class SimulateDataSet:
         elif isinstance(config, dict):
             cls.conf = Config.model_validate(config)
         else:
-            raise ValueError("Expected config to be one of str, Path or dict!")
+            raise ValueError(
+                "Expected config to be one of str, Path, dict, or pyvisgen.io.Config!"
+            )
 
         cls.device = cls.conf.sampling.device
 
