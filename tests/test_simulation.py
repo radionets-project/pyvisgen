@@ -33,6 +33,10 @@ class TestSimulateDataSet:
     def test_run_no_slurm(self):
         self.s.from_config(CONFIG)
 
+    def test_run_from_dict(self):
+        config = conf.model_copy(deep=True)
+        self.s.from_config(conf.to_dict())
+
     def test_run_no_slurm_multiprocess(self):
         self.s.from_config(CONFIG, multiprocess="all")
 
