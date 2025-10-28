@@ -10,6 +10,8 @@ from pyvisgen.utils.logging import setup_logger
 
 LOGGER = setup_logger(namespace=__name__)
 
+__all__ = ["Stations", "get_array_layout", "get_array_names"]
+
 
 @dataclass
 class Stations:
