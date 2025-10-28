@@ -1,0 +1,1 @@
+- Removed :func:`pyvisgen.dataset.utils.save_fft_pair` and :func:`pyvisgen.dataset.utils.test_shapes` as they are now part of the DataWriter abstract base class
