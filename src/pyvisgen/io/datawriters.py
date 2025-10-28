@@ -1,3 +1,4 @@
+import os
 from abc import ABC, abstractmethod
 from pathlib import Path
 from typing import Self
@@ -48,6 +49,8 @@ class H5Writer(DataWriter):
     def __init__(self, output_path, dataset_type) -> None:
         self.output_path = output_path
         self.dataset_type = dataset_type
+
+        os.environ["HDF5_USE_FILE_LOCKING"] = "FALSE"
 
     def write(self, x, y, index, name_x="x", name_y="y") -> None:
         """
