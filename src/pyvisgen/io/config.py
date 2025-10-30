@@ -1,7 +1,8 @@
 import inspect
 import tomllib
+from collections.abc import Callable
 from pathlib import Path
-from typing import Callable, Literal
+from typing import Literal
 
 from pydantic import BaseModel, Field, ValidationInfo, field_validator
 
