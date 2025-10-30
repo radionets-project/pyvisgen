@@ -37,3 +37,6 @@ train_valid_split = 0.2
 grid_size = 5
 grid_fov = 0.0064
 amp_phase = true
+
+[gridding]
+gridder = "default"

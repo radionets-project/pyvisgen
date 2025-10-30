@@ -6,11 +6,11 @@ import torch
 from astropy import units as un
 from astropy.time import Time
 from joblib import Parallel, delayed
-from pyvisgrid import Gridder
 from rich.live import Live
 from rich.pretty import pretty_repr
 
 import pyvisgen.layouts.layouts as layouts
+from pyvisgen._plugin_manager import PluginManager
 from pyvisgen.dataset.utils import (
     calc_truth_fft,
     convert_amp_phase,
@@ -109,7 +109,6 @@ class SimulateDataSet:
         cls.date_fmt = date_fmt
         cls.num_images = num_images
         cls.multiprocess = multiprocess
-
         cls.stokes_comp = stokes
 
         if multiprocess in ["all"]:
@@ -143,6 +142,7 @@ class SimulateDataSet:
         cls.overall_task_id = overall_progress.add_task(
             f"Simulating {cls.conf.bundle.dataset_type} dataset", total=3
         )
+
         with (
             Live(progress_group),
             cls.conf.bundle.output_writer(
@@ -203,7 +203,7 @@ class SimulateDataSet:
                 )
 
                 if self.grid:
-                    grid_data = Gridder.from_pyvisgen(
+                    grid_data = self.gridder.from_pyvisgen(
                         vis_data=vis,
                         obs=obs,
                         img_size=self.conf.bundle.grid_size,
@@ -269,6 +269,19 @@ class SimulateDataSet:
         )
 
         self.writer.write(vis_data, obs, index=job_id, overwrite=True)
+
+    def _get_gridder(self):
+        try:
+            gridder = PluginManager.get_gridder(self.conf["gridder"])
+        except ValueError as e:
+            from pyvisgrid.core.gridder import Gridder
+
+            LOGGER.warning(e)
+            LOGGER.warning("Falling back to default gridder!")
+
+            gridder = Gridder
+
+        return gridder
 
     def get_images(self, i: int) -> torch.tensor:
         """Opens bundle with index i and returns :func:`~torch.tensor`
