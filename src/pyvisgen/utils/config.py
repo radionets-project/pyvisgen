@@ -62,6 +62,9 @@ def read_data_set_conf(conf_toml: str | Path) -> dict:
     conf["out_path_gridded"] = config["bundle_options"]["out_path_gridded"]
     conf["dataset_type"] = config["bundle_options"]["dataset_type"]
 
+    # Gridder
+    conf["gridder"] = config["gridding"]["gridder"]
+
     # handle case if dataset_type = None
     if not conf["dataset_type"]:
         conf["dataset_type"] = ""

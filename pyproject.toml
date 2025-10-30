@@ -121,9 +121,6 @@ include = ["src/pyvisgen"]
 "resources" = "share/resources"
 "config" = "share/configs"
 
-[tool.hatch.metadata]
-"allow-direct-references" = true
-
 [tool.coverage.run]
 omit = [
   "docs/*",
@@ -134,6 +131,14 @@ omit = [
 
 [tool.coverage.xml]
 output = "coverage.xml"
+
+[tool.coverage.report]
+exclude_also = [
+    'def __repr__',
+    'raise NotImplementedError',
+    'if __name__ == .__main__.:',
+    'if TYPE_CHECKING:',
+]
 
 [tool.ruff]
 target-version = "py311"
