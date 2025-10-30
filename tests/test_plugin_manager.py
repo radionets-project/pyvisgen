@@ -3,11 +3,12 @@ import logging
 from numpy.testing import assert_raises
 
 from pyvisgen._plugin_manager import Manager, PluginManager
-from pyvisgen.utils.config import read_data_set_conf
+from pyvisgen.io import Config
 
 
 def test_get_avail_plugins():
     manager = Manager()
+
     assert_raises(
         ValueError,
         manager._get_avail_plugins,
@@ -31,8 +32,8 @@ def test_gridder_fallback(caplog):
 
     s = SimulateDataSet
 
-    config = read_data_set_conf("tests/test_conf.toml")
-    config["gridder"] = "this_gridder_plugin_does_not_exist"
+    config = Config.from_toml("tests/test_conf.toml")
+    config.gridding.gridder = "this_gridder_plugin_does_not_exist"
 
     with caplog.at_level(logging.WARN):
         s.from_config(config)

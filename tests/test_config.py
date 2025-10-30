@@ -11,7 +11,7 @@ def test_read_config():
     assert issubclass(type(config), BaseModel)
 
     config_dict = config.to_dict()
-    assert list(config_dict.keys()) == ["sampling", "polarization", "bundle"]
+    assert list(config_dict.keys()) == ["sampling", "polarization", "bundle", "gridding"]
     assert list(config_dict["sampling"].keys()) == [
         "mode",
         "device",
@@ -50,6 +50,8 @@ def test_read_config():
         "grid_fov",
         "amp_phase"
     ]
+
+    assert list(config_dict["gridding"].keys()) == ["gridder"]
 
 
 def test_unknown_layout():
