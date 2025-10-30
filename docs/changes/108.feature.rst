@@ -1,0 +1,1 @@
+Added plugin support to pyvisgen, allowing external gridder plugins to be used inside the simulation loop
