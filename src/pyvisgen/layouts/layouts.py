@@ -126,7 +126,7 @@ def get_array_layout(
         root = sysconfig.get_path("data", sysconfig.get_default_scheme())
         path = root + f"/share/resources/layouts/{array_layout}.txt"
 
-        with open(path, "r") as f:
+        with open(path) as f:
             array = pd.read_csv(f, sep=r"\s+")
 
         if array_layout == "vla":
