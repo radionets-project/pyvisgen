@@ -128,12 +128,17 @@ class BundleConfig(BaseModel, validate_assignment=True):
         return writer
 
 
+class GriddingConfig(BaseModel):
+    gridder: str = "default"
+
+
 class Config(BaseModel):
     """Main training configuration."""
 
     sampling: SamplingConfig = Field(default_factory=SamplingConfig)
     polarization: PolarizationConfig = Field(default_factory=PolarizationConfig)
     bundle: BundleConfig = Field(default_factory=BundleConfig)
+    gridding: GriddingConfig = Field(default_factory=GriddingConfig)
     # codecarbon: bool | CodeCarbonEmissionTrackerConfig = False
 
     @classmethod

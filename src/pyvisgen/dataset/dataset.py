@@ -129,7 +129,6 @@ class SimulateDataSet:
         LOGGER.info(pretty_repr(cls.conf))
 
         cls.device = cls.conf.sampling.device
-
         cls.out_path = Path(cls.conf.bundle.out_path)
 
         if not cls.out_path.is_dir():
@@ -138,6 +137,9 @@ class SimulateDataSet:
         cls.data_paths = load_bundles(
             cls.conf.bundle.in_path, dataset_type=cls.conf.bundle.dataset_type
         )
+
+        if cls.grid:
+            cls.gridder = cls._get_gridder()
 
         cls.overall_task_id = overall_progress.add_task(
             f"Simulating {cls.conf.bundle.dataset_type} dataset", total=3
@@ -272,7 +274,7 @@ class SimulateDataSet:
 
     def _get_gridder(self):
         try:
-            gridder = PluginManager.get_gridder(self.conf["gridder"])
+            self.gridder = PluginManager.get_gridder(self.conf.gridding.gridder)
         except ValueError as e:
             from pyvisgrid.core.gridder import Gridder
 
