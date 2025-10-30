@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-from abc import ABC
 from importlib.metadata import entry_points
 from typing import TYPE_CHECKING
 
@@ -13,7 +12,7 @@ from pyvisgen.utils.logging import setup_logger
 LOGGER = setup_logger(__name__)
 
 
-class Manager(ABC):
+class Manager:
     "Abstract base class for the pyvisgen plugin manager."
 
     def _get_avail_plugins(self, group: str) -> dict[str, Callable]:

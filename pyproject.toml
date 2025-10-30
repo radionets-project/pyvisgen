@@ -147,12 +147,20 @@ extend-exclude = ["tests", "examples"]
 
 [tool.ruff.lint]
 extend-select = [
-  "I", # isort
+  "I",  # isort
+  "E", # pycodestyle
+  "F", # Pyflakes
+  "UP", # pyupgrade
+  "B", # flake8-bugbear
+  "SIM", # flake8-simplify
 ]
-ignore = []
+ignore = ["B905", "UP038"]
 
 fixable = ["ALL"]
 unfixable = []
+
+[tool.ruff.lint.per-file-ignores]
+"examples/**" = ["I"]
 
 [tool.ruff.format]
 quote-style = "double"

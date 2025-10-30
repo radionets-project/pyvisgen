@@ -416,7 +416,7 @@ class TestPolarization:
         pf = self.pol.rand_polarization_field(
             shape=self.im_shape,
             random_state=42,
-            scale=None,
+            scale=[0, 1],
         )
 
         # expected to raise an AssertionError
