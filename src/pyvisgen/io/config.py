@@ -167,12 +167,8 @@ class Config(BaseModel):
     @classmethod
     def validate_codecarbon(cls, v: bool | CodeCarbonEmissionTrackerConfig):
         if isinstance(v, dict):
-            return CodeCarbonEmissionTrackerConfig(
-                **v, project_name=cls.logging.project_name
-            )
+            return CodeCarbonEmissionTrackerConfig(**v, project_name="pyvisgen")
         elif v is True:
-            return CodeCarbonEmissionTrackerConfig(
-                project_name=cls.logging.project_name
-            )
+            return CodeCarbonEmissionTrackerConfig(project_name="pyvisgen")
 
         return v
