@@ -110,6 +110,7 @@ class Baselines:
             e.g. ``'cuda'`` or ``'cpu'``.
 
         Returns
+        -------
         ValidBaselineSubset
             :class:`~pyvisgen.simulation.ValidBaselineSubset` dataclass
             object containing valid u, v, and w coverage, observation time
