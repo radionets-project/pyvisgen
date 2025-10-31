@@ -1,4 +1,5 @@
 import inspect
+import os
 import tomllib
 from collections.abc import Callable
 from pathlib import Path
@@ -133,6 +134,14 @@ class GriddingConfig(BaseModel):
     gridder: str = "default"
 
 
+class CodeCarbonEmissionTrackerConfig(BaseModel):
+    """Codecarbon emission tracker configuration"""
+
+    log_level: str | int = "error"
+    country_iso_code: str = "DEU"
+    output_dir: str | None = os.getcwd()
+
+
 class Config(BaseModel):
     """Main training configuration."""
 
@@ -140,7 +149,7 @@ class Config(BaseModel):
     polarization: PolarizationConfig = Field(default_factory=PolarizationConfig)
     bundle: BundleConfig = Field(default_factory=BundleConfig)
     gridding: GriddingConfig = Field(default_factory=GriddingConfig)
-    # codecarbon: bool | CodeCarbonEmissionTrackerConfig = False
+    codecarbon: bool | CodeCarbonEmissionTrackerConfig = False
 
     @classmethod
     def from_toml(cls, path: str | Path) -> "Config":
@@ -154,16 +163,16 @@ class Config(BaseModel):
         """Export configuration as a dictionary."""
         return self.model_dump()
 
-    # @field_validator("codecarbon", mode="after")
-    # @classmethod
-    # def validate_codecarbon(cls, v: bool | CodeCarbonEmissionTrackerConfig):
-    #     if isinstance(v, dict):
-    #         return CodeCarbonEmissionTrackerConfig(
-    #             **v, project_name=cls.logging.project_name
-    #         )
-    #     elif v is True:
-    #         return CodeCarbonEmissionTrackerConfig(
-    #             project_name=cls.logging.project_name
-    #         )
-    #
-    #     return v
+    @field_validator("codecarbon", mode="after")
+    @classmethod
+    def validate_codecarbon(cls, v: bool | CodeCarbonEmissionTrackerConfig):
+        if isinstance(v, dict):
+            return CodeCarbonEmissionTrackerConfig(
+                **v, project_name=cls.logging.project_name
+            )
+        elif v is True:
+            return CodeCarbonEmissionTrackerConfig(
+                project_name=cls.logging.project_name
+            )
+
+        return v
