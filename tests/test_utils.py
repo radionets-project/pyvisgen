@@ -10,3 +10,21 @@ def test_Array():
 
     assert delta_x.shape == delta_y.shape == delta_z.shape == (45, 1)
     assert st_num_pairs.shape == els_low_pairs.shape == els_high_pairs.shape == (45, 2)
+
+
+def test_carbontracker():
+    from pyvisgen.io import Config
+    from pyvisgen.utils.codecarbon import carbontracker
+
+    config = Config()  # use default values
+
+    # codecarbon = False
+    with carbontracker(config=config):
+        pass
+
+    config.codecarbon = True
+    config = config.model_validate(config.model_dump())
+
+    # codecarbon = True
+    with carbontracker(config=config):
+        pass
