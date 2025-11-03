@@ -1,6 +1,4 @@
-from __future__ import annotations
-
-from typing import TYPE_CHECKING
+from typing import Any
 
 from rich.console import Group
 from rich.panel import Panel
@@ -14,9 +12,6 @@ from rich.progress import (
     TimeRemainingColumn,
 )
 
-if TYPE_CHECKING:
-    from typing import Any
-
 
 def create_progress_tracker(
     custom_configs: dict[str, list[Any]] | None = None,
@@ -24,11 +19,14 @@ def create_progress_tracker(
     """
     Factory function to create customizable progress trackers
 
-    Args:
-        custom_configs: Custom column configurations for progress bars
-        theme_color: Color theme for progress bars
+    Parameters
+    ----------
+    custom_configs : dict
+        Custom column configurations for progress bars
 
-    Returns:
+    Returns
+    -------
+    dict
         Dictionary containing progress bars and group
     """
 

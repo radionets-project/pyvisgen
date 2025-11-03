@@ -24,15 +24,15 @@ classifiers = [
   "Intended Audience :: Science/Research",
   "License :: OSI Approved :: MIT License",
   "Programming Language :: Python :: 3",
-  "Programming Language :: Python :: 3.10",
   "Programming Language :: Python :: 3.11",
+  "Programming Language :: Python :: 3.12",
   "Topic :: Scientific/Engineering :: Astronomy",
   "Topic :: Scientific/Engineering :: Physics",
   "Topic :: Scientific/Engineering :: Information Analysis",
   "Development Status :: 4 - Beta",
 ]
 
-requires-python = ">=3.10"
+requires-python = ">=3.11"
 
 dependencies = [
   "astropy<=6.1.0",
@@ -42,6 +42,7 @@ dependencies = [
   "natsort",
   "numpy",
   "pandas",
+  "pydantic>=2.12.3",
   "pyvisgrid",
   "rich",
   "rich-click>=1.8.9",

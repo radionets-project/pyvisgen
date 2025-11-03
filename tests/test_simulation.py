@@ -3,21 +3,21 @@ from pathlib import Path
 import torch
 from numpy.testing import assert_array_equal, assert_raises
 
-from pyvisgen.utils.config import read_data_set_conf
+from pyvisgen.io import Config
 
 torch.manual_seed(1)
 
 CONFIG = "tests/test_conf.toml"
 
-conf = read_data_set_conf(CONFIG)
-out_path = Path(conf["out_path_fits"])
+conf = Config.from_toml(CONFIG)
+out_path = Path(conf.bundle.out_path)
 out_path.mkdir(parents=True, exist_ok=True)
 
 
 def test_get_data():
     from pyvisgen.utils.data import load_bundles
 
-    data = load_bundles(conf["in_path"])
+    data = load_bundles(conf.bundle.in_path)
     assert len(data) > 0
 
 
@@ -33,6 +33,10 @@ class TestSimulateDataSet:
     def test_run_no_slurm(self):
         self.s.from_config(CONFIG)
 
+    def test_run_from_dict(self):
+        config = conf.model_copy(deep=True)
+        self.s.from_config(conf.to_dict())
+
     def test_run_no_slurm_multiprocess(self):
         self.s.from_config(CONFIG, multiprocess="all")
 
@@ -40,21 +44,21 @@ class TestSimulateDataSet:
         self.s.from_config(CONFIG, num_images=50)
 
     def test_run_no_slurm_amp_phase_false(self):
-        config = conf.copy()
-        config["amp_phase"] = False
+        config = conf.model_copy(deep=True)
+        config.bundle.amp_phase = False
         self.s.from_config(config)
 
     def test_raise_valerr_conf_path(self):
         assert_raises(ValueError, self.s.from_config, 42)
 
     def test_run_dense(self):
-        config = conf.copy()
-        config["mode"] = "dense"
+        config = conf.model_copy(deep=True)
+        config.sampling.mode = "dense"
         assert_raises(ValueError, self.s.from_config, config)
 
     def test_run_polarization(self):
-        config = conf.copy()
-        config["polarization"] = "linear"
+        config = conf.model_copy(deep=True)
+        config.polarization.mode = "linear"
         self.s.from_config(config)
 
     def test_run_no_gridding(self):
@@ -78,12 +82,12 @@ class TestVisLoop:
         from pyvisgen.simulation.visibility import vis_loop
         from pyvisgen.utils.data import load_bundles, open_bundles
 
-        bundles = load_bundles(conf["in_path"])
+        bundles = load_bundles(conf.bundle.in_path)
         _, obs = self.s._get_obs_test(CONFIG)
 
         data = open_bundles(bundles[0])
         SI = torch.tensor(data[0])[None]
-        vis_data = vis_loop(obs, SI, noisy=conf["noisy"], mode=conf["mode"])
+        vis_data = vis_loop(obs, SI, noisy=conf.sampling.noisy, mode=conf.sampling.mode)
 
         assert (vis_data[0].V_11[0]).dtype == torch.complex128
         assert (vis_data[0].V_22[0]).dtype == torch.complex128
@@ -96,7 +100,7 @@ class TestVisLoop:
         assert torch.is_tensor(vis_data[0].w)
         assert (vis_data[0].date).dtype == torch.float64
 
-        out_path = Path(conf["out_path_fits"])
+        out_path = Path(conf.bundle.out_path)
         out = out_path / Path("vis_0.fits")
         hdu_list = writer.create_hdu_list(vis_data, obs)
         hdu_list.writeto(out, overwrite=True)
@@ -106,12 +110,12 @@ class TestVisLoop:
         from pyvisgen.simulation.visibility import vis_loop
         from pyvisgen.utils.data import load_bundles, open_bundles
 
-        bundles = load_bundles(conf["in_path"])
+        bundles = load_bundles(conf.bundle.in_path)
         _, obs = self.s._get_obs_test(CONFIG)
 
         data = open_bundles(bundles[0])
         SI = torch.tensor(data[0])[None]
-        vis_data = vis_loop(obs, SI, noisy=conf["noisy"], mode="grid")
+        vis_data = vis_loop(obs, SI, noisy=conf.sampling.noisy, mode="grid")
 
         assert (vis_data[0].V_11[0]).dtype == torch.complex128
         assert (vis_data[0].V_22[0]).dtype == torch.complex128
@@ -124,7 +128,7 @@ class TestVisLoop:
         assert torch.is_tensor(vis_data[0].w)
         assert (vis_data[0].date).dtype == torch.float64
 
-        out_path = Path(conf["out_path_fits"])
+        out_path = Path(conf.bundle.out_path)
         out = out_path / Path("vis_0.fits")
         hdu_list = writer.create_hdu_list(vis_data, obs)
         hdu_list.writeto(out, overwrite=True)
@@ -133,7 +137,7 @@ class TestVisLoop:
         from pyvisgen.simulation.visibility import vis_loop
         from pyvisgen.utils.data import load_bundles, open_bundles
 
-        bundles = load_bundles(conf["in_path"])
+        bundles = load_bundles(conf.bundle.in_path)
         _, obs = self.s._get_obs_test(CONFIG)
 
         data = open_bundles(bundles[0])
@@ -142,8 +146,8 @@ class TestVisLoop:
         vis_data = vis_loop(
             obs,
             SI,
-            noisy=conf["noisy"],
-            mode=conf["mode"],
+            noisy=conf.sampling.noisy,
+            mode=conf.sampling.mode,
             batch_size="auto",
         )
 
@@ -162,7 +166,7 @@ class TestVisLoop:
         from pyvisgen.simulation.visibility import vis_loop
         from pyvisgen.utils.data import load_bundles, open_bundles
 
-        bundles = load_bundles(conf["in_path"])
+        bundles = load_bundles(conf.bundle.in_path)
         _, obs = self.s._get_obs_test(CONFIG)
 
         data = open_bundles(bundles[0])
@@ -173,8 +177,8 @@ class TestVisLoop:
             vis_loop,
             obs,
             SI,
-            noisy=conf["noisy"],
-            mode=conf["mode"],
+            noisy=conf.sampling.noisy,
+            mode=conf.sampling.mode,
             batch_size="abc",
         )
 
@@ -183,8 +187,8 @@ class TestVisLoop:
             vis_loop,
             obs,
             SI,
-            noisy=conf["noisy"],
-            mode=conf["mode"],
+            noisy=conf.sampling.noisy,
+            mode=conf.sampling.mode,
             batch_size=20.0,
         )
 
@@ -192,7 +196,7 @@ class TestVisLoop:
         from pyvisgen.simulation.visibility import vis_loop
         from pyvisgen.utils.data import load_bundles, open_bundles
 
-        bundles = load_bundles(conf["in_path"])
+        bundles = load_bundles(conf.bundle.in_path)
         _, obs = self.s._get_obs_test(CONFIG)
 
         data = open_bundles(bundles[0])
@@ -205,7 +209,7 @@ class TestVisLoop:
             vis_loop,
             obs,
             SI,
-            noisy=conf["noisy"],
+            noisy=conf.sampling.noisy,
             mode="abc",
             batch_size="auto",
         )
