@@ -23,7 +23,7 @@ class SamplingConfig(BaseModel, validate_assignment=True):
 
     mode: Literal["full", "grid", "dense"] = "full"
     device: str = "cuda"
-    seed: int | None = 1337
+    seed: str | bool | int | None = 1337
     layout: str = "vlba"
     img_size: int = Field(default=1024, gt=0)
     fov_center_ra: list[int] = [100, 110]
@@ -57,6 +57,14 @@ class SamplingConfig(BaseModel, validate_assignment=True):
     def validate_dates(cls, v: list[str]) -> None:
         if len(v) != 2:
             raise ValueError("expected 'scan_start' to be a list of len 2")
+
+        return v
+
+    @field_validator("seed")
+    @classmethod
+    def parse_seed(cls, v: str | bool | int | None) -> int | None:
+        if v in {"none", False}:
+            v = None
 
         return v
 
