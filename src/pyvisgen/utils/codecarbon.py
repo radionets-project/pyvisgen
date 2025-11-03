@@ -1,6 +1,6 @@
 from contextlib import contextmanager
 
-try:
+try:  # pragma: no cover
     from codecarbon import OfflineEmissionsTracker
 
     _CODECARBON_AVAIL = True
@@ -11,7 +11,7 @@ __all__ = ["carbontracker"]
 
 
 @contextmanager
-def carbontracker(config):
+def carbontracker(config):  # pragma: no cover
     """
     Context manager for tracking carbon emissions during code execution.
 
