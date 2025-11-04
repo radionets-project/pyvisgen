@@ -8,7 +8,7 @@ try:
 except Exception:
     import warnings
 
-    warnings.warn(
+    warnings.warning(
         "Could not determine pyvisgen version. This indicates"
         " a broken installation. Please install pyvisgen from"
         " the local git repository."

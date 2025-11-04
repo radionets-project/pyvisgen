@@ -110,6 +110,7 @@ class Baselines:
             e.g. ``'cuda'`` or ``'cpu'``.
 
         Returns
+        -------
         ValidBaselineSubset
             :class:`~pyvisgen.simulation.ValidBaselineSubset` dataclass
             object containing valid u, v, and w coverage, observation time
@@ -599,7 +600,8 @@ class Observation:
         self.num_scans = num_scans  # Number of scans
         self.scan_separation = scan_separation  # Seperation between scans (in seconds)
 
-        self.int_time = integration_time  # Integration time (either one time for all scans or one for each scan)
+        # Integration time (either one time for all scans or one for each scan)
+        self.int_time = integration_time
 
         self.scans = self.create_scans()
 
@@ -803,7 +805,7 @@ class Observation:
         q_comb = q_comb.reshape(-1, int(q_comb.shape[0] / times.shape[0]), 2)
 
         # Loop over ha, el_st, times, parallactic angles
-        for ha, el_st, time, q, qc in zip(GHA, el_st_all, times, q_all, q_comb):
+        for ha, el_st, time, qc in zip(GHA, el_st_all, times, q_comb):
             u, v, w = self.calc_direction_cosines(ha, el_st, delta_x, delta_y, delta_z)
 
             # calc current elevations

@@ -1,6 +1,4 @@
-from __future__ import annotations
-
-from typing import TYPE_CHECKING
+from typing import Any
 
 from rich.console import Group
 from rich.panel import Panel
@@ -14,21 +12,21 @@ from rich.progress import (
     TimeRemainingColumn,
 )
 
-if TYPE_CHECKING:
-    from typing import Any, Dict, List, Optional
-
 
 def create_progress_tracker(
-    custom_configs: Optional[Dict[str, List[Any]]] = None,
-) -> Dict[str, Any]:
+    custom_configs: dict[str, list[Any]] | None = None,
+) -> dict[str, Any]:
     """
     Factory function to create customizable progress trackers
 
-    Args:
-        custom_configs: Custom column configurations for progress bars
-        theme_color: Color theme for progress bars
+    Parameters
+    ----------
+    custom_configs : dict
+        Custom column configurations for progress bars
 
-    Returns:
+    Returns
+    -------
+    dict
         Dictionary containing progress bars and group
     """
 
@@ -38,7 +36,7 @@ def create_progress_tracker(
             SpinnerColumn("dots"),
             TimeElapsedColumn(),
             TextColumn(
-                "[#aaaaaa]{task.description} ({task.completed} of {task.total} tasks completed)"
+                "[#aaaaaa]{task.description} ({task.completed} of {task.total} tasks completed)"  # noqa: E501
             ),
         ],
         "counting": [
@@ -75,7 +73,7 @@ def create_progress_tracker(
         ],
         "current_bundle": [
             TextColumn(
-                "[bold #7287fd]Progress for bundle {task.fields[name]}: {task.percentage:>23.0f}%"
+                "[bold #7287fd]Progress for bundle {task.fields[name]}: {task.percentage:>23.0f}%"  # noqa: E501
             ),
             BarColumn(),
             MofNCompleteColumn(),

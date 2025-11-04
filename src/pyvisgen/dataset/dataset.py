@@ -6,23 +6,20 @@ import torch
 from astropy import units as un
 from astropy.time import Time
 from joblib import Parallel, delayed
-from pyvisgrid import Gridder
 from rich.live import Live
 from rich.pretty import pretty_repr
 
-import pyvisgen.fits.writer as writer
 import pyvisgen.layouts.layouts as layouts
+from pyvisgen._plugin_manager import PluginManager
 from pyvisgen.dataset.utils import (
     calc_truth_fft,
     convert_amp_phase,
     convert_real_imag,
-    save_h5,
-    save_pt,
 )
+from pyvisgen.io import Config
 from pyvisgen.simulation.observation import Observation
 from pyvisgen.simulation.utils import create_progress_tracker
 from pyvisgen.simulation.visibility import vis_loop
-from pyvisgen.utils.config import read_data_set_conf
 from pyvisgen.utils.data import load_bundles, open_bundles
 from pyvisgen.utils.logging import setup_logger
 
@@ -103,6 +100,7 @@ class SimulateDataSet:
             use all available cores. Default: 1
         """
         cls = cls()
+        cls.conf = config
         cls.key = image_key
         cls.grid = grid
         cls.slurm = slurm
@@ -111,42 +109,52 @@ class SimulateDataSet:
         cls.date_fmt = date_fmt
         cls.num_images = num_images
         cls.multiprocess = multiprocess
-
         cls.stokes_comp = stokes
 
         if multiprocess in ["all"]:
             cls.multiprocess = -1
 
         if isinstance(config, (str, Path)):
-            cls.conf = read_data_set_conf(config)
-        elif isinstance(config, dict):
+            cls.conf = Config.from_toml(config)
+        elif isinstance(config, Config):
             cls.conf = config
+        elif isinstance(config, dict):
+            cls.conf = Config.model_validate(config)
         else:
-            raise ValueError("Expected config to be one of str, Path or dict!")
+            raise ValueError(
+                "Expected config to be one of str, Path, dict, or pyvisgen.io.Config!"
+            )
 
         LOGGER.info("Simulation Config:")
         LOGGER.info(pretty_repr(cls.conf))
 
-        cls.device = cls.conf["device"]
-
-        if grid:
-            cls.out_path = Path(cls.conf["out_path_gridded"])
-        else:
-            cls.out_path = Path(cls.conf["out_path_fits"])
+        cls.device = cls.conf.sampling.device
+        cls.out_path = Path(cls.conf.bundle.out_path)
 
         if not cls.out_path.is_dir():
             cls.out_path.mkdir(parents=True)
 
         cls.data_paths = load_bundles(
-            cls.conf["in_path"], dataset_type=cls.conf["dataset_type"]
+            cls.conf.bundle.in_path, dataset_type=cls.conf.bundle.dataset_type
         )
 
+        if cls.grid:
+            cls.gridder = cls._get_gridder()
+
         cls.overall_task_id = overall_progress.add_task(
-            f"Simulating {cls.conf['dataset_type']} dataset", total=3
+            f"Simulating {cls.conf.bundle.dataset_type} dataset", total=3
         )
-        with Live(progress_group):
+
+        with (
+            Live(progress_group),
+            cls.conf.bundle.output_writer(
+                output_path=cls.out_path,
+                dataset_type=cls.conf.bundle.dataset_type,
+                amp_phase=cls.conf.bundle.amp_phase,
+            ) as cls.writer,
+        ):
             if cls.num_images is None:
-                # get number of random parameter, draws from number of images in data
+                # get number of random parameter draws from number of images in data
                 counting_task_id = counting_progress.add_task(
                     "", total=len(cls.data_paths)
                 )
@@ -175,10 +183,14 @@ class SimulateDataSet:
         return cls
 
     def _run(self) -> None:
+        """Runs the simulation and saves visibility data using the
+        data writer specified in the configuration.
+        """
         bundles_task_id = bundles_progress.add_task("", total=len(self.data_paths))
         for i in range(len(self.data_paths)):
             SIs = self.get_images(i)
-            bundle_length = SIs.shape[0]
+            bundle_length = len(SIs)
+
             truth_fft = calc_truth_fft(SIs)
 
             sim_data = []
@@ -188,17 +200,20 @@ class SimulateDataSet:
             for SI in SIs:
                 obs = self.create_observation(i)
                 vis = vis_loop(
-                    obs, SI, noisy=self.conf["noisy"], mode=self.conf["mode"]
+                    obs,
+                    SI,
+                    noisy=self.conf.sampling.noisy,
+                    mode=self.conf.sampling.mode,
                 )
 
                 if self.grid:
-                    grid_data = Gridder.from_pyvisgen(
+                    grid_data = self.gridder.from_pyvisgen(
                         vis_data=vis,
                         obs=obs,
-                        img_size=self.conf["grid_size"],
-                        fov=self.conf["grid_fov"],
+                        img_size=self.conf.bundle.grid_size,
+                        fov=self.conf.bundle.grid_fov,
                         stokes_components=self.stokes_comp,
-                        polarizations=self.conf["polarization"],
+                        polarizations=self.conf.polarization.mode,
                     ).grid()
 
                     sim_data.append(np.array(grid_data.get_mask_real_imag()))
@@ -206,10 +221,9 @@ class SimulateDataSet:
                 current_bundle_progress.update(current_bundle_task_id, advance=1)
 
             sim_data = np.array(sim_data)
-            path_msg = f"samp_{self.conf['dataset_type']}_<id>"
 
             if self.grid:
-                if self.conf["amp_phase"]:
+                if self.conf.bundle.amp_phase:
                     sim_data = convert_amp_phase(sim_data, sky_sim=False)
                     truth_fft = convert_amp_phase(truth_fft, sky_sim=True)
                 else:
@@ -217,44 +231,27 @@ class SimulateDataSet:
                     truth_fft = convert_real_imag(truth_fft, sky_sim=True)
 
                 if sim_data.shape[1] != 2:
-                    raise ValueError("Expected sim_data axis at index 1 to be 2!")
+                    raise ValueError("Expected 'sim_data' axis at index 1 to be 2!")
 
-                file_stem = f"samp_{self.conf['dataset_type']}"
+                self.writer.write(
+                    x=sim_data,
+                    y=truth_fft,
+                    index=i,
+                    overlap=self.conf.bundle.overlap,
+                    bundle_length=bundle_length,
+                )
 
-                if self.conf["file_type"] == "pt":
-                    path_msg += ".pt"
+                path_msg = Path(self.conf.bundle.out_path) / Path(
+                    f"samp_{self.conf.bundle.dataset_type}_<id>"
+                )
 
-                    for idx in range(bundle_length):
-                        save_pt(
-                            path=self.out_path
-                            / f"{file_stem}_{idx + i * bundle_length}.pt",
-                            overlap=self.conf["overlap"],
-                            x=sim_data,
-                            y=truth_fft,
-                        )
-
-                elif self.conf["file_type"] == "h5":
-                    out = self.out_path / f"{file_stem}_{i}.h5"
-                    path_msg += ".h5"
-
-                    save_h5(
-                        path=out, overlap=self.conf["overlap"], x=sim_data, y=truth_fft
-                    )
-
-                else:
-                    raise ValueError(
-                        "The given file type is not supported! "
-                        "Currently only h5 and pt files are supported!"
-                    )
             else:
                 for i, vis_data in enumerate(sim_data):
-                    out = self.out_path / Path(
-                        f"vis_{self.conf['dataset_type']}_" + str(i) + ".fits"
-                    )
-                    path_msg += ".fits"
+                    self.writer.write(vis_data, obs, index=i, overwrite=True)
 
-                    hdu_list = writer.create_hdu_list(vis_data, obs)
-                    hdu_list.writeto(out, overwrite=True)
+                path_msg = self.conf.bundle.out_path / Path(
+                    f"samp_{self.conf.bundle.dataset_type}_<id>.fits"
+                )
 
             current_bundle_progress.stop_task(current_bundle_task_id)
             current_bundle_progress.update(current_bundle_task_id, visible=False)
@@ -262,17 +259,13 @@ class SimulateDataSet:
 
         overall_progress.update(self.overall_task_id, advance=1)
 
-        LOGGER.info(
-            f"Successfully simulated and saved {i + 1} images to '{self.out_path / path_msg}'!"
-        )
+        LOGGER.info(f"Successfully simulated and saved {i + 1} images to '{path_msg}'!")
 
     def _run_slurm(self) -> None:  # pragma: no cover
         """Runs the simulation in slurm and saves visibility data
         as individual FITS files.
         """
         job_id = int(self.slurm_job_id + self.slurm_n * 500)
-        out = self.conf["out_path_fits"] / Path("vis_" + str(job_id) + ".fits")
-
         bundle = torch.div(job_id, self.num_images, rounding_mode="floor")
         image = job_id - bundle * self.num_images
 
@@ -283,10 +276,24 @@ class SimulateDataSet:
 
         self.create_sampling_rc(1)
         obs = self.create_observation(0)
-        vis_data = vis_loop(obs, SI, noisy=self.conf["noisy"], mode=self.conf["mode"])
+        vis_data = vis_loop(
+            obs, SI, noisy=self.conf.sampling.noisy, mode=self.conf.sampling.mode
+        )
 
-        hdu_list = writer.create_hdu_list(vis_data, obs)
-        hdu_list.writeto(out, overwrite=True)
+        self.writer.write(vis_data, obs, index=job_id, overwrite=True)
+
+    def _get_gridder(self):
+        try:
+            self.gridder = PluginManager.get_gridder(self.conf.gridding.gridder)
+        except ValueError as e:
+            from pyvisgrid.core.gridder import Gridder
+
+            LOGGER.warning(e)
+            LOGGER.warning("Falling back to default gridder!")
+
+            gridder = Gridder
+
+        return gridder
 
     def get_images(self, i: int) -> torch.tensor:
         """Opens bundle with index i and returns :func:`~torch.tensor`
@@ -331,17 +338,17 @@ class SimulateDataSet:
         pol_kwargs = dict(
             delta=rc["delta"][i],
             amp_ratio=rc["amp_ratio"][i],
-            random_state=self.conf["seed"],
+            random_state=self.conf.sampling.seed,
         )
         field_kwargs = dict(
             order=rc["order"][i],
             scale=rc["scale"][i],
             threshold=rc["threshold"],
-            random_state=self.conf["seed"],
+            random_state=self.conf.sampling.seed,
         )
 
         dense = False
-        if self.conf["mode"] == "dense":
+        if self.conf.sampling.mode == "dense":
             dense = True
 
         obs = Observation(
@@ -367,34 +374,34 @@ class SimulateDataSet:
         size : int
             Number of parameters to draw, equal to number of images.
         """
-        if self.conf["seed"]:
-            self.rng = np.random.default_rng(self.conf["seed"])
+        if self.conf.sampling.seed:
+            self.rng = np.random.default_rng(self.conf.sampling.seed)
         else:
             self.rng = np.random.default_rng()
 
-        if self.conf["mode"] == "dense":
-            self.freq_bands = np.array(self.conf["ref_frequency"])
+        if self.conf.sampling.mode == "dense":
+            self.freq_bands = np.array(self.conf.sampling.ref_frequency)
         else:
-            self.freq_bands = np.array(self.conf["ref_frequency"]) + np.array(
-                self.conf["frequency_offsets"]
+            self.freq_bands = np.array(self.conf.sampling.ref_frequency) + np.array(
+                self.conf.sampling.frequency_offsets
             )
 
         # Split sampling options into two dicts:
         # samps_ops_const is always the same, values in
         # samps_ops, however, will be drawn randomly.
         self.samp_opts_const = dict(
-            array_layout=self.conf["layout"][0],
-            image_size=self.conf["img_size"][0],
-            fov=self.conf["fov_size"],
-            integration_time=self.conf["corr_int_time"],
-            scan_separation=self.conf["scan_separation"],
-            ref_frequency=self.conf["ref_frequency"],
-            frequency_offsets=self.conf["frequency_offsets"],
-            bandwidths=self.conf["bandwidths"],
-            corrupted=self.conf["corrupted"],
-            device=self.conf["device"],
-            sensitivity_cut=self.conf["sensitivity_cut"],
-            polarization=self.conf["polarization"],
+            array_layout=self.conf.sampling.layout,
+            image_size=self.conf.sampling.img_size,
+            fov=self.conf.sampling.fov_size,
+            integration_time=self.conf.sampling.corr_int_time,
+            scan_separation=self.conf.sampling.scan_separation,
+            ref_frequency=self.conf.sampling.ref_frequency,
+            frequency_offsets=self.conf.sampling.frequency_offsets,
+            bandwidths=self.conf.sampling.bandwidths,
+            corrupted=self.conf.sampling.corrupted,
+            device=self.conf.sampling.device,
+            sensitivity_cut=self.conf.sampling.sensitivity_cut,
+            polarization=self.conf.polarization.mode,
         )  # NOTE: scan_separation and integration_time may change in the future
 
         # get second half of the sampling options;
@@ -431,26 +438,38 @@ class SimulateDataSet:
             Sampling options/parameters stored inside a dictionary.
         """
         ra = self.rng.uniform(
-            self.conf["fov_center_ra"][0][0], self.conf["fov_center_ra"][0][1], size
+            self.conf.sampling.fov_center_ra[0],
+            self.conf.sampling.fov_center_ra[1],
+            size,
         )
         dec = self.rng.uniform(
-            self.conf["fov_center_dec"][0][0], self.conf["fov_center_dec"][0][1], size
+            self.conf.sampling.fov_center_dec[0],
+            self.conf.sampling.fov_center_dec[1],
+            size,
         )
 
-        start_time_l = datetime.strptime(self.conf["scan_start"][0], self.date_fmt)
-        start_time_h = datetime.strptime(self.conf["scan_start"][1], self.date_fmt)
-        start_times = np.arange(start_time_l, start_time_h, timedelta(hours=1)).astype(
-            datetime
+        start_time_l = datetime.strptime(
+            self.conf.sampling.scan_start[0], self.date_fmt
         )
+        start_time_h = datetime.strptime(
+            self.conf.sampling.scan_start[1], self.date_fmt
+        )
+        start_times = np.arange(
+            start_time_l,
+            start_time_h,
+            timedelta(hours=1),
+        ).astype(datetime)
 
         scan_start = self.rng.choice(start_times, size)
         scan_duration = self.rng.integers(
-            self.conf["scan_duration"][0],
-            self.conf["scan_duration"][1],
+            self.conf.sampling.scan_duration[0],
+            self.conf.sampling.scan_duration[1],
             size,
         )
         num_scans = self.rng.integers(
-            self.conf["num_scans"][0], self.conf["num_scans"][1], size
+            self.conf.sampling.num_scans[0],
+            self.conf.sampling.num_scans[1],
+            size,
         )
 
         if scan_duration.size == 1:
@@ -464,25 +483,28 @@ class SimulateDataSet:
         # and field_scale to None.
         delta, amp_ratio, field_order, field_scale = np.full((4, size), np.nan)
 
-        if self.conf["polarization"]:
-            if self.conf["pol_delta"]:
-                delta = np.repeat(self.conf["pol_delta"], size)
+        if self.conf.polarization.mode:
+            if self.conf.polarization.delta:
+                delta = np.repeat(self.conf.polarization.delta, size)
             else:
                 delta = self.rng.uniform(0, 180, size)
 
-            if self.conf["pol_amp_ratio"]:
-                amp_ratio = np.repeat(self.conf["pol_amp_ratio"], size)
+            if self.conf.polarization.amp_ratio:
+                amp_ratio = np.repeat(self.conf.polarization.amp_ratio, size)
             else:
                 amp_ratio = self.rng.uniform(0, 1, size)
 
-            if self.conf["field_order"]:
-                field_order = np.repeat(self.conf["field_order"], size).reshape(-1, 2)
+            if self.conf.polarization.field_order:
+                field_order = np.repeat(
+                    self.conf.polarization.field_order, size
+                ).reshape(-1, 2)
             else:
                 field_order = np.repeat(self.rng.uniform(0, 1, size), 2).reshape(-1, 2)
 
-            if self.conf["field_scale"]:
+            if self.conf.polarization.field_scale:
                 field_scale = np.stack(
-                    np.repeat(self.conf["field_scale"], size).reshape(2, -1), axis=1
+                    np.repeat(self.conf.polarization.field_scale, size).reshape(2, -1),
+                    axis=1,
                 )
             else:
                 a = self.rng.uniform(0, 1 - 1e-6, size)
@@ -499,7 +521,7 @@ class SimulateDataSet:
             amp_ratio=torch.from_numpy(amp_ratio).to(self.device),
             order=torch.from_numpy(field_order).to(self.device),
             scale=torch.from_numpy(field_scale).to(self.device),
-            threshold=self.conf["field_threshold"],
+            threshold=self.conf.polarization.field_threshold,
         )
         # NOTE: We don't need to draw random values for threshold
         # as threshold=None should be suitable for almost all cases.
@@ -697,19 +719,23 @@ class SimulateDataSet:
         cls.multiprocess = 1
 
         if isinstance(config, (str, Path)):
-            cls.conf = read_data_set_conf(config)
-        elif isinstance(config, dict):
+            cls.conf = Config.from_toml(config)
+        elif isinstance(config, Config):
             cls.conf = config
+        elif isinstance(config, dict):
+            cls.conf = Config.model_validate(config)
         else:
-            raise ValueError("Expected config to be one of str, Path or dict!")
+            raise ValueError(
+                "Expected config to be one of str, Path, dict, or pyvisgen.io.Config!"
+            )
 
-        cls.device = cls.conf["device"]
+        cls.device = cls.conf.sampling.device
 
         cls.overall_task_id = overall_progress.add_task(
-            f"Simulating {cls.conf['dataset_type']} dataset", total=3
+            f"Simulating {cls.conf.bundle.dataset_type} dataset", total=3
         )
 
-        cls.data_paths = load_bundles(cls.conf["in_path"])[0]
+        cls.data_paths = load_bundles(cls.conf.bundle.in_path)[0]
         cls.create_sampling_rc(1)
         obs = cls.create_observation(0)
 
