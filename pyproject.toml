@@ -58,6 +58,8 @@ plot = ["matplotlib"]
 
 tutorials = ["matplotlib", "pytorch_finufft"]
 
+codecarbon = ["codecarbon"]
+
 [dependency-groups]
 tests = [
   "coverage!=6.3.0",

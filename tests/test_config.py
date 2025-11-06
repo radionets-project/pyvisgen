@@ -11,7 +11,7 @@ def test_read_config():
     assert issubclass(type(config), BaseModel)
 
     config_dict = config.to_dict()
-    assert list(config_dict.keys()) == ["sampling", "polarization", "bundle", "gridding"]
+    assert list(config_dict.keys()) == ["sampling", "polarization", "bundle", "gridding", "codecarbon"]
     assert list(config_dict["sampling"].keys()) == [
         "mode",
         "device",
