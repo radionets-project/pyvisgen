@@ -53,7 +53,7 @@ def quickstart(
     root = sysconfig.get_path("data", sysconfig.get_default_scheme())
     default_config_path = Path(root + "/share/configs/default_data_set.toml")
 
-    with open(default_config_path, "r") as f:
+    with open(default_config_path) as f:
         default_config = toml.load(f)
 
     log.info("Loading default pyvisgen configuration:")

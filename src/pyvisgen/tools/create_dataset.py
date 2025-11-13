@@ -1,6 +1,8 @@
 import rich_click as click
 
 from pyvisgen.dataset import SimulateDataSet
+from pyvisgen.io import Config
+from pyvisgen.utils.codecarbon import carbontracker
 
 
 @click.command()
@@ -61,7 +63,7 @@ from pyvisgen.dataset import SimulateDataSet
 def main(
     configuration_path: str | click.Path,
     mode: str,
-    key: str = "y",
+    key: str = "x",
     slurm_job_id=None,
     slurm_n=None,
     date_fmt="%d-%m-%Y %H:%M:%S",
@@ -69,34 +71,37 @@ def main(
     multiprocess: int | str = 1,
     stokes: str = "I",
 ):
-    if mode == "simulate":
-        SimulateDataSet.from_config(
-            configuration_path,
-            image_key=key,
-            grid=False,
-            date_fmt=date_fmt,
-            num_images=num_images,
-            multiprocess=multiprocess,
-        )
-    if mode == "slurm":
-        SimulateDataSet.from_config(
-            configuration_path,
-            image_key=key,
-            slurm=True,
-            slurm_job_id=slurm_job_id,
-            slurm_n=slurm_n,
-            date_fmt=date_fmt,
-            num_images=num_images,
-        )
-    if mode == "gridding":
-        SimulateDataSet.from_config(
-            configuration_path,
-            image_key=key,
-            grid=True,
-            date_fmt=date_fmt,
-            num_images=num_images,
-            multiprocess=multiprocess,
-        )
+    config = Config.from_toml(configuration_path)
+
+    with carbontracker(config=config):
+        if mode == "simulate":
+            SimulateDataSet.from_config(
+                config,
+                image_key=key,
+                grid=False,
+                date_fmt=date_fmt,
+                num_images=num_images,
+                multiprocess=multiprocess,
+            )
+        if mode == "slurm":
+            SimulateDataSet.from_config(
+                config,
+                image_key=key,
+                slurm=True,
+                slurm_job_id=slurm_job_id,
+                slurm_n=slurm_n,
+                date_fmt=date_fmt,
+                num_images=num_images,
+            )
+        if mode == "gridding":
+            SimulateDataSet.from_config(
+                config,
+                image_key=key,
+                grid=True,
+                date_fmt=date_fmt,
+                num_images=num_images,
+                multiprocess=multiprocess,
+            )
 
 
 if __name__ == "__main__":
