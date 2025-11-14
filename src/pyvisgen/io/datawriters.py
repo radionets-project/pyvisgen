@@ -436,9 +436,15 @@ class WDSShardWriter(DataWriter):
             output_path = Path(output_path)
 
         self.output_path = output_path
+        self.dataset_type = dataset_type
         self.total_samples = total_samples
         self.shard_pattern = shard_pattern
         self.compress = compress
+
+        if amp_phase:
+            self.data_type = "amp_phase"
+        else:
+            self.data_type = "real_imag"
 
         if self.compress and not shard_pattern.endswith(".gz"):
             self.shard_pattern = self.shard_pattern.replace(".tar", ".tar.gz")
@@ -484,6 +490,7 @@ class WDSShardWriter(DataWriter):
                 "samples_in_shard": [bundle_length],
                 "shard_idx": [self.current_shard_id],
                 "bundle_id": [index],
+                "data_type": [self.data_type],
             }
             metadata = pa.Table.from_pydict(metadict)
             metadata_path = (
