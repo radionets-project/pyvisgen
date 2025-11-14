@@ -45,3 +45,21 @@ def test_wds_writer_real_imag():
 
         for bundle_id, (x, y) in enumerate(zip(x_data, y_data)):
             writer.write(x, y, index=bundle_id, overlap=5)
+
+
+def test_wds_writer_compress():
+    rng = np.random.default_rng(42)
+
+    with WDSShardWriter(
+        output_path=OUTPUT_PATH,
+        dataset_type="train",
+        total_samples=TOTAL_SAMPLES,
+        shard_pattern="train-%06d.tar",
+        compress=True,
+        amp_phase=True,
+    ) as writer:
+        x_data = rng.uniform(size=(NUM_BUNDLES, SAMP_PER_BUNDLE, 2, 256, 256))
+        y_data = rng.uniform(size=(NUM_BUNDLES, SAMP_PER_BUNDLE, 2, 256, 256))
+
+        for bundle_id, (x, y) in enumerate(zip(x_data, y_data)):
+            writer.write(x, y, index=bundle_id, overlap=5)
