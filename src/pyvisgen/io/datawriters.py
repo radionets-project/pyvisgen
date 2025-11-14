@@ -408,7 +408,7 @@ class WDSShardWriter(DataWriter):
 
     >>> rng = np.random.default_rng()
     >>>
-    >>> with H5Writer(
+    >>> with WDSShardWriter(
     ...     output_path="./data",
     ...     dataset_type="train",
     ...     total_samples=total_samples,
@@ -418,15 +418,17 @@ class WDSShardWriter(DataWriter):
     ...     y_data = rng.uniform(size=(5, 10, 2, 256, 256))
     ...
     ...     for bundle_id, (x, y) in enumerate(zip(x_data, y_data)):
-    ...         writer.write(x, y, index=bundle_id)
+    ...         writer.write(x, y, index=bundle_id, overlap=5)
     """
 
     def __init__(
         self,
         output_path: str | Path,
         *,
+        dataset_type: str,
         total_samples: int,
         shard_pattern: str,
+        amp_phase: bool,
         compress: bool = False,
         **kwargs,
     ):
