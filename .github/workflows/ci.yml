@@ -56,8 +56,6 @@ jobs:
         with:
           fetch-depth: 0
 
-      - uses: astral-sh/setup-uv@v7
-
       - name: Prepare mamba installation
         if: matrix.install-method == 'mamba' && contains(github.event.pull_request.labels.*.name, 'documentation-only') == false
         env:
@@ -113,8 +111,6 @@ jobs:
         with:
           fetch-depth: 0
 
-      - uses: astral-sh/setup-uv@v7
-
       - name: Set up Python
         uses: actions/setup-python@v6
         with:
@@ -124,7 +120,7 @@ jobs:
         run: |
           sudo apt update --yes && sudo apt install --yes git
           pip install . -U pip towncrier
-          pip install --group docs -e ".[all]"
+          pip install --group docs -e ".[webdataset]"
           git describe --tags
 
       - name: Build docs
