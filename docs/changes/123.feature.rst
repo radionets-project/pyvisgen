@@ -1,0 +1,2 @@
+Added new main CLI tool merging the old ``pyvisgen-simulate`` and ``pyvisgen-quickstart`` commands
+into one tool that can be accessed through the new ``pyvisgen`` command (see ``$ pyvisgen --help``).
