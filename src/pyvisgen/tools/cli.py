@@ -21,7 +21,7 @@ click.rich_click.COMMAND_GROUPS = {
 
 @click.group(
     help=f"""
-    This is the [dark_orange]pyvisgen[/]
+    This is the [spring_green3]pyvisgen[/]
     [cornflower_blue]v{__version__}[/] main CLI tool.
     """
 )
