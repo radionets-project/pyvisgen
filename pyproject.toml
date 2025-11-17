@@ -48,8 +48,7 @@ dependencies = [
 dynamic = ["version"]
 
 [project.scripts]
-pyvisgen-quickstart = "pyvisgen.tools.quickstart:quickstart"
-pyvisgen-simulate = "pyvisgen.dataset.scripts.create_dataset:main"
+pyvisgen = "pyvisgen.tools.cli:main"
 
 [project.optional-dependencies]
 all = ["pyvisgen[codecarbon,plot,tutorials,webdataset]"]
