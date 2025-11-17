@@ -172,6 +172,8 @@ class SimulateDataSet:
                 output_path=cls.out_path,
                 dataset_type=cls.conf.bundle.dataset_type,
                 total_samples=cls.num_images,
+                amp_phase=cls.conf.bundle.amp_phase,
+                **cls.conf.datawriter.model_dump(),
             ) as cls.writer,
         ):
             if slurm:  # pragma: no cover
