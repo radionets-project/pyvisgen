@@ -16,8 +16,5 @@ dependencies:
   - pip
   - towncrier
   - jupyter
-  - pytest
-  - pytest-cov
-  - pytest-runner
   - pip:
     - toma

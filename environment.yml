@@ -5,17 +5,12 @@ channels:
     - defaults
     - conda-forge
 dependencies:
-  - python
+  - python=3.12
   - astropy<=6.1.0
-  - pytorch
   - numpy
   - matplotlib
   - pip
   - towncrier
   - jupyter
-  - joblib
-  - pytest
-  - pytest-cov
-  - pytest-runner
   - pip:
     - toma
