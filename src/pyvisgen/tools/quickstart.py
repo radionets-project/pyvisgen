@@ -22,7 +22,7 @@ from pyvisgen.utils import setup_logger
     is_flag=True,
     help="Overwrite file if it already exists.",
 )
-def quickstart(
+def main(
     config_path: str | Path,
     overwrite: bool = False,
 ) -> None:
@@ -84,4 +84,4 @@ def quickstart(
 
 
 if __name__ == "__main__":
-    quickstart()
+    main()

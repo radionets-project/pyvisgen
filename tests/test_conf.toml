@@ -6,7 +6,7 @@ layout = "vla"
 img_size = 128
 fov_center_ra = [90, 140]
 fov_center_dec = [-20, 50]
-fov_size = 0.0064 # max res 0.1
+fov_size = 0.0064  # max res 0.1
 corr_int_time = 10.0
 scan_start = ["01-01-2020 00:00:01", "31-12-2021 23:59:59"]
 scan_duration = [0, 50]
@@ -28,7 +28,7 @@ field_scale = [0, 1]  # scaling of the intensity of the polarization field
 field_threshold = "none"
 
 [bundle]
-dataset_type=""
+dataset_type = ""
 in_path = "./tests/data"
 out_path = "./tests/build/gridded"
 num_test_images = 1000
