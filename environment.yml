@@ -7,15 +7,11 @@ channels:
 dependencies:
   - python
   - astropy<=6.1.0
-  - pytorch
   - numpy
   - matplotlib
   - pip
   - towncrier
   - jupyter
   - joblib
-  - pytest
-  - pytest-cov
-  - pytest-runner
   - pip:
     - toma

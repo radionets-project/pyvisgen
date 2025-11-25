@@ -11,7 +11,14 @@ def test_read_config():
     assert issubclass(type(config), BaseModel)
 
     config_dict = config.to_dict()
-    assert list(config_dict.keys()) == ["sampling", "polarization", "bundle", "gridding", "codecarbon"]
+    assert list(config_dict.keys()) == [
+        "sampling",
+        "polarization",
+        "bundle",
+        "datawriter",
+        "gridding",
+        "codecarbon"
+    ]
     assert list(config_dict["sampling"].keys()) == [
         "mode",
         "device",
@@ -45,7 +52,6 @@ def test_read_config():
         "dataset_type",
         "in_path",
         "out_path",
-        "output_writer",
         "grid_size",
         "grid_fov",
         "amp_phase"
@@ -78,11 +84,11 @@ def test_paths():
         config.bundle.out_path = ""
 
 def test_writer_selection():
-    from pyvisgen.io.datawriters import H5Writer
+    from pyvisgen.io.datawriters import H5Writer, WDSShardWriter
 
     config = Config.from_toml(CONFIG)
+    assert issubclass(config.datawriter.writer, H5Writer)
 
-    with pytest.raises(NotImplementedError):
-        config.bundle.output_writer = "wds"
-
-    assert config.bundle.output_writer == H5Writer
+    config.datawriter.writer = "wds"
+    config = Config.model_validate(config)
+    assert issubclass(config.datawriter.writer, WDSShardWriter)

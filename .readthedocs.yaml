@@ -14,7 +14,7 @@ build:
          - mkdir -p $HOME/.casa/data
     install:
       - uv pip install --upgrade pip
-      - uv pip install --group docs .
+      - uv pip install --group docs ".[all]"
 
 sphinx:
   configuration: docs/conf.py
