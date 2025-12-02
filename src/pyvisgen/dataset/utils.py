@@ -7,9 +7,9 @@ LOGGER = setup_logger()
 
 def calc_truth_fft(sky_dist):
     truth_fft = np.fft.fftshift(
-        np.fft.fft2(np.fft.fftshift(sky_dist, axes=(2, 3)), axes=(2, 3)), axes=(2, 3)
+        np.fft.fft2(np.fft.fftshift(sky_dist, axes=(2, 3)), axes=(2, 3)),
+        axes=(2, 3),
     )
-
     return truth_fft
 
 
