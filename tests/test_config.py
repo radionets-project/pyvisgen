@@ -46,9 +46,10 @@ def test_read_config():
         "in_path",
         "out_path",
         "output_writer",
+        "overlap",
         "grid_size",
         "grid_fov",
-        "amp_phase"
+        "amp_phase",
     ]
 
     assert list(config_dict["gridding"].keys()) == ["gridder"]

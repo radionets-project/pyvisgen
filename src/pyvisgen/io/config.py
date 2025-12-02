@@ -92,9 +92,10 @@ class BundleConfig(BaseModel, validate_assignment=True):
     """Bundle config BaseModel"""
 
     dataset_type: Literal["train", "test", "valid", "none", ""] = "train"
-    in_path: str | Path = "/path/to/input/data/"
-    out_path: str | Path = "/output/path/"
+    in_path: str | Path = "./path/to/input/data/"
+    out_path: str | Path = "./output/path/"
     output_writer: str | Callable = datawriters.H5Writer
+    overlap: int = 5
     grid_size: int = Field(default=1024, gt=0)
     grid_fov: float = Field(default=0.24, gt=0)
     amp_phase: bool = False
@@ -134,6 +135,8 @@ class BundleConfig(BaseModel, validate_assignment=True):
                 "The WebDataset functionality will be implemented in a future release "
                 "of pyvisgen."
             )
+        else:
+            writer = _avail_writers[output_writer]
 
         return writer
 

@@ -150,6 +150,7 @@ class SimulateDataSet:
             cls.conf.bundle.output_writer(
                 output_path=cls.out_path,
                 dataset_type=cls.conf.bundle.dataset_type,
+                amp_phase=cls.conf.bundle.amp_phase,
             ) as cls.writer,
         ):
             if cls.num_images is None:
@@ -182,13 +183,14 @@ class SimulateDataSet:
         return cls
 
     def _run(self) -> None:
-        """Runs the simulation and saves visibility data either as
-        bundled HDF5 files or as individual FITS files.
+        """Runs the simulation and saves visibility data using the
+        data writer specified in the configuration.
         """
-
         bundles_task_id = bundles_progress.add_task("", total=len(self.data_paths))
         for i in range(len(self.data_paths)):
             SIs = self.get_images(i)
+            bundle_length = len(SIs)
+
             truth_fft = calc_truth_fft(SIs)
 
             sim_data = []
@@ -231,11 +233,18 @@ class SimulateDataSet:
                 if sim_data.shape[1] != 2:
                     raise ValueError("Expected 'sim_data' axis at index 1 to be 2!")
 
-                self.writer.write(x=sim_data, y=truth_fft, index=i)
+                self.writer.write(
+                    x=sim_data,
+                    y=truth_fft,
+                    index=i,
+                    overlap=self.conf.bundle.overlap,
+                    bundle_length=bundle_length,
+                )
 
                 path_msg = Path(self.conf.bundle.out_path) / Path(
                     f"samp_{self.conf.bundle.dataset_type}_<id>"
                 )
+
             else:
                 for i, vis_data in enumerate(sim_data):
                     self.writer.write(vis_data, obs, index=i, overwrite=True)
@@ -249,6 +258,7 @@ class SimulateDataSet:
             bundles_progress.update(bundles_task_id, advance=1)
 
         overall_progress.update(self.overall_task_id, advance=1)
+
         LOGGER.info(f"Successfully simulated and saved {i + 1} images to '{path_msg}'!")
 
     def _run_slurm(self) -> None:  # pragma: no cover

@@ -105,7 +105,7 @@ dev = [
 ]
 
 [project.scripts]
-pyvisgen-simulate = "pyvisgen.dataset.scripts.create_dataset:main"
+pyvisgen-simulate = "pyvisgen.tools.create_dataset:main"
 pyvisgen-quickstart = "pyvisgen.tools.quickstart:quickstart"
 
 [tool.hatch.version]
