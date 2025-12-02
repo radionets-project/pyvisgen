@@ -28,7 +28,7 @@ from pyvisgen.utils.codecarbon import carbontracker
     required=False,
     type=str,
     default="y",
-    help="Key under which the images are saved in the HDF5 file",
+    help="Key under which the images are stored in the input HDF5 files",
 )
 @click.option("--slurm_job_id", required=False, type=int, default=None)
 @click.option("--slurm_n", required=False, type=int, default=None)
@@ -71,6 +71,7 @@ def main(
     multiprocess: int | str = 1,
     stokes: str = "I",
 ):
+    """Dataset creation CLI tool of pyvisgen."""
     config = Config.from_toml(configuration_path)
 
     with carbontracker(config=config):
