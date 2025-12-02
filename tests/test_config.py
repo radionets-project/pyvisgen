@@ -5,6 +5,7 @@ from pyvisgen.io import Config
 
 CONFIG = "tests/test_conf.toml"
 
+
 def test_read_config():
     config = Config.from_toml(CONFIG)
 
@@ -17,7 +18,7 @@ def test_read_config():
         "bundle",
         "datawriter",
         "gridding",
-        "codecarbon"
+        "codecarbon",
     ]
     assert list(config_dict["sampling"].keys()) == [
         "mode",
@@ -46,15 +47,23 @@ def test_read_config():
         "amp_ratio",
         "field_order",
         "field_scale",
-        "field_threshold"
+        "field_threshold",
     ]
     assert list(config_dict["bundle"].keys()) == [
         "dataset_type",
         "in_path",
         "out_path",
+        "overlap",
         "grid_size",
         "grid_fov",
-        "amp_phase"
+        "amp_phase",
+    ]
+
+    assert list(config_dict["datawriter"].keys()) == [
+        "writer",
+        "overlap",
+        "shard_pattern",
+        "compress",
     ]
 
     assert list(config_dict["gridding"].keys()) == ["gridder"]
@@ -82,6 +91,7 @@ def test_paths():
 
     with pytest.raises(ValueError):
         config.bundle.out_path = ""
+
 
 def test_writer_selection():
     from pyvisgen.io.datawriters import H5Writer, WDSShardWriter
