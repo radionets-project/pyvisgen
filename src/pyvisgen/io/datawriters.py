@@ -5,6 +5,7 @@ from pathlib import Path
 from typing import Self
 
 import numpy as np
+import torch
 from h5py import File
 
 from pyvisgen.fits.writer import create_hdu_list
@@ -19,7 +20,7 @@ except ImportError:
     _WDS_AVAIL = False
 
 
-__all__ = ["DataWriter", "FITSWriter", "H5Writer", "WDSShardWriter"]
+__all__ = ["DataWriter", "FITSWriter", "H5Writer", "PTWriter", "WDSShardWriter"]
 
 
 class DataWriter(ABC):
@@ -59,7 +60,7 @@ class DataWriter(ABC):
     """
 
     @abstractmethod
-    def __init__(self, output_path, dataset_type, *args, **kwargs) -> None:
+    def __init__(self, output_path: Path, dataset_type: str, *args, **kwargs) -> None:
         """Initialize the data writer.
 
         This method must be implemented by subclasses to handle the setup
@@ -94,7 +95,7 @@ class DataWriter(ABC):
         """
         ...
 
-    def test_shapes(self, array, name) -> None:
+    def test_shapes(self, array: np.ndarray, name: str) -> None:
         """Validate the shape of input arrays.
 
         Arrays should have the shape (B, C, H, W),
@@ -127,7 +128,9 @@ class DataWriter(ABC):
                 f"{array.shape} with ndim {array.ndim}!"
             )
 
-    def get_half_image(self, x, y, overlap=5) -> tuple[np.ndarray]:
+    def get_half_image(
+        self, x: np.ndarray, y: np.ndarray, overlap: int = 5
+    ) -> tuple[np.ndarray]:
         """Extract half height of every image with a small overlap.
 
         Parameters
@@ -214,12 +217,7 @@ class H5Writer(DataWriter):
     ...         writer.write(x, y, index=bundle_id)
     """
 
-    def __init__(
-        self,
-        output_path: str | Path,
-        dataset_type: str,
-        **kwargs,
-    ) -> None:
+    def __init__(self, output_path: Path, dataset_type: str, **kwargs) -> None:
         """Initialize the HDF5 writer.
 
         Parameters
@@ -262,6 +260,8 @@ class H5Writer(DataWriter):
             Expected to have 4 dimensions with axis 1 of size 2.
         index : int
             Bundle index used in the output filename.
+        overlap : int, optional
+            Overlap parameter for extracting half-images. Default: 5.
         name_x : str, optional
             Key of the dataset for x array in the HDF5 file. Default: ``"x"``.
         name_y : str, optional
@@ -321,7 +321,7 @@ class FITSWriter(DataWriter):
     ...     writer.write(vis_data, obs, index=0)
     """
 
-    def __init__(self, output_path, **kwargs) -> None:
+    def __init__(self, output_path: Path, **kwargs) -> None:
         """Initialize the FITS writer.
 
         Parameters
@@ -393,6 +393,19 @@ class WDSShardWriter(DataWriter):
     dataset_type : str
         Type of dataset being written (e.g., 'train', 'test',
         'validation'). This is used in the file names and shard patterns.
+    shard_pattern : str
+        Format string for naming shard files. Should include a format
+        specifier for the shard index (e.g., "%06d.tar"). The write()
+        method will automatically add ``dataset_type`` to the shard name
+        (e.g., "train-%06.tar").
+    amp_phase : bool
+        If ``True``, saves "amp_phase" to the .parquet metadata files;
+        if ``False``, saves "real_imag" instead.
+    compress : bool, optional
+        If ``True``, compresses shards using gzip compression. Default is False.
+        Automatically appends '.gz' to the shard pattern.
+    **kwargs
+        Additional keyword arguments for compatibility with other writers.
 
     Examples
     --------
@@ -400,7 +413,7 @@ class WDSShardWriter(DataWriter):
     ...     output_path="./data",
     ...     dataset_type="train",
     ...     total_samples=total_samples,
-    ...     shard_pattern="train_%06d.tar",
+    ...     shard_pattern="train-%06d.tar",
     ... )
     >>> writer.write(x_data, y_data, index=0)
 
@@ -412,7 +425,7 @@ class WDSShardWriter(DataWriter):
     ...     output_path="./data",
     ...     dataset_type="train",
     ...     total_samples=total_samples,
-    ...     shard_pattern="train_%06.tar",
+    ...     shard_pattern="train-%06.tar",
     ... ) as writer:
     ...     x_data = rng.uniform(size=(5, 10, 2, 256, 256))
     ...     y_data = rng.uniform(size=(5, 10, 2, 256, 256))
@@ -431,7 +444,30 @@ class WDSShardWriter(DataWriter):
         amp_phase: bool,
         compress: bool = False,
         **kwargs,
-    ):
+    ) -> None:
+        """Initializes the WebDataset writer.
+
+        Parameters
+        ----------
+        output_path : str or Path
+            Directory path where .tar files will be written.
+        dataset_type : str
+            Type of dataset being written (e.g., 'train', 'test',
+            'validation'). This is used in the file names and shard patterns.
+        shard_pattern : str
+            Format string for naming shard files. Should include a format
+            specifier for the shard index (e.g., "%06d.tar"). The write()
+            method will automatically add ``dataset_type`` to the shard name
+            (e.g., "train-%06.tar").
+        amp_phase : bool
+            If ``True``, saves "amp_phase" to the .parquet metadata files;
+            if ``False``, saves "real_imag" instead.
+        compress : bool, optional
+            If ``True``, compresses shards using gzip compression. Default is False.
+            Automatically appends '.gz' to the shard pattern.
+        **kwargs
+            Additional keyword arguments for compatibility with other writers.
+        """
         if not isinstance(output_path, Path):
             output_path = Path(output_path)
 
@@ -462,11 +498,58 @@ class WDSShardWriter(DataWriter):
         overlap=5,
         **kwargs,
     ) -> None:
+        """Write data bundles to individual .tar(.gz) files.
+
+        The input arrays are cropped to half their height (with
+        ``overlap`` pixel overlap) and validated before writing
+        to .npy files inside the .tar archives.
+
+        Parameters
+        ----------
+        x : np.ndarray
+            First array of the FFT pair with shape (batch, 2, height, width).
+            Expected to have 4 dimensions with axis 1 of size 2.
+        y : np.ndarray
+            Second array of the FFT pair with shape (batch, 2, height, width).
+            Expected to have 4 dimensions with axis 1 of size 2.
+        index : int
+            Bundle index used in the output filename.
+        overlap : int, optional
+            Overlap parameter for extracted half-images. Default: 5.
+
+        Examples
+        --------
+        >>> writer = WDSShardWriter(
+        ...     output_path="./data",
+        ...     dataset_type="train",
+        ...     total_samples=total_samples,
+        ...     shard_pattern="train-%06d.tar",
+        ... )
+        >>> writer.write(x_data, y_data, index=0)
+
+        Or as a context manager:
+
+        >>> rng = np.random.default_rng()
+        >>>
+        >>> with WDSShardWriter(
+        ...     output_path="./data",
+        ...     dataset_type="train",
+        ...     total_samples=total_samples,
+        ...     shard_pattern="train-%06.tar",
+        ... ) as writer:
+        ...     x_data = rng.uniform(size=(5, 10, 2, 256, 256))
+        ...     y_data = rng.uniform(size=(5, 10, 2, 256, 256))
+        ...
+        ...     for bundle_id, (x, y) in enumerate(zip(x_data, y_data)):
+        ...         writer.write(x, y, index=bundle_id, overlap=5)
+        """
         bundle_length = x.shape[0]
 
-        shard_path = str(
-            self.output_path / (self.shard_pattern % self.current_shard_id)
+        filename = (
+            self.dataset_type + "-" + (self.shard_pattern % self.current_shard_id)
         )
+
+        shard_path = str(self.output_path / filename)
 
         inputs, targets = self.get_half_image(x, y, overlap=overlap)
 
@@ -508,3 +591,135 @@ class WDSShardWriter(DataWriter):
         np.save(buffer, array)
 
         return buffer.getvalue()
+
+
+class PTWriter(DataWriter):
+    """DataWriter class for saving data in PyTorch (.pt) format.
+
+    Creates a new .pt file for each sample with pattern
+    ``samp_{dataset_type}_{index}.pt``. The input arrays are cropped
+    to half their height (with ``overlap`` pixel overlap) and validated
+    before writing.
+
+    Parameters
+    ----------
+    output_path : Path
+        Directory path where .pt files will be written.
+    dataset_type : str
+        Type of dataset being written (e.g., 'train', 'test', 'validation').
+    amp_phase : bool
+        If True, metadata ``TYPE`` key will contain 'amp_phase",
+        otherwise 'real_imag'.
+
+    Examples
+    --------
+    >>> writer = PTWriter(output_path="./data", dataset_type="train", amp_phase=True)
+    >>> writer.write(x_data, y_data, index=0)
+
+    Or as a context manager:
+
+    >>> rng = np.random.default_rng()
+    >>>
+    >>> with PTWriter(
+    ...     output_path="./data", dataset_type="train", amp_phase=True
+    ... ) as writer:
+    ...     x_data = rng.uniform(size=(5, 10, 2, 256, 256))
+    ...     y_data = rng.uniform(size=(5, 10, 2, 256, 256))
+    ...
+    ...     for bundle_id, (x, y) in enumerate(zip(x_data, y_data)):
+    ...         writer.write(x, y, index=bundle_id, bundle_length=len(x_data))
+    """
+
+    def __init__(
+        self, output_path: Path, dataset_type: str, amp_phase: bool, **kwargs
+    ) -> None:
+        """Initialize the PT writer.
+
+        Parameters
+        ----------
+        output_path : str or Path
+            Directory path where .pt files will be written.
+        dataset_type : str
+            Type of dataset being written (e.g., 'train', 'test',
+            'validation').
+        amp_phase : bool
+            If True, metadata key ``TYPE`` will contain 'amp_phase',
+            otherwise 'real_imag'.
+        """
+        self.output_path = output_path
+        self.dataset_type = dataset_type
+
+        if amp_phase:
+            self.data_type = "amp_phase"
+        else:
+            self.data_type = "real_imag"
+
+    def write(
+        self,
+        x: np.ndarray,
+        y: np.ndarray,
+        *,
+        index,
+        bundle_length: int,
+        overlap: int = 5,
+        name_x: str = "X",
+        name_y: str = "y",
+        **kwargs,
+    ) -> None:
+        """Write data bundles to individual PyTorch (.pt) files.
+
+        The input arrays are cropped to half their height (with
+        ``overlap`` pixel overlap) and validated before writing
+        as sparse tensors to .pt files.
+
+        Parameters
+        ----------
+        x : np.ndarray
+            First array of the FFT pair with shape (batch, 2, height, width).
+            Expected to have 4 dimensions with axis 1 of size 2.
+        y : np.ndarray
+            Second array of the FFT pair with shape (batch, 2, height, width).
+            Expected to have 4 dimensions with axis 1 of size 2.
+        index : int
+            Bundle index used in the output filename.
+        bundle_length : int
+            Number of samples to write in this bundle.
+        overlap : int, optional
+            Overlap parameter for extracting half-images. Default: 5.
+        name_x : str, optional
+            Key of the dataset for x array in the HDF5 file. Default: ``"X"``.
+        name_y : str, optional
+            Key of the dataset for y array in the HDF5 file. Default: ``"y"``.
+
+        Examples
+        --------
+        >>> rng = np.random.default_rng()
+        >>>
+        >>> with H5Writer(
+        ...     output_path="./data", dataset_type="train", amp_phase=True
+        ... ) as writer:
+        ...     x_data = rng.uniform(size=(5, 10, 2, 256, 256))
+        ...     y_data = rng.uniform(size=(5, 10, 2, 256, 256))
+        ...
+        ...     for bundle_id, (x, y) in enumerate(zip(x_data, y_data)):
+        ...         writer.write(x, y, index=bundle_id, bundle_length=len(x))
+        """
+        x, y = self.get_half_image(x, y, overlap=overlap)
+        x = torch.from_numpy(x)
+        y = torch.from_numpy(y)
+
+        self.test_shapes(x, "X")
+        self.test_shapes(y, "y")
+
+        x = x[:, 0] + 1j * x[:, 1]
+        y = y[:, 0] + 1j * y[:, 1]
+
+        for i in range(bundle_length):
+            output_file = self.output_path / Path(
+                f"samp_{self.dataset_type}_{index + i}.pt"
+            )
+
+            torch.save(
+                obj={"SIM": x.to_sparse(), "TRUTH": y, "TYPE": self.data_type},
+                f=output_file,
+            )

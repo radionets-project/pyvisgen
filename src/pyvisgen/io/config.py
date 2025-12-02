@@ -92,8 +92,9 @@ class BundleConfig(BaseModel, validate_assignment=True):
     """Bundle config BaseModel"""
 
     dataset_type: Literal["train", "test", "valid", "none", ""] = "train"
-    in_path: str | Path = "/path/to/input/data/"
-    out_path: str | Path = "/output/path/"
+    in_path: str | Path = "./path/to/input/data/"
+    out_path: str | Path = "./output/path/"
+    overlap: int = 5
     grid_size: int = Field(default=1024, gt=0)
     grid_fov: float = Field(default=0.24, gt=0)
     amp_phase: bool = False
@@ -114,8 +115,8 @@ class BundleConfig(BaseModel, validate_assignment=True):
 
 class DataWriterConfig(BaseModel, validate_assignment=True):
     writer: str | Callable = datawriters.H5Writer
-    shard_pattern: str = "%06d.tar"
     overlap: int = Field(default=5, gt=0)
+    shard_pattern: str = "%06d.tar"
     compress: bool = False
 
     @field_validator("writer")
@@ -133,10 +134,10 @@ class DataWriterConfig(BaseModel, validate_assignment=True):
         # handle shorthands for full data writer names
         if writer.lower() in ["h5", "hdf5"]:
             output_writer = _avail_writers["H5Writer"]
-
         elif writer.lower() in ["wds", "webdataset"]:
             output_writer = _avail_writers["WDSShardWriter"]
-
+        elif writer.lower() in ["pt", "ptx"]:
+            output_writer = _avail_writers["PTWriter"]
         else:
             output_writer = _avail_writers[writer]
 

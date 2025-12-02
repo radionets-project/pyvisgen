@@ -8,6 +8,10 @@ message: >-
   metadata from this file.
 type: software
 authors:
+  - family-names: Fröse
+    given-names: Stefan
+    affiliation: Academia Sinica
+    orcid: "https://orcid.org/0000-0003-1832-4129"
   - family-names: Schmitz
     given-names: Kevin
     affiliation: TU Dortmund University
@@ -24,10 +28,6 @@ authors:
     given-names: Tom
     affiliation: TU Dortmund University
     orcid: "https://orcid.org/0009-0008-5497-0885"
-  - family-names: Fröse
-    given-names: Stefan
-    affiliation: Academia Sinica
-    orcid: "https://orcid.org/0000-0003-1832-4129"
 identifiers:
   - type: doi
     value: 10.5281/zenodo.10091310
