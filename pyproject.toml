@@ -1,12 +1,9 @@
-[build-system]
-requires = ["hatchling", "hatch-vcs"]
-build-backend = "hatchling.build"
-
 [project]
 name = "pyvisgen"
-dynamic = ["version"]
 description = "Simulate radio interferometer observations and visibility generation with the RIME formalism."
 readme = "README.rst"
+requires-python = ">=3.11"
+license = { text = "MIT" }
 authors = [
   { name = "Kevin Schmitz", email = "kevin2.schmitz@tu-dortmund.de" },
   { name = "Felix Geyer" },
@@ -19,21 +16,17 @@ maintainers = [
   { name = "Anno Knierim", email = "anno.knierim@tu-dortmund.de" },
   { name = "Tom Groß", email = "tom.gross@tu-dortmund.de" },
 ]
-license = { text = "MIT" }
 classifiers = [
+  "Development Status :: 4 - Beta",
   "Intended Audience :: Science/Research",
   "License :: OSI Approved :: MIT License",
   "Programming Language :: Python :: 3",
   "Programming Language :: Python :: 3.11",
   "Programming Language :: Python :: 3.12",
   "Topic :: Scientific/Engineering :: Astronomy",
-  "Topic :: Scientific/Engineering :: Physics",
   "Topic :: Scientific/Engineering :: Information Analysis",
-  "Development Status :: 4 - Beta",
+  "Topic :: Scientific/Engineering :: Physics",
 ]
-
-requires-python = ">=3.11"
-
 dependencies = [
   "astropy<=6.1.0",
   "click",
@@ -52,25 +45,28 @@ dependencies = [
   "torch",
   "tqdm",
 ]
+dynamic = ["version"]
+
+[project.scripts]
+pyvisgen-quickstart = "pyvisgen.tools.quickstart:quickstart"
+pyvisgen-simulate = "pyvisgen.tools.create_dataset:main"
 
 [project.optional-dependencies]
-plot = ["matplotlib"]
-
-tutorials = ["matplotlib", "pytorch_finufft"]
-
+all = ["pyvisgen[codecarbon,plot,tutorials,webdataset]"]
 codecarbon = ["codecarbon"]
+plot = ["matplotlib"]
+tutorials = ["matplotlib", "pytorch_finufft"]
+webdataset = ["webdataset", "pyarrow"]
 
 [dependency-groups]
-tests = [
-  "coverage!=6.3.0",
-  "h5py",
-  "pytest >= 7.0",
-  "pytest-cov",
-  "pytest-xdist",
-  "restructuredtext-lint",
-  "tomli",
+dev = [
+  "ipython",
+  "jupyter",
+  "pre-commit",
+  "pytorch_finufft",
+  { include-group = "docs" },
+  { include-group = "tests" },
 ]
-
 docs = [
   "graphviz",
   "ipython",
@@ -84,29 +80,48 @@ docs = [
   "pydata_sphinx_theme",
   "sphinx",
   "sphinx-autobuild>=2024.10.3",
+  "sphinx_automodapi",
   "sphinx-changelog",
   "sphinx-copybutton",
   "sphinx-design",
   "sphinx-gallery >= 0.16.0",
   "sphinx-tippy>=0.4.3",
   "sphinx-togglebutton>=0.3.2",
-  "sphinx_automodapi",
   "sphinxcontrib-bibtex",
   "tomli; python_version < '3.11'",
 ]
-
-dev = [
-  "ipython",
-  "jupyter",
-  "pre-commit",
-  "pytorch_finufft",
-  { include-group = "tests" },
-  { include-group = "docs" },
+tests = [
+  "coverage!=6.3.0",
+  "h5py",
+  "pytest-cov",
+  "pytest-xdist",
+  "pytest >= 7.0",
+  "restructuredtext-lint",
+  "tomli",
 ]
 
-[project.scripts]
-pyvisgen-simulate = "pyvisgen.tools.create_dataset:main"
-pyvisgen-quickstart = "pyvisgen.tools.quickstart:quickstart"
+[build-system]
+requires = ["hatch-vcs", "hatchling"]
+build-backend = "hatchling.build"
+
+[tool.coverage.run]
+omit = [
+  "docs/*",
+  "src/pyvisgen/_version.py",
+  "src/pyvisgen/gridding/alt_gridder.py",
+  "src/pyvisgen/version.py",
+]
+
+[tool.coverage.xml]
+output = "coverage.xml"
+
+[tool.coverage.report]
+exclude_also = [
+  "def __repr__",
+  "raise NotImplementedError",
+  "if __name__ == .__main__.:",
+  "if TYPE_CHECKING:",
+]
 
 [tool.hatch.version]
 source = "vcs"
@@ -124,25 +139,6 @@ include = ["src/pyvisgen"]
 "resources" = "share/resources"
 "config" = "share/configs"
 
-[tool.coverage.run]
-omit = [
-  "docs/*",
-  "src/pyvisgen/_version.py",
-  "src/pyvisgen/gridding/alt_gridder.py",
-  "src/pyvisgen/version.py",
-]
-
-[tool.coverage.xml]
-output = "coverage.xml"
-
-[tool.coverage.report]
-exclude_also = [
-    'def __repr__',
-    'raise NotImplementedError',
-    'if __name__ == .__main__.:',
-    'if TYPE_CHECKING:',
-]
-
 [tool.ruff]
 target-version = "py311"
 line-length = 88
@@ -151,19 +147,21 @@ extend-exclude = ["tests", "examples"]
 [tool.ruff.lint]
 extend-select = [
   "I",  # isort
-  "E", # pycodestyle
-  "F", # Pyflakes
-  "UP", # pyupgrade
-  "B", # flake8-bugbear
-  "SIM", # flake8-simplify
+  "E",  # pycodestyle
+  "F",  # Pyflakes
+  "UP",  # pyupgrade
+  "B",  # flake8-bugbear
+  "SIM",  # flake8-simplify
 ]
 ignore = ["B905", "UP038"]
-
 fixable = ["ALL"]
 unfixable = []
 
 [tool.ruff.lint.per-file-ignores]
 "examples/**" = ["I"]
+
+[tool.ruff.lint.isort]
+known-first-party = ["pyvisgen"]
 
 [tool.ruff.format]
 quote-style = "double"
@@ -171,9 +169,6 @@ indent-style = "space"
 line-ending = "auto"
 skip-magic-trailing-comma = false
 docstring-code-format = true
-
-[tool.ruff.lint.isort]
-known-first-party = ["pyvisgen"]
 
 [tool.towncrier]
 package = "pyvisgen"

@@ -31,11 +31,17 @@ field_threshold = "none"
 dataset_type = "train"  # e.g. train, test, or valid. If "none", no prefix will be applied
 in_path = "./path/to/input/data/"
 out_path = "./output/path/"
-output_writer = "H5Writer"
-overlap = 5
 grid_size = 1024
 grid_fov = 0.24
 amp_phase = false
+
+[datawriter]
+writer = "h5"
+overlap = 5
+
+## WebDataset only
+# shard_pattern: str = "%06d.tar"
+# compress: bool = False
 
 [gridding]
 gridder = "default"

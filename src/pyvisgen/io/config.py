@@ -94,7 +94,6 @@ class BundleConfig(BaseModel, validate_assignment=True):
     dataset_type: Literal["train", "test", "valid", "none", ""] = "train"
     in_path: str | Path = "./path/to/input/data/"
     out_path: str | Path = "./output/path/"
-    output_writer: str | Callable = datawriters.H5Writer
     overlap: int = 5
     grid_size: int = Field(default=1024, gt=0)
     grid_fov: float = Field(default=0.24, gt=0)
@@ -113,13 +112,18 @@ class BundleConfig(BaseModel, validate_assignment=True):
 
         return v
 
-    @field_validator("output_writer")
+
+class DataWriterConfig(BaseModel, validate_assignment=True):
+    writer: str | Callable = datawriters.H5Writer
+    overlap: int = Field(default=5, gt=0)
+    shard_pattern: str = "%06d.tar"
+    compress: bool = False
+
+    @field_validator("writer")
     @classmethod
-    def setup_output_writer(cls, output_writer) -> Callable:
-        if isinstance(output_writer, Callable) and issubclass(
-            output_writer, datawriters.DataWriter
-        ):
-            return output_writer
+    def setup_writer(cls, writer) -> Callable:
+        if isinstance(writer, Callable) and issubclass(writer, datawriters.DataWriter):
+            return writer
 
         _avail_writers = {}
 
@@ -127,25 +131,24 @@ class BundleConfig(BaseModel, validate_assignment=True):
             if inspect.isclass(member[1]):
                 _avail_writers[member[0]] = member[1]
 
-        if output_writer.lower() in ["h5", "hdf5"] or output_writer == "H5Writer":
-            writer = _avail_writers["H5Writer"]
-
-        elif output_writer in ["wds", "webdataset"]:
-            raise NotImplementedError(
-                "The WebDataset functionality will be implemented in a future release "
-                "of pyvisgen."
-            )
+        # handle shorthands for full data writer names
+        if writer.lower() in ["h5", "hdf5"]:
+            output_writer = _avail_writers["H5Writer"]
+        elif writer.lower() in ["wds", "webdataset"]:
+            output_writer = _avail_writers["WDSShardWriter"]
+        elif writer.lower() in ["pt", "ptx"]:
+            output_writer = _avail_writers["PTWriter"]
         else:
-            writer = _avail_writers[output_writer]
+            output_writer = _avail_writers[writer]
 
-        return writer
+        return output_writer
 
 
-class GriddingConfig(BaseModel):
+class GriddingConfig(BaseModel, validate_assignment=True):
     gridder: str = "default"
 
 
-class CodeCarbonEmissionTrackerConfig(BaseModel):
+class CodeCarbonEmissionTrackerConfig(BaseModel, validate_assignment=True):
     """Codecarbon emission tracker configuration"""
 
     log_level: str | int = "error"
@@ -159,6 +162,7 @@ class Config(BaseModel):
     sampling: SamplingConfig = Field(default_factory=SamplingConfig)
     polarization: PolarizationConfig = Field(default_factory=PolarizationConfig)
     bundle: BundleConfig = Field(default_factory=BundleConfig)
+    datawriter: DataWriterConfig = Field(default_factory=DataWriterConfig)
     gridding: GriddingConfig = Field(default_factory=GriddingConfig)
     codecarbon: bool | CodeCarbonEmissionTrackerConfig = False
 

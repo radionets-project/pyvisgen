@@ -12,5 +12,3 @@ dependencies:
   - pip
   - towncrier
   - jupyter
-  - pip:
-    - toma

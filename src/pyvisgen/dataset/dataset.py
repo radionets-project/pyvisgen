@@ -67,6 +67,7 @@ class SimulateDataSet:
         num_images: int | None = None,
         multiprocess: int | str = 1,
         stokes: str = "I",
+        output_format: str = "wds",
     ):
         """Simulates data from parameters in a config file.
 
@@ -147,10 +148,11 @@ class SimulateDataSet:
 
         with (
             Live(progress_group),
-            cls.conf.bundle.output_writer(
+            cls.conf.datawriter.writer(
                 output_path=cls.out_path,
                 dataset_type=cls.conf.bundle.dataset_type,
                 amp_phase=cls.conf.bundle.amp_phase,
+                **cls.conf.datawriter.model_dump(),
             ) as cls.writer,
         ):
             if cls.num_images is None:
@@ -164,14 +166,24 @@ class SimulateDataSet:
                     num_images.append(len(cls.get_images(bundle_id)))
                     counting_progress.update(counting_task_id, advance=1)
 
-                cls.num_images = np.sum(num_images)
+                cls.num_images = int(np.sum(num_images))
                 overall_progress.update(cls.overall_task_id, advance=1)
 
-            if int(cls.num_images) == 0:
+            if cls.num_images == 0:
                 raise ValueError(
                     "No images found in bundles! Please check your input path!"
                 )
 
+        with (
+            Live(progress_group),
+            cls.conf.datawriter.writer(
+                output_path=cls.out_path,
+                dataset_type=cls.conf.bundle.dataset_type,
+                total_samples=cls.num_images,
+                amp_phase=cls.conf.bundle.amp_phase,
+                **cls.conf.datawriter.model_dump(),
+            ) as cls.writer,
+        ):
             if slurm:  # pragma: no cover
                 cls._run_slurm()
                 pass
