@@ -1,4 +1,5 @@
 import shutil
+from pathlib import Path
 
 import pytest
 import torch
@@ -19,7 +20,10 @@ torch.compile = mock_compile
 def test_suite_cleanup_thing():
     yield
 
-    build = "./tests/build/"
-    print("Cleaning up tests.")
+    build = Path("./tests/build/")
+    print("\nCleaning up tests.")
 
-    shutil.rmtree(build)
+    if build.is_dir():
+        shutil.rmtree(build)
+
+    print(f"Removed {build.resolve().absolute()}")

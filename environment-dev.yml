@@ -8,16 +8,10 @@ channels:
 dependencies:
   - python
   - astropy<=6.1.0
-  - pytorch-gpu
-  - pytorch-cuda=12.1
-  - torchvision
   - numpy
   - matplotlib
   - pip
   - towncrier
   - jupyter
-  - pytest
-  - pytest-cov
-  - pytest-runner
   - pip:
     - toma
