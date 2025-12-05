@@ -14,21 +14,21 @@ simplest format consists of a summary, and a description of parameters and
 return values.
 
 :::{code-block} python
-:caption: Example of a docstring in `pyvisgen` (taken from {func}`~pyvisgen.utils.config.read_data_set_conf`).
+:caption: Example of a docstring in `pyvisgen` (taken from {class}`~pyvisgen.layouts.Stations`).
 
-def read_data_set_conf(conf_toml: str | Path) -> dict:
-    """Read toml data set configuration file and convert
-    it into a dictionary.
+def __getitem__(self, i: int):
+    """Returns fields at index ``i``.
 
     Parameters
     ----------
-    conf_toml : str or Path
-        Path to config file.
+    i : int
+        Index of the items in the dataclass.
 
     Returns
     -------
-    conf : dict
-        Simulation configuration.
+    Stations
+        :class:`~pyvisgen.layouts.Stations` dataclass object
+        containing elements at index ``i``.
     """
 :::
 
