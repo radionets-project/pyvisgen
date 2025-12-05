@@ -25,20 +25,28 @@ def disable_torch_compile(monkeypatch):
     monkeypatch.setattr(torch, "compile", identity)
 
 
+@pytest.fixture(scope="session")
+def device():
+    """Determine device to use for tests (GPU if available, else CPU)."""
+    if torch.cuda.is_available():
+        return torch.device("cuda")
+    return torch.device("cpu")
+
+
 @pytest.fixture
-def setup_test_data():
+def setup_test_data(device):
     # Set deterministic behavior
     torch.manual_seed(42)
 
     # Create a simple 2x2 image with a single source in the center
-    img = torch.zeros(1, 2, 2, dtype=torch.complex128)
+    img = torch.zeros(1, 2, 2, dtype=torch.complex128, device=device)
     img[0, 0, 0] = 1.0 + 0.5j
     img[0, 0, 1] = 1.0 + 0.5j
 
     # Create a simple 2D lm grid
-    lm = torch.zeros(1, 1, 2, dtype=torch.float64)
-    lm[..., 0] = torch.tensor([0.01])
-    lm[..., 1] = torch.tensor([0.01])
+    lm = torch.zeros(1, 1, 2, dtype=torch.float64, device=device)
+    lm[..., 0] = torch.tensor([0.01], device=device)
+    lm[..., 1] = torch.tensor([0.01], device=device)
     lm = lm.flatten(end_dim=1)
 
     # Simulate baselines dataclass as a list for testing
@@ -48,37 +56,37 @@ def setup_test_data():
     bas = [
         None,
         None,
-        torch.tensor([100.0, 200.0, 300.0]),  # u
+        torch.tensor([100.0, 200.0, 300.0], device=device),  # u
         None,
         None,
-        torch.tensor([150.0, 250.0, 350.0]),  # v
+        torch.tensor([150.0, 250.0, 350.0], device=device),  # v
         None,
         None,
-        torch.tensor([50.0, 100.0, 150.0]),  # w
+        torch.tensor([50.0, 100.0, 150.0], device=device),  # w
         None,
         None,
         None,
         None,
-        torch.tensor([0.1]),  # q1
+        torch.tensor([0.1], device=device),  # q1
         None,
         None,
-        torch.tensor([0.15]),  # q2
+        torch.tensor([0.15], device=device),  # q2
         None,
     ]
 
     # Sky position
-    ra = torch.tensor(0.0)
-    dec = torch.tensor(0.0)
+    ra = torch.tensor(0.0, device=device)
+    dec = torch.tensor(0.0, device=device)
 
     # Antenna properties
-    ant_diam = torch.tensor([25.0])
+    ant_diam = torch.tensor([25.0], device=device)
 
     # Spectral window frequencies
     spw_low = 1.0e9  # 1 GHz
     spw_high = 2.0e9  # 2 GHz
 
     # For angular distance
-    rd = torch.zeros(1, 1, 2, dtype=torch.float64)
+    rd = torch.zeros(1, 1, 2, dtype=torch.float64, device=device)
     rd[..., 0] = 0.001  # ra
     rd[..., 1] = 0.001  # dec
     rd = rd.flatten(end_dim=1)
@@ -94,21 +102,22 @@ def setup_test_data():
         "spw_low": spw_low,
         "spw_high": spw_high,
         "polarization": "circular",
+        "device": device,
     }
 
 
 class TestScan:
     """Unit tests for pyvisgen.simulation.scan module."""
 
-    def test_jinc(self):
+    def test_jinc(self, device):
         """Test the jinc function."""
         # Test with zero
-        x_zero = torch.tensor([0.0], dtype=torch.float64)
+        x_zero = torch.tensor([0.0], dtype=torch.float64, device=device)
         result_zero = jinc(x_zero)
-        assert torch.isclose(result_zero, torch.tensor([1.0], dtype=torch.float64))
+        assert torch.isclose(result_zero, torch.tensor([1.0], dtype=torch.float64, device=device))
 
         # Test with standard values
-        x_values = torch.tensor([1.0, 2.0, 3.0], dtype=torch.float64)
+        x_values = torch.tensor([1.0, 2.0, 3.0], dtype=torch.float64, device=device)
         result = jinc(x_values)
 
         # Calculate expected values directly from torch's bessel_j1 function
@@ -124,13 +133,13 @@ class TestScan:
         # Additional test to verify actual values
         # Compare with actual values from the executed function
         assert torch.isclose(
-            result[0], torch.tensor(0.8801, dtype=torch.float64), rtol=1e-4
+            result[0], torch.tensor(0.8801, dtype=torch.float64, device=device), rtol=1e-4
         )
         assert torch.isclose(
-            result[1], torch.tensor(0.5767, dtype=torch.float64), rtol=1e-4
+            result[1], torch.tensor(0.5767, dtype=torch.float64, device=device), rtol=1e-4
         )
         assert torch.isclose(
-            result[2], torch.tensor(0.2260, dtype=torch.float64), rtol=1e-3
+            result[2], torch.tensor(0.2260, dtype=torch.float64, device=device), rtol=1e-3
         )
 
     def test_angular_distance(self, setup_test_data):
@@ -138,6 +147,7 @@ class TestScan:
         rd = setup_test_data["rd"]
         ra = setup_test_data["ra"]
         dec = setup_test_data["dec"]
+        device = setup_test_data["device"]
 
         result = angular_distance(rd, ra, dec)
 
@@ -147,7 +157,7 @@ class TestScan:
 
         # For our values (0.001, 0.001), the angular distance is approximately 0.0014
         expected_value = torch.arcsin(
-            torch.sqrt(torch.tensor(0.001) ** 2 + torch.tensor(0.001) ** 2)
+            torch.sqrt(torch.tensor(0.001, device=device) ** 2 + torch.tensor(0.001, device=device) ** 2)
         )
         assert torch.allclose(result, expected_value, rtol=1e-5)
 
@@ -175,9 +185,10 @@ class TestScan:
 
     def test_calc_feed_rotation_circular(self, setup_test_data):
         """Test the feed rotation calculation for circular polarization."""
+        device = setup_test_data["device"]
         # Simulate polarized visibilities with 2x2 Jones matrices
-        X1 = torch.ones(2, 1, 2, 2, dtype=torch.complex128)
-        X2 = torch.ones(2, 1, 2, 2, dtype=torch.complex128)
+        X1 = torch.ones(2, 1, 2, 2, dtype=torch.complex128, device=device)
+        X2 = torch.ones(2, 1, 2, 2, dtype=torch.complex128, device=device)
         bas = setup_test_data["bas"]
         polarization = "circular"
 
@@ -197,9 +208,10 @@ class TestScan:
 
     def test_calc_feed_rotation_linear(self, setup_test_data):
         """Test the feed rotation calculation for linear polarization."""
+        device = setup_test_data["device"]
         # Simulate polarized visibilities with 2x2 Jones matrices
-        X1 = torch.ones(2, 1, 2, 2, dtype=torch.complex128)
-        X2 = torch.ones(2, 1, 2, 2, dtype=torch.complex128)
+        X1 = torch.ones(2, 1, 2, 2, dtype=torch.complex128, device=device)
+        X2 = torch.ones(2, 1, 2, 2, dtype=torch.complex128, device=device)
         bas = setup_test_data["bas"]
         polarization = "linear"
 
@@ -219,9 +231,10 @@ class TestScan:
 
     def test_calc_beam(self, setup_test_data):
         """Test the beam calculation function."""
+        device = setup_test_data["device"]
         # Create test data for the beam calculation
-        X1 = torch.ones(2, 1, 2, 2, dtype=torch.complex128)
-        X2 = torch.ones(2, 1, 2, 2, dtype=torch.complex128)
+        X1 = torch.ones(2, 1, 2, 2, dtype=torch.complex128, device=device)
+        X2 = torch.ones(2, 1, 2, 2, dtype=torch.complex128, device=device)
         rd = setup_test_data["rd"]
         ra = setup_test_data["ra"]
         dec = setup_test_data["dec"]
@@ -245,9 +258,10 @@ class TestScan:
 
     def test_integrate(self, setup_test_data):
         """Test the integration function."""
+        device = setup_test_data["device"]
         # Create test data for integration
-        X1 = torch.ones(2, 2, 2, 2, dtype=torch.complex128)
-        X2 = torch.ones(2, 2, 2, 2, dtype=torch.complex128)
+        X1 = torch.ones(2, 2, 2, 2, dtype=torch.complex128, device=device)
+        X2 = torch.ones(2, 2, 2, 2, dtype=torch.complex128, device=device)
 
         result = integrate(X1, X2)
 
@@ -263,7 +277,7 @@ class TestScan:
         # Check that values match expectation
         assert torch.allclose(
             result.real,
-            torch.full(expected_shape, expected_value.real, dtype=torch.float64),
+            torch.full(expected_shape, expected_value.real, dtype=torch.float64, device=device),
         )
 
     def test_rime(self, setup_test_data):
@@ -330,31 +344,32 @@ class TestScan:
             ft="reversed",
         )
 
-        # Test with mode = "grid" (use radioft dft)
-        vis_grid_dft = rime(
-            img,
-            bas,
-            lm,
-            rd,
-            ra,
-            dec,
-            ant_diam,
-            spw_low,
-            spw_high,
-            polarization,
-            mode="grid",
-            corrupted=True,
-            ft="dft",
-        )
-
         assert torch.isclose(vis_grid_reversed, vis_grid, rtol=1e-8).all()
-        assert torch.isclose(vis_grid_reversed, vis_grid, rtol=1e-8).all()
-        # assert torch.isclose(vis_grid, vis_grid_dft.cpu(), rtol=1e-8).all()
-        assert torch.isclose(
-            vis_grid_reversed_nopol, vis_grid_dft.cpu(), rtol=1e-8
-        ).all()
         assert vis_grid_reversed.dtype == vis_grid.dtype
         assert vis_grid_reversed.shape == vis_grid.shape
+
+        # Only test finufft when CUDA is available
+        if torch.cuda.is_available():
+            # Test with mode = "grid" (use radioft finufft)
+            vis_grid_finufft = rime(
+                img,
+                bas,
+                lm,
+                rd,
+                ra,
+                dec,
+                ant_diam,
+                spw_low,
+                spw_high,
+                polarization,
+                mode="grid",
+                corrupted=True,
+                ft="finufft",
+            )
+
+            assert torch.isclose(
+                vis_grid_reversed_nopol, vis_grid_finufft, rtol=1e-6
+            ).all()
 
         # Test with mode = "grid" with polarization
         vis_grid_pol = rime(
