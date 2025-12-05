@@ -406,7 +406,7 @@ def vis_loop(
     batch_size: int = "auto",
     show_progress: bool = False,
     normalize: bool = True,
-    use_dft: bool = False,
+    use_finufft: bool = False,
 ) -> Visibilities:
     r"""Computes the visibilities of an observation.
 
@@ -526,7 +526,7 @@ def vis_loop(
         noisy,
         show_progress,
         mode,
-        use_dft,
+        use_finufft,
     )
 
     visibilities.linear_dop = lin_dop.cpu()
@@ -547,7 +547,7 @@ def _batch_loop(
     noisy: bool | float,
     show_progress: bool,
     mode: str,
-    use_dft: bool = False,
+    use_finufft: bool = False,
 ):
     """Main simulation loop of pyvisgen. Computes visibilities
     batchwise.
@@ -608,7 +608,7 @@ def _batch_loop(
                     obs.polarization,
                     mode=mode,
                     corrupted=obs.corrupted,
-                    ft="dft" if use_dft else "standard",
+                    ft="finufft" if use_finufft else "standard",
                 )[None]
                 for wave_low, wave_high in zip(obs.waves_low, obs.waves_high)
             ]
