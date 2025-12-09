@@ -1,13 +1,18 @@
 from math import pi
 
 import torch
+from radioft.finufft import CupyFinufft
 from scipy.constants import c
 from torch.special import bessel_j1
 
 torch.set_default_dtype(torch.float64)
 
+
+finufft = CupyFinufft(image_size=512, fov_arcsec=1024, eps=1e-8)
+
 __all__ = [
     "rime",
+    "apply_finufft",
     "calc_fourier",
     "calc_feed_rotation",
     "calc_beam",
@@ -17,7 +22,7 @@ __all__ = [
 ]
 
 
-@torch.compile
+# @torch.compile
 def rime(
     img,
     bas,
@@ -31,6 +36,7 @@ def rime(
     polarization,
     mode,
     corrupted=False,
+    ft="standard",
 ):
     """Calculates visibilities using RIME
 
@@ -54,22 +60,126 @@ def rime(
     2d tensor
         Returns visibility for every baseline
     """
-    with torch.no_grad():
-        X1, X2 = calc_fourier(img, bas, lm, spw_low, spw_high)
+    if ft == "standard":
+        with torch.no_grad():
+            X1 = img.clone()
+            X2 = img.clone()
+            X1, X2 = calc_fourier(X1, X2, bas, lm, spw_low, spw_high)
 
-        if polarization and mode != "dense":
-            X1, X2 = calc_feed_rotation(X1, X2, bas, polarization)
+            if polarization and mode != "dense":
+                X1, X2 = calc_feed_rotation(X1, X2, bas, polarization)
 
-        if corrupted:
-            X1, X2 = calc_beam(X1, X2, rd, ra, dec, ant_diam, spw_low, spw_high)
+            if corrupted:
+                X1, X2 = calc_beam(X1, X2, rd, ra, dec, ant_diam, spw_low, spw_high)
 
-        vis = integrate(X1, X2)
+            vis = integrate(X1, X2)
+    if ft == "reversed":
+        with torch.no_grad():
+            img = torch.repeat_interleave(img.clone()[None], len(bas[2]), dim=0)
+            X1 = img.clone()
+            X2 = img.clone()
+            if polarization and mode != "dense":
+                X1, X2 = calc_feed_rotation(X1, X2, bas, polarization)
+
+            if corrupted:
+                X1, X2 = calc_beam(X1, X2, rd, ra, dec, ant_diam, spw_low, spw_high)
+
+            X1, X2 = calc_fourier(X1, X2, bas, lm, spw_low, spw_high)
+            vis = integrate(X1, X2)
+    if ft == "finufft":
+        with torch.no_grad():
+            X1 = img.clone()
+            X2 = img.clone()
+            # if polarization and mode != "dense":
+            #     X1, X2 = calc_feed_rotation(X1, X2, bas, polarization)
+
+            if corrupted:
+                X1, X2 = calc_beam(X1, X2, rd, ra, dec, ant_diam, spw_low, spw_high)
+
+            vis = apply_finufft(X1, X2, bas, lm, spw_low, spw_high)
     return vis
 
 
-@torch.compile
+# @torch.compile
+def apply_finufft(
+    X1: torch.tensor,
+    X2: torch.tensor,
+    bas,
+    lm: torch.tensor,
+    spw_low: float,
+    spw_high: float,
+) -> tuple[torch.tensor, torch.tensor]:
+    if torch.cuda.is_available():
+        l_coords = lm[..., 0]
+        m_coords = lm[..., 1]
+        n_coords = torch.sqrt(1 - l_coords**2 - m_coords**2)
+
+        u_coords_low = bas[2] / c * spw_low
+        v_coords_low = bas[5] / c * spw_low
+        w_coords_low = bas[8] / c * spw_low
+
+        u_coords_high = bas[2] / c * spw_high
+        v_coords_high = bas[5] / c * spw_high
+        w_coords_high = bas[8] / c * spw_high
+
+        n_baselines = len(bas[2])
+
+        # Pre-allocate output
+        vis = torch.empty([n_baselines, 2, 2], dtype=torch.complex128, device=X1.device)
+
+        # Reshape input
+        X1_flat = X1.reshape(4, -1)
+        X2_flat = X2.reshape(4, -1)
+
+        # Create CUDA streams for parallel execution of the 4 Stokes params
+        streams = [torch.cuda.Stream() for _ in range(4)]
+
+        results_low = []
+        results_high = []
+
+        for i in range(4):
+            with torch.cuda.stream(streams[i]):
+                vis_low = finufft.nufft(
+                    X1_flat[i],
+                    l_coords,
+                    m_coords,
+                    n_coords,
+                    u_coords_low,
+                    v_coords_low,
+                    w_coords_low,
+                )
+                vis_high = finufft.nufft(
+                    X2_flat[i],
+                    l_coords,
+                    m_coords,
+                    n_coords,
+                    u_coords_high,
+                    v_coords_high,
+                    w_coords_high,
+                )
+                results_low.append(vis_low)
+                results_high.append(vis_high)
+
+        # Synchronize all streams
+        torch.cuda.synchronize()
+
+        # Stack and reshape
+        vis_low_all = torch.stack(results_low)
+        vis_high_all = torch.stack(results_high)
+        vis_avg = (vis_low_all + vis_high_all) / 2
+        vis = vis_avg.T.reshape(n_baselines, 2, 2)
+    else:
+        raise RuntimeError(
+            "CUDA is not available. Finufft backend requires a CUDA-enabled GPU to run."
+        )
+
+    return vis
+
+
+# @torch.compile
 def calc_fourier(
-    img: torch.tensor,
+    X1: torch.tensor,
+    X2: torch.tensor,
     bas,
     lm: torch.tensor,
     spw_low: float,
@@ -80,8 +190,10 @@ def calc_fourier(
 
     Parameters
     ----------
-    img : :func:`~torch.tensor`
-        Sky distribution.
+    X1 : :func:`~torch.tensor`
+        Sky tensor.
+    X2 : :func:`~torch.tensor`
+        Sky tensor.
     bas : :class:`~pyvisgen.simulation.ValidBaselineSubset`
         :class:`~pyvisgen.simulation.Baselines` dataclass
         object containing information on u, v, and w coverage,
@@ -117,10 +229,10 @@ def calc_fourier(
     K1 = torch.exp(-2 * pi * 1j * (ul + vm + wn) / c * spw_low)[..., None, None]
     K2 = torch.exp(-2 * pi * 1j * (ul + vm + wn) / c * spw_high)[..., None, None]
     del ul, vm, wn
-    return img * K1, img * K2
+    return X1 * K1, X2 * K2
 
 
-@torch.compile
+# @torch.compile
 def calc_feed_rotation(
     X1: torch.tensor,
     X2: torch.tensor,
@@ -187,7 +299,7 @@ def calc_feed_rotation(
     return X1, X2
 
 
-@torch.compile
+# @torch.compile
 def calc_beam(
     X1: torch.tensor,
     X2: torch.tensor,
@@ -221,7 +333,6 @@ def calc_beam(
 
     E1 = jinc(2 * pi / c * spw_low * tds)
     E2 = jinc(2 * pi / c * spw_high * tds)
-
     assert E1.shape == E2.shape
 
     EXE1 = E1[..., None] * X1 * E1[..., None]
