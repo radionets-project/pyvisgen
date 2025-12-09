@@ -1,48 +1,3 @@
-def test_read_config():
-    from pyvisgen.utils.config import read_data_set_conf
-
-    conf = read_data_set_conf("config/default_data_set.toml")
-
-    assert type(conf) is dict
-    assert list(conf.keys()) == [
-        "mode",
-        "device",
-        "seed",
-        "layout",
-        "img_size",
-        "fov_center_ra",
-        "fov_center_dec",
-        "fov_size",
-        "corr_int_time",
-        "scan_start",
-        "scan_duration",
-        "num_scans",
-        "scan_separation",
-        "ref_frequency",
-        "frequency_offsets",
-        "bandwidths",
-        "corrupted",
-        "noisy",
-        "sensitivty_cut",
-        "polarization",
-        "pol_delta",
-        "pol_amp_ratio",
-        "field_order",
-        "field_scale",
-        "field_threshold",
-        "num_test_images",
-        "bundle_size",
-        "train_valid_split",
-        "grid_size",
-        "grid_fov",
-        "amp_phase",
-        "in_path",
-        "out_path_fits",
-        "out_path_gridded",
-        "dataset_type",
-    ]
-
-
 def test_Array():
     from pyvisgen.layouts.layouts import get_array_layout
     from pyvisgen.simulation.array import Array
@@ -55,3 +10,21 @@ def test_Array():
 
     assert delta_x.shape == delta_y.shape == delta_z.shape == (45, 1)
     assert st_num_pairs.shape == els_low_pairs.shape == els_high_pairs.shape == (45, 2)
+
+
+def test_carbontracker():
+    from pyvisgen.io import Config
+    from pyvisgen.utils.codecarbon import carbontracker
+
+    config = Config()  # use default values
+
+    # codecarbon = False
+    with carbontracker(config=config):
+        pass
+
+    config.codecarbon = True
+    config = config.model_validate(config.model_dump())
+
+    # codecarbon = True
+    with carbontracker(config=config):
+        pass

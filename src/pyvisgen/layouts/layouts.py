@@ -8,7 +8,9 @@ from astropy.coordinates import EarthLocation
 
 from pyvisgen.utils.logging import setup_logger
 
-LOGGER = setup_logger()
+LOGGER = setup_logger(namespace=__name__)
+
+__all__ = ["Stations", "get_array_layout", "get_array_names"]
 
 
 @dataclass
@@ -124,7 +126,7 @@ def get_array_layout(
         root = sysconfig.get_path("data", sysconfig.get_default_scheme())
         path = root + f"/share/resources/layouts/{array_layout}.txt"
 
-        with open(path, "r") as f:
+        with open(path) as f:
             array = pd.read_csv(f, sep=r"\s+")
 
         if array_layout == "vla":

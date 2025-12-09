@@ -17,11 +17,11 @@ jobs:
   lint:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
         with:
           fetch-depth: 0
 
-      - uses: actions/setup-python@v5
+      - uses: actions/setup-python@v6
         with:
           python-version: "3.11"
 
@@ -31,19 +31,20 @@ jobs:
           restructuredtext-lint README.rst
 
   tests:
-    if: contains(github.event.pull_request.labels.*.name, 'documentation-only') == false
     runs-on: ${{ matrix.os }}
     strategy:
       matrix:
         include:
           - os: ubuntu-latest
-            python-version: "3.10"
+            python-version: "3.12"
             install-method: mamba
+            extras: webdataset
 
           - os: ubuntu-latest
             python-version: "3.11"
             install-method: mamba
             extra-args: ["codecov"]
+            extras: webdataset
 
     defaults:
       run:
@@ -51,14 +52,12 @@ jobs:
         shell: bash -leo pipefail {0}
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
         with:
           fetch-depth: 0
 
-      - uses: astral-sh/setup-uv@v6
-
       - name: Prepare mamba installation
-        if: matrix.install-method == 'mamba'
+        if: matrix.install-method == 'mamba' && contains(github.event.pull_request.labels.*.name, 'documentation-only') == false
         env:
           PYTHON_VERSION: ${{ matrix.python-version }}
         run: |
@@ -66,37 +65,41 @@ jobs:
           sed -i -e "s/- python.*/- python=$PYTHON_VERSION/g" environment.yml
 
       - name: mamba setup
-        if: matrix.install-method == 'mamba'
+        if: matrix.install-method == 'mamba' && contains(github.event.pull_request.labels.*.name, 'documentation-only') == false
         uses: mamba-org/setup-micromamba@v2
         with:
           environment-file: environment.yml
           cache-downloads: true
 
       - name: Install dependencies
+        if: contains(github.event.pull_request.labels.*.name, 'documentation-only') == false
         env:
           PYTHON_VERSION: ${{ matrix.python-version }}
+          EXTRAS: ${{ matrix.extras }}
         run: |
           python --version
-          uv pip install --upgrade pip
-          uv pip install --group tests -e .
-          uv pip freeze
-          uv pip list
+          pip install --upgrade pip
+          pip install --group tests -e ".[${EXTRAS}]" --no-cache-dir
+          pip freeze
+          pip list
 
       - name: List installed package versions (conda)
-        if: matrix.environment-type == 'mamba'
+        if: matrix.install-method == 'mamba' && contains(github.event.pull_request.labels.*.name, 'documentation-only') == false
         run: micromamba list
 
       - name: Tests
+        if: contains(github.event.pull_request.labels.*.name, 'documentation-only') == false
         run: |
           pytest -vv --cov --cov-report=xml --junitxml=junit.xml -o junit_family=legacy
 
       - name: Upload coverage to Codecov
+        if: contains(matrix.extra-args, 'codecov') && contains(github.event.pull_request.labels.*.name, 'documentation-only') == false
         uses: codecov/codecov-action@v5
         env:
           CODECOV_TOKEN: ${{ secrets.CODECOV_TOKEN }}
 
       - name: Upload test results to Codecov
-        if: ${{ !cancelled() }}
+        if: ${{ !cancelled() }} && contains(matrix.extra-args, 'codecov') && contains(github.event.pull_request.labels.*.name, 'documentation-only') == false
         uses: codecov/test-results-action@v1
         with:
           token: ${{ secrets.CODECOV_TOKEN }}
@@ -104,22 +107,20 @@ jobs:
   docs:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
         with:
           fetch-depth: 0
 
-      - uses: astral-sh/setup-uv@v6
-
       - name: Set up Python
-        uses: actions/setup-python@v5
+        uses: actions/setup-python@v6
         with:
           python-version: "3.11"
 
       - name: Install doc dependencies
         run: |
           sudo apt update --yes && sudo apt install --yes git
-          uv pip install --system . -U pip towncrier
-          uv pip install --system . --group docs -e .
+          pip install . -U pip towncrier
+          pip install --group docs -e ".[webdataset]"
           git describe --tags
 
       - name: Build docs

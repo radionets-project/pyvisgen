@@ -9,7 +9,7 @@ import pyvisgen.simulation.scan as scan
 from pyvisgen.utils.logging import setup_logger
 
 torch.set_default_dtype(torch.float64)
-LOGGER = setup_logger()
+LOGGER = setup_logger(namespace=__name__)
 
 __all__ = [
     "Visibilities",
@@ -313,7 +313,7 @@ class Polarization:
             B[..., 1, 1] = self.I[..., 0] - self.I[..., 1]  # I - Q
 
         # calculations only for px > sensitivity cut
-        mask = (self.SI >= self.sensitivity_cut)[..., 0]
+        mask = (self.sensitivity_cut <= self.SI)[..., 0]
         B = B[mask]
 
         return B, mask, self.lin_dop, self.circ_dop
@@ -323,7 +323,7 @@ class Polarization:
         shape: list[int, int] | int,
         order: list[int, int] | int = 1,
         random_state: int = None,
-        scale: list = [0, 1],
+        scale: list = None,
         threshold: float = None,
     ) -> torch.tensor:
         """

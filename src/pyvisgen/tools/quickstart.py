@@ -22,7 +22,7 @@ from pyvisgen.utils import setup_logger
     is_flag=True,
     help="Overwrite file if it already exists.",
 )
-def quickstart(
+def main(
     config_path: str | Path,
     overwrite: bool = False,
 ) -> None:
@@ -41,7 +41,7 @@ def quickstart(
     a file called 'pyvisgen_default_data_set_config.toml'
     inside that directory.
     """
-    log = setup_logger(tracebacks_suppress=[click])
+    log = setup_logger(namespace=__name__, tracebacks_suppress=[click])
 
     msg = f"This is the pyvisgen [blue]v{__version__}[/] quickstart tool"
     log.info(msg, extra={"markup": True, "highlighter": None})
@@ -53,7 +53,7 @@ def quickstart(
     root = sysconfig.get_path("data", sysconfig.get_default_scheme())
     default_config_path = Path(root + "/share/configs/default_data_set.toml")
 
-    with open(default_config_path, "r") as f:
+    with open(default_config_path) as f:
         default_config = toml.load(f)
 
     log.info("Loading default pyvisgen configuration:")
@@ -84,4 +84,4 @@ def quickstart(
 
 
 if __name__ == "__main__":
-    quickstart()
+    main()

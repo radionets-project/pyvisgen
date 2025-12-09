@@ -34,10 +34,7 @@ def load_bundles(
     if isinstance(data_path, str):
         data_path = Path(data_path)
 
-    if not dataset_type:
-        filter_fmt = "*.h5"
-    else:
-        filter_fmt = f"*{dataset_type}*.h5"
+    filter_fmt = "*.h5" if not dataset_type else f"*{dataset_type}*.h5"
 
     bundles = natsorted(list(data_path.glob(filter_fmt)))
 
