@@ -110,8 +110,6 @@ def rime(
         with torch.no_grad():
             X1 = img.clone()
             X2 = img.clone()
-            # if polarization and mode != "dense":
-            #     X1, X2 = calc_feed_rotation(X1, X2, bas, polarization)
 
             if corrupted:
                 X1, X2 = calc_beam(X1, X2, rd, ra, dec, ant_diam, spw_low, spw_high)
@@ -120,7 +118,6 @@ def rime(
     return vis
 
 
-# @torch.compile
 def apply_finufft(
     X1: torch.tensor,
     X2: torch.tensor,
@@ -196,7 +193,6 @@ def apply_finufft(
     return vis
 
 
-# @torch.compile
 def calc_fourier(
     X1: torch.tensor,
     X2: torch.tensor,
@@ -252,7 +248,6 @@ def calc_fourier(
     return X1 * K1, X2 * K2
 
 
-# @torch.compile
 def calc_feed_rotation(
     X1: torch.tensor,
     X2: torch.tensor,
@@ -319,7 +314,6 @@ def calc_feed_rotation(
     return X1, X2
 
 
-# @torch.compile
 def calc_beam(
     X1: torch.tensor,
     X2: torch.tensor,
