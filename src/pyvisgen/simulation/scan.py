@@ -1,9 +1,17 @@
+from __future__ import annotations
+
 from math import pi
+from typing import TYPE_CHECKING
 
 import torch
 from radioft.finufft import CupyFinufft
 from scipy.constants import c
 from torch.special import bessel_j1
+
+if TYPE_CHECKING:
+    from typing import Literal
+
+    from numpy.typing import ArrayLike
 
 torch.set_default_dtype(torch.float64)
 
@@ -24,19 +32,19 @@ __all__ = [
 
 # @torch.compile
 def rime(
-    img,
-    bas,
-    lm,
-    rd,
-    ra,
-    dec,
-    ant_diam,
-    spw_low,
-    spw_high,
-    polarization,
-    mode,
-    corrupted=False,
-    ft="standard",
+    img: ArrayLike,
+    bas: ArrayLike,
+    lm: ArrayLike,
+    rd: ArrayLike,
+    ra: ArrayLike,
+    dec: ArrayLike,
+    ant_diam: ArrayLike,
+    spw_low: ArrayLike,
+    spw_high: ArrayLike,
+    polarization: str,
+    mode: str,
+    corrupted: bool = False,
+    ft: Literal["default", "finufft", "reversed"] = "default",
 ):
     """Calculates visibilities using RIME
 

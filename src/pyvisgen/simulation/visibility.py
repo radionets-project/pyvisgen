@@ -1,4 +1,7 @@
+from __future__ import annotations
+
 from dataclasses import dataclass, fields
+from typing import TYPE_CHECKING
 
 import scipy.ndimage
 import toma
@@ -7,6 +10,9 @@ from tqdm.auto import tqdm
 
 import pyvisgen.simulation.scan as scan
 from pyvisgen.utils.logging import setup_logger
+
+if TYPE_CHECKING:
+    from typing import Literal
 
 torch.set_default_dtype(torch.float64)
 LOGGER = setup_logger(namespace=__name__)
@@ -406,7 +412,7 @@ def vis_loop(
     batch_size: int = "auto",
     show_progress: bool = False,
     normalize: bool = True,
-    use_finufft: bool = False,
+    ft: Literal["default", "finufft", "reversed"] = "default",
 ) -> Visibilities:
     r"""Computes the visibilities of an observation.
 
@@ -526,7 +532,7 @@ def vis_loop(
         noisy,
         show_progress,
         mode,
-        use_finufft,
+        ft,
     )
 
     visibilities.linear_dop = lin_dop.cpu()
@@ -547,7 +553,7 @@ def _batch_loop(
     noisy: bool | float,
     show_progress: bool,
     mode: str,
-    use_finufft: bool = False,
+    ft: Literal["default", "finufft", "reversed"] = "default",
 ):
     """Main simulation loop of pyvisgen. Computes visibilities
     batchwise.
@@ -608,7 +614,7 @@ def _batch_loop(
                     obs.polarization,
                     mode=mode,
                     corrupted=obs.corrupted,
-                    ft="finufft" if use_finufft else "standard",
+                    ft=ft,
                 )[None]
                 for wave_low, wave_high in zip(obs.waves_low, obs.waves_high)
             ]
