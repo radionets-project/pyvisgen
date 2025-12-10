@@ -62,6 +62,18 @@ def rime(
         higher wavelength
     polarization : str
         Type of polarization.
+    mode : str
+        Select one of `'full'`, `'grid'`, or `'dense'` to get
+        all valid baselines, a grid of unique baselines, or
+        dense baselines.
+    corrupted : bool, optional
+        If ``True``, apply beam smearing to the simulated data.
+        Default: ``False``
+    ft : str, optional
+        Sets the type of fourier transform used in the RIME.
+        Choose one of ``'default'``, ``'finufft'`` (Flatiron Institute
+        Nonuniform Fast Fourier Transform) or `'reversed'`.
+        Default: ``'default'``
 
     Returns
     -------

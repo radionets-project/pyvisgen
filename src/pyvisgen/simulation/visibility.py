@@ -448,6 +448,11 @@ def vis_loop(
     normalize : bool, optional
         If ``True``, normalize stokes matrix ``B`` by a factor 0.5.
         Default: ``True``
+    ft : str, optional
+        Sets the type of fourier transform used in the RIME.
+        Choose one of ``'default'``, ``'finufft'`` (Flatiron Institute
+        Nonuniform Fast Fourier Transform) or `'reversed'`.
+        Default: ``'default'``
 
     Returns
     -------
@@ -579,8 +584,17 @@ def _batch_loop(
     noisy : float or bool
         Simulate noise as SEFD with given value. If set to False,
         no noise is simulated.
-    show_progress :
+    show_progress : bool
         If True, show a progress bar tracking the loop.
+    mode : str
+        Select one of `'full'`, `'grid'`, or `'dense'` to get
+        all valid baselines, a grid of unique baselines, or
+        dense baselines.
+    ft : str, optional
+        Sets the type of fourier transform used in the RIME.
+        Choose one of ``'default'``, ``'finufft'`` (Flatiron Institute
+        Nonuniform Fast Fourier Transform) or `'reversed'`.
+        Default: ``'default'``
 
     Returns
     -------
