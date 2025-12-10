@@ -15,7 +15,7 @@ pyvisgen |ci| |pre-commit| |codecov| |pypi| |zenodo| |license|
    :alt: Code coverage
 
 .. |pypi| image:: https://badge.fury.io/py/pyvisgen.svg
-   :target: https://badge.fury.io/py/pyvisgen
+   :target: https://pypi.org/project/pyvisgen/
    :alt: PyPI version
 
 .. |zenodo| image:: https://zenodo.org/badge/333035370.svg
