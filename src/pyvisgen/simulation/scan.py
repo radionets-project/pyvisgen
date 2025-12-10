@@ -80,7 +80,7 @@ def rime(
     2d tensor
         Returns visibility for every baseline
     """
-    if ft == "standard":
+    if ft == "default":
         with torch.no_grad():
             X1 = img.clone()
             X2 = img.clone()
