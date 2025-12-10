@@ -17,29 +17,27 @@ Bug Fixes
 New Features
 ------------
 
-- - Enhance dropping of ``station_name`` column in ``src/pyvisgen/layouts/layout.py``
-  - Rework scan calculation using ``Scan`` dataclass, which stores start time, end time, integration time and seperation for each scan. This allows the usage of arrays as ``scan_seperation``, ``scan_duration`` and ``integration_time``. That way it is now possible to replicate the (u,v) space calculation of a real measurement.
-  - Enhance docstrings for Observation class by adding units to the physical quantities. [`#94 <https://github.com/radionets-project/pyvisgen/pull/94>`__]
+- Enhanced dropping of ``station_name`` column in ``src/pyvisgen/layouts/layout.py``
+- Reworked scan calculation using ``Scan`` dataclass, which stores start time, end time, integration time and seperation for each scan. This allows the usage of arrays as ``scan_seperation``, ``scan_duration`` and ``integration_time``. That way it is now possible to replicate the (u,v) space calculation of a real measurement.
+- Enhanced docstrings for Observation class by adding units to the physical quantities. [`#94 <https://github.com/radionets-project/pyvisgen/pull/94>`__]
 
-- add cufinufft backend for faster visibility calculations
+- Added ``cufinufft`` backend for faster visibility calculations [`#101 <https://github.com/radionets-project/pyvisgen/pull/101>`__]
 
-  add cufinufft test for local testing on GPU-enabled systems [`#101 <https://github.com/radionets-project/pyvisgen/pull/101>`__]
-
-- - Removed gridding methods and replace it with [``pyvisgrid``](https://github.com/radionets-project/pyvisgrid)
-  - Add ``pyvisgrid`` as dependency to ``pyproject.toml``
-  - Move the dataset creation, utility methods and scripts to a ``dataset`` module of pyvisgen.
-  - Fix typo ``sensitivty_cut`` for dataset config [`#105 <https://github.com/radionets-project/pyvisgen/pull/105>`__]
+- Removed gridding methods and replace it with [``pyvisgrid``](https://github.com/radionets-project/pyvisgrid)
+- Added ``pyvisgrid`` as dependency
+- Moved the dataset creation, utility methods and scripts to the new :mod:`pyvisgen.dataset` module.
+- Fixed typo ``sensitivty_cut`` for dataset config [`#105 <https://github.com/radionets-project/pyvisgen/pull/105>`__]
 
 - Added plugin support to pyvisgen, allowing external gridder plugins to be used inside the simulation loop [`#108 <https://github.com/radionets-project/pyvisgen/pull/108>`__]
 
-- - Add new config system based on pydantic
-  - Add contextmanager-based file writing to pyvisgen.dataset.dataset [`#117 <https://github.com/radionets-project/pyvisgen/pull/117>`__]
+- Added new config system based on pydantic
+- Added contextmanager-based file writing to :mod:`pyvisgen.dataset.dataset` [`#117 <https://github.com/radionets-project/pyvisgen/pull/117>`__]
 
-- - Added PTWriter class for saving data in PyTorch (.pt) format [`#118 <https://github.com/radionets-project/pyvisgen/pull/118>`__]
+- Added PTWriter class for saving data in PyTorch (.pt) format [`#118 <https://github.com/radionets-project/pyvisgen/pull/118>`__]
 
 - Added optional CodeCarbon tracker to pyvisgen [`#119 <https://github.com/radionets-project/pyvisgen/pull/119>`__]
 
-- - Added a WebDataset writer to the available data writers of pyvisgen [`#122 <https://github.com/radionets-project/pyvisgen/pull/122>`__]
+- Added a WebDataset writer to the available data writers of pyvisgen [`#122 <https://github.com/radionets-project/pyvisgen/pull/122>`__]
 
 - Added new main CLI tool merging the old ``pyvisgen-simulate`` and ``pyvisgen-quickstart`` commands
   into one tool that can be accessed through the new ``pyvisgen`` command (see ``$ pyvisgen --help``). [`#123 <https://github.com/radionets-project/pyvisgen/pull/123>`__]
@@ -52,8 +50,8 @@ Maintenance
 
 - Changed default symmetry overlap to 5 px in :func:`pyvisgen.dataset.utils.save_fft_pair` [`#106 <https://github.com/radionets-project/pyvisgen/pull/106>`__, `#107 <https://github.com/radionets-project/pyvisgen/pull/107>`__]
 
-- - Removed :func:`pyvisgen.dataset.utils.save_fft_pair` and :func:`pyvisgen.dataset.utils.test_shapes` as they are now part of the DataWriter abstract base class
-  - Removed Python 3.10 support [`#117 <https://github.com/radionets-project/pyvisgen/pull/117>`__]
+- Removed :func:`pyvisgen.dataset.utils.save_fft_pair` and :func:`pyvisgen.dataset.utils.test_shapes` as they are now part of the DataWriter abstract base class
+- Removed Python 3.10 support [`#117 <https://github.com/radionets-project/pyvisgen/pull/117>`__]
 
 
 Refactoring and Optimization
