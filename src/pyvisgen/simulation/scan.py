@@ -1,9 +1,17 @@
+from __future__ import annotations
+
 from math import pi
+from typing import TYPE_CHECKING
 
 import torch
 from radioft.finufft import CupyFinufft
 from scipy.constants import c
 from torch.special import bessel_j1
+
+if TYPE_CHECKING:
+    from typing import Literal
+
+    from numpy.typing import ArrayLike
 
 torch.set_default_dtype(torch.float64)
 
@@ -24,19 +32,19 @@ __all__ = [
 
 # @torch.compile
 def rime(
-    img,
-    bas,
-    lm,
-    rd,
-    ra,
-    dec,
-    ant_diam,
-    spw_low,
-    spw_high,
-    polarization,
-    mode,
-    corrupted=False,
-    ft="standard",
+    img: ArrayLike,
+    bas: ArrayLike,
+    lm: ArrayLike,
+    rd: ArrayLike,
+    ra: ArrayLike,
+    dec: ArrayLike,
+    ant_diam: ArrayLike,
+    spw_low: ArrayLike,
+    spw_high: ArrayLike,
+    polarization: str,
+    mode: str,
+    corrupted: bool = False,
+    ft: Literal["default", "finufft", "reversed"] = "default",
 ):
     """Calculates visibilities using RIME
 
@@ -54,13 +62,25 @@ def rime(
         higher wavelength
     polarization : str
         Type of polarization.
+    mode : str
+        Select one of `'full'`, `'grid'`, or `'dense'` to get
+        all valid baselines, a grid of unique baselines, or
+        dense baselines.
+    corrupted : bool, optional
+        If ``True``, apply beam smearing to the simulated data.
+        Default: ``False``
+    ft : str, optional
+        Sets the type of fourier transform used in the RIME.
+        Choose one of ``'default'``, ``'finufft'`` (Flatiron Institute
+        Nonuniform Fast Fourier Transform) or `'reversed'`.
+        Default: ``'default'``
 
     Returns
     -------
     2d tensor
         Returns visibility for every baseline
     """
-    if ft == "standard":
+    if ft == "default":
         with torch.no_grad():
             X1 = img.clone()
             X2 = img.clone()
@@ -90,8 +110,6 @@ def rime(
         with torch.no_grad():
             X1 = img.clone()
             X2 = img.clone()
-            # if polarization and mode != "dense":
-            #     X1, X2 = calc_feed_rotation(X1, X2, bas, polarization)
 
             if corrupted:
                 X1, X2 = calc_beam(X1, X2, rd, ra, dec, ant_diam, spw_low, spw_high)
@@ -100,7 +118,6 @@ def rime(
     return vis
 
 
-# @torch.compile
 def apply_finufft(
     X1: torch.tensor,
     X2: torch.tensor,
@@ -108,75 +125,74 @@ def apply_finufft(
     lm: torch.tensor,
     spw_low: float,
     spw_high: float,
-) -> tuple[torch.tensor, torch.tensor]:
-    if torch.cuda.is_available():
-        l_coords = lm[..., 0]
-        m_coords = lm[..., 1]
-        n_coords = torch.sqrt(1 - l_coords**2 - m_coords**2)
-
-        u_coords_low = bas[2] / c * spw_low
-        v_coords_low = bas[5] / c * spw_low
-        w_coords_low = bas[8] / c * spw_low
-
-        u_coords_high = bas[2] / c * spw_high
-        v_coords_high = bas[5] / c * spw_high
-        w_coords_high = bas[8] / c * spw_high
-
-        n_baselines = len(bas[2])
-
-        # Pre-allocate output
-        vis = torch.empty([n_baselines, 2, 2], dtype=torch.complex128, device=X1.device)
-
-        # Reshape input
-        X1_flat = X1.reshape(4, -1)
-        X2_flat = X2.reshape(4, -1)
-
-        # Create CUDA streams for parallel execution of the 4 Stokes params
-        streams = [torch.cuda.Stream() for _ in range(4)]
-
-        results_low = []
-        results_high = []
-
-        for i in range(4):
-            with torch.cuda.stream(streams[i]):
-                vis_low = finufft.nufft(
-                    X1_flat[i],
-                    l_coords,
-                    m_coords,
-                    n_coords,
-                    u_coords_low,
-                    v_coords_low,
-                    w_coords_low,
-                )
-                vis_high = finufft.nufft(
-                    X2_flat[i],
-                    l_coords,
-                    m_coords,
-                    n_coords,
-                    u_coords_high,
-                    v_coords_high,
-                    w_coords_high,
-                )
-                results_low.append(vis_low)
-                results_high.append(vis_high)
-
-        # Synchronize all streams
-        torch.cuda.synchronize()
-
-        # Stack and reshape
-        vis_low_all = torch.stack(results_low)
-        vis_high_all = torch.stack(results_high)
-        vis_avg = (vis_low_all + vis_high_all) / 2
-        vis = vis_avg.T.reshape(n_baselines, 2, 2)
-    else:
+) -> tuple[torch.tensor, torch.tensor]:  # pragma: no cover
+    if not torch.cuda.is_available():
         raise RuntimeError(
             "CUDA is not available. Finufft backend requires a CUDA-enabled GPU to run."
         )
 
+    l_coords = lm[..., 0]
+    m_coords = lm[..., 1]
+    n_coords = torch.sqrt(1 - l_coords**2 - m_coords**2)
+
+    u_coords_low = bas[2] / c * spw_low
+    v_coords_low = bas[5] / c * spw_low
+    w_coords_low = bas[8] / c * spw_low
+
+    u_coords_high = bas[2] / c * spw_high
+    v_coords_high = bas[5] / c * spw_high
+    w_coords_high = bas[8] / c * spw_high
+
+    n_baselines = len(bas[2])
+
+    # Pre-allocate output
+    vis = torch.empty([n_baselines, 2, 2], dtype=torch.complex128, device=X1.device)
+
+    # Reshape input
+    X1_flat = X1.reshape(4, -1)
+    X2_flat = X2.reshape(4, -1)
+
+    # Create CUDA streams for parallel execution of the 4 Stokes params
+    streams = [torch.cuda.Stream() for _ in range(4)]
+
+    results_low = []
+    results_high = []
+
+    for i in range(4):
+        with torch.cuda.stream(streams[i]):
+            vis_low = finufft.nufft(
+                X1_flat[i],
+                l_coords,
+                m_coords,
+                n_coords,
+                u_coords_low,
+                v_coords_low,
+                w_coords_low,
+            )
+            vis_high = finufft.nufft(
+                X2_flat[i],
+                l_coords,
+                m_coords,
+                n_coords,
+                u_coords_high,
+                v_coords_high,
+                w_coords_high,
+            )
+            results_low.append(vis_low)
+            results_high.append(vis_high)
+
+    # Synchronize all streams
+    torch.cuda.synchronize()
+
+    # Stack and reshape
+    vis_low_all = torch.stack(results_low)
+    vis_high_all = torch.stack(results_high)
+    vis_avg = (vis_low_all + vis_high_all) / 2
+    vis = vis_avg.T.reshape(n_baselines, 2, 2)
+
     return vis
 
 
-# @torch.compile
 def calc_fourier(
     X1: torch.tensor,
     X2: torch.tensor,
@@ -232,7 +248,6 @@ def calc_fourier(
     return X1 * K1, X2 * K2
 
 
-# @torch.compile
 def calc_feed_rotation(
     X1: torch.tensor,
     X2: torch.tensor,
@@ -299,7 +314,6 @@ def calc_feed_rotation(
     return X1, X2
 
 
-# @torch.compile
 def calc_beam(
     X1: torch.tensor,
     X2: torch.tensor,

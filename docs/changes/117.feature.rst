@@ -1,2 +1,0 @@
-- Add new config system based on pydantic
-- Add contextmanager-based file writing to pyvisgen.dataset.dataset

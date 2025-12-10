@@ -216,6 +216,7 @@ class SimulateDataSet:
                     SI,
                     noisy=self.conf.sampling.noisy,
                     mode=self.conf.sampling.mode,
+                    ft=self.conf.fft.ft,
                 )
 
                 if self.grid:

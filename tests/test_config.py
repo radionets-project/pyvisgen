@@ -18,6 +18,7 @@ def test_read_config():
         "bundle",
         "datawriter",
         "gridding",
+        "fft",
         "codecarbon",
     ]
     assert list(config_dict["sampling"].keys()) == [
@@ -67,6 +68,7 @@ def test_read_config():
     ]
 
     assert list(config_dict["gridding"].keys()) == ["gridder"]
+    assert list(config_dict["fft"].keys()) == ["ft"]
 
 
 def test_unknown_layout():
