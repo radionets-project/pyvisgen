@@ -1,3 +1,0 @@
-add cufinufft backend for faster visibility calculations
-
-add cufinufft test for local testing on GPU-enabled systems

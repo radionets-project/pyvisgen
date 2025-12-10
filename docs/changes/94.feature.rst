@@ -1,3 +1,0 @@
-- Enhance dropping of ``station_name`` column in ``src/pyvisgen/layouts/layout.py``
-- Rework scan calculation using ``Scan`` dataclass, which stores start time, end time, integration time and seperation for each scan. This allows the usage of arrays as ``scan_seperation``, ``scan_duration`` and ``integration_time``. That way it is now possible to replicate the (u,v) space calculation of a real measurement.
-- Enhance docstrings for Observation class by adding units to the physical quantities.

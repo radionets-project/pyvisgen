@@ -1,1 +1,0 @@
-Added Fourier transform option to configuration system, that allows changing the Fourier transform for the simulation
