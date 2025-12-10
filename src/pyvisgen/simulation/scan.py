@@ -125,7 +125,7 @@ def apply_finufft(
     lm: torch.tensor,
     spw_low: float,
     spw_high: float,
-) -> tuple[torch.tensor, torch.tensor]:
+) -> tuple[torch.tensor, torch.tensor]:  # pragma: no cover
     if not torch.cuda.is_available():
         raise RuntimeError(
             "CUDA is not available. Finufft backend requires a CUDA-enabled GPU to run."
