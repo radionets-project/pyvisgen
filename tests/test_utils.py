@@ -14,7 +14,7 @@ def test_Array():
 
 def test_carbontracker():
     from pyvisgen.io import Config
-    from pyvisgen.utils.codecarbon import carbontracker
+    from pyvisgen.utils.carbon_tracking import carbontracker
 
     config = Config()  # use default values
 
