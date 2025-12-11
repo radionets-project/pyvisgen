@@ -1,4 +1,0 @@
-- Removed gridding methods and replace it with [``pyvisgrid``](https://github.com/radionets-project/pyvisgrid)
-- Add ``pyvisgrid`` as dependency to ``pyproject.toml``
-- Move the dataset creation, utility methods and scripts to a ``dataset`` module of pyvisgen.
-- Fix typo ``sensitivty_cut`` for dataset config

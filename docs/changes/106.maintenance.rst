@@ -1,1 +1,0 @@
-Changed default symmetry overlap to 5 px in :func:`pyvisgen.dataset.utils.save_fft_pair`

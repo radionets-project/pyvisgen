@@ -45,3 +45,6 @@ overlap = 5
 
 [gridding]
 gridder = "default"
+
+[fft]
+ft = "default"

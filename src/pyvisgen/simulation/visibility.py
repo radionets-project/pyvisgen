@@ -1,4 +1,7 @@
+from __future__ import annotations
+
 from dataclasses import dataclass, fields
+from typing import TYPE_CHECKING
 
 import scipy.ndimage
 import torch
@@ -7,6 +10,9 @@ from tqdm.auto import tqdm
 import pyvisgen.simulation.scan as scan
 from pyvisgen.utils.batch_size import adaptive_batch_size
 from pyvisgen.utils.logging import setup_logger
+
+if TYPE_CHECKING:
+    from typing import Literal
 
 torch.set_default_dtype(torch.float64)
 LOGGER = setup_logger(namespace=__name__)
@@ -406,7 +412,7 @@ def vis_loop(
     batch_size: int = "auto",
     show_progress: bool = False,
     normalize: bool = True,
-    use_finufft: bool = False,
+    ft: Literal["default", "finufft", "reversed"] = "default",
 ) -> Visibilities:
     r"""Computes the visibilities of an observation.
 
@@ -442,6 +448,11 @@ def vis_loop(
     normalize : bool, optional
         If ``True``, normalize stokes matrix ``B`` by a factor 0.5.
         Default: ``True``
+    ft : str, optional
+        Sets the type of fourier transform used in the RIME.
+        Choose one of ``'default'``, ``'finufft'`` (Flatiron Institute
+        Nonuniform Fast Fourier Transform) or `'reversed'`.
+        Default: ``'default'``
 
     Returns
     -------
@@ -526,7 +537,7 @@ def vis_loop(
         noisy=noisy,
         show_progress=show_progress,
         mode=mode,
-        use_finufft=use_finufft,
+        ft=ft,
     )
 
     visibilities.linear_dop = lin_dop.cpu()
@@ -547,7 +558,7 @@ def _batch_loop(
     noisy: bool | float,
     show_progress: bool,
     mode: str,
-    use_finufft: bool = False,
+    ft: Literal["default", "finufft", "reversed"] = "default",
 ):
     """Main simulation loop of pyvisgen. Computes visibilities
     batchwise.
@@ -573,8 +584,17 @@ def _batch_loop(
     noisy : float or bool
         Simulate noise as SEFD with given value. If set to False,
         no noise is simulated.
-    show_progress :
+    show_progress : bool
         If True, show a progress bar tracking the loop.
+    mode : str
+        Select one of `'full'`, `'grid'`, or `'dense'` to get
+        all valid baselines, a grid of unique baselines, or
+        dense baselines.
+    ft : str, optional
+        Sets the type of fourier transform used in the RIME.
+        Choose one of ``'default'``, ``'finufft'`` (Flatiron Institute
+        Nonuniform Fast Fourier Transform) or `'reversed'`.
+        Default: ``'default'``
 
     Returns
     -------
@@ -608,7 +628,7 @@ def _batch_loop(
                     obs.polarization,
                     mode=mode,
                     corrupted=obs.corrupted,
-                    ft="finufft" if use_finufft else "standard",
+                    ft=ft,
                 )[None]
                 for wave_low, wave_high in zip(obs.waves_low, obs.waves_high)
             ]

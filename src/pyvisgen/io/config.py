@@ -148,6 +148,10 @@ class GriddingConfig(BaseModel, validate_assignment=True):
     gridder: str = "default"
 
 
+class FFTConfig(BaseModel, validate_assignment=True):
+    ft: Literal["default", "finufft", "reversed"] = "default"
+
+
 class CodeCarbonEmissionTrackerConfig(BaseModel, validate_assignment=True):
     """Codecarbon emission tracker configuration"""
 
@@ -164,6 +168,7 @@ class Config(BaseModel):
     bundle: BundleConfig = Field(default_factory=BundleConfig)
     datawriter: DataWriterConfig = Field(default_factory=DataWriterConfig)
     gridding: GriddingConfig = Field(default_factory=GriddingConfig)
+    fft: FFTConfig = Field(default_factory=FFTConfig)
     codecarbon: bool | CodeCarbonEmissionTrackerConfig = False
 
     @classmethod
