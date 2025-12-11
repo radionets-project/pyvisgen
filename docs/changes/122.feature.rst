@@ -1,1 +1,0 @@
-- Added a WebDataset writer to the available data writers of pyvisgen
