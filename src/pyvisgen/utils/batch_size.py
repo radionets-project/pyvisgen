@@ -30,7 +30,7 @@ def adaptive_batch_size(func, initial_batch_size, factor=0.5, *args, **kwargs):
             result = func(batch_size, *args, **kwargs)
             _cuda_gc()
             return result
-        except OOM_EXCEPTIONS:
+        except OOM_EXCEPTIONS:  # pragma: no cover
             if batch_size >= MIN_BATCH_SIZE:
                 batch_size = _reduce_batch_size(batch_size, factor=factor)
                 _cuda_gc()
