@@ -1,1 +1,0 @@
-Removed ``toma`` dependency in favor of own implementation for batch size reduction (:func:`~pyvisgen.utils.batch_size.adaptive_batch_size`)
