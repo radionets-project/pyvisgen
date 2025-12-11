@@ -2,7 +2,7 @@ import rich_click as click
 
 from pyvisgen.dataset import SimulateDataSet
 from pyvisgen.io import Config
-from pyvisgen.utils.codecarbon import carbontracker
+from pyvisgen.utils.carbon_tracking import carbontracker
 
 
 @click.command()
