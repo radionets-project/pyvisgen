@@ -1,1 +1,0 @@
-Renamed ``codecarbon`` submodule to ``carbon_tracking``

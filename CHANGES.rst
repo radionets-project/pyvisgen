@@ -1,3 +1,30 @@
+Pyvisgen 0.7.1 (2025-12-11)
+===========================
+
+
+API Changes
+-----------
+
+
+Bug Fixes
+---------
+
+
+New Features
+------------
+
+
+Maintenance
+-----------
+
+- Removed ``toma`` dependency in favor of own implementation for batch size reduction (:func:`~pyvisgen.utils.batch_size.adaptive_batch_size`) [`#129 <https://github.com/radionets-project/pyvisgen/pull/129>`__]
+
+- Renamed ``codecarbon`` submodule to ``carbon_tracking`` [`#130 <https://github.com/radionets-project/pyvisgen/pull/130>`__]
+
+
+Refactoring and Optimization
+----------------------------
+
 Pyvisgen 0.7.0 (2025-12-10)
 ===========================
 
