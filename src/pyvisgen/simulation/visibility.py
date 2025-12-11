@@ -4,11 +4,11 @@ from dataclasses import dataclass, fields
 from typing import TYPE_CHECKING
 
 import scipy.ndimage
-import toma
 import torch
 from tqdm.auto import tqdm
 
 import pyvisgen.simulation.scan as scan
+from pyvisgen.utils.batch_size import adaptive_batch_size
 from pyvisgen.utils.logging import setup_logger
 
 if TYPE_CHECKING:
@@ -524,20 +524,20 @@ def vis_loop(
     if batch_size == "auto":
         batch_size = bas[:].shape[1]
 
-    visibilities = toma.explicit.batch(
+    visibilities = adaptive_batch_size(
         _batch_loop,
         batch_size,
-        visibilities,
-        vis_num,
-        obs,
-        B,
-        bas,
-        lm,
-        rd,
-        noisy,
-        show_progress,
-        mode,
-        ft,
+        visibilities=visibilities,
+        vis_num=vis_num,
+        obs=obs,
+        B=B,
+        bas=bas,
+        lm=lm,
+        rd=rd,
+        noisy=noisy,
+        show_progress=show_progress,
+        mode=mode,
+        ft=ft,
     )
 
     visibilities.linear_dop = lin_dop.cpu()
