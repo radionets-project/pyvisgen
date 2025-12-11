@@ -12,7 +12,7 @@ def _cuda_gc():
     """Garbage collector for CUDA."""
     gc.collect()
 
-    if torch.cuda.is_available():
+    if torch.cuda.is_available():  # pragma: no cover
         torch.cuda.empty_cache()
 
 
