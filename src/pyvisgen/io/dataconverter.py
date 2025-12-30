@@ -6,7 +6,7 @@ import numpy as np
 import pyarrow as pa
 from rich.progress import track
 
-from pyvisgen.io import H5Writer, WDSShardWriter
+from .datawriters import H5Writer, WDSShardWriter
 
 try:
     import pyarrow as pa
