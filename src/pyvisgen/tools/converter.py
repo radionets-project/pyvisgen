@@ -31,7 +31,7 @@ from pyvisgen.io import DataConverter
 )
 @click.option(
     "--dataset_type",
-    "-d",
+    "-t",
     type=click.Choice(
         [
             "all",
@@ -41,6 +41,7 @@ from pyvisgen.io import DataConverter
         ],
         case_sensitive=False,
     ),
+    multiple=True,
     default="all",
     help="""Choose between different splits of the datasets to convert.
         'all' converts 'train', 'valid', and 'test' splits in one go.
@@ -88,7 +89,7 @@ def main(
     """Data format conversion tool for pyvisgen."""
     input_format = input_format.lower()
     output_format = output_format.lower()
-    dataset_type = dataset_type.lower()
+    dataset_type = [t.lower() for t in dataset_type]
 
     if input_format == output_format:
         raise click.BadParameter(
