@@ -116,7 +116,6 @@ class DataConverter:
                     half_image=False,
                 ) as writer:
                     for file in track(list(files), description="Processing files..."):
-                        print(file)
                         data = h5py.File(file)
                         file_idx = re.findall(r"\d+", file.stem)
 
