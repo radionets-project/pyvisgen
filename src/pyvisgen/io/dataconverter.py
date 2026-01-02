@@ -32,13 +32,13 @@ class DataConverter:
 
         data_dir = Path(data_dir).expanduser().resolve()
 
-        cls.datasets = {dataset_type: data_dir.glob(f"{dataset_type}-*.tar*")}
-        if dataset_type == "all":
-            cls.datasets = {
-                "train": data_dir.glob("train-*.tar*"),
-                "valid": data_dir.glob("valid-*.tar*"),
-                "test": data_dir.glob("test-*.tar*"),
-            }
+        if not isinstance(dataset_type, list):
+            dataset_type = [dataset_type]
+
+        if "all" in dataset_type:
+            dataset_type = ["train", "valid", "test"]
+
+        cls.datasets = {t: data_dir.glob(f"{t}-*.tar*") for t in dataset_type}
 
         return cls
 
@@ -49,13 +49,13 @@ class DataConverter:
 
         data_dir = Path(data_dir).expanduser().resolve()
 
-        cls.datasets = {dataset_type: data_dir.glob(f"*{dataset_type}_*.h5")}
-        if dataset_type == "all":
-            cls.datasets = {
-                "train": data_dir.glob("*train_*.h5"),
-                "valid": data_dir.glob("*valid_*.h5"),
-                "test": data_dir.glob("*test_*.h5"),
-            }
+        if not isinstance(dataset_type, list):
+            dataset_type = [dataset_type]
+
+        if "all" in dataset_type:
+            dataset_type = ["train", "valid", "test"]
+
+        cls.datasets = {t: data_dir.glob(f"*{dataset_type}_*.h5") for t in dataset_type}
 
         return cls
 
