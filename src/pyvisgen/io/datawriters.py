@@ -119,7 +119,10 @@ class DataWriter(ABC):
         if array.shape[1] != 2:
             raise ValueError(
                 f"Expected array {name} axis 1 to be 2 but got "
-                f"{array.shape} with axis 1: {array.shape[1]}!"
+                f"{array.shape} with axis 1: {array.shape[1]}! "
+                "This usually indicates that the images do not have "
+                "separate channels for amplitude/phase or real/imaginary "
+                "data."
             )
 
         if array.ndim != 4:
@@ -647,7 +650,12 @@ class PTWriter(DataWriter):
     """
 
     def __init__(
-        self, output_path: Path, dataset_type: str, amp_phase: bool, **kwargs
+        self,
+        output_path: Path,
+        dataset_type: str,
+        amp_phase: bool,
+        half_image: bool = True,
+        **kwargs,
     ) -> None:
         """Initialize the PT writer.
 
@@ -711,7 +719,7 @@ class PTWriter(DataWriter):
         --------
         >>> rng = np.random.default_rng()
         >>>
-        >>> with H5Writer(
+        >>> with PTWriter(
         ...     output_path="./data", dataset_type="train", amp_phase=True
         ... ) as writer:
         ...     x_data = rng.uniform(size=(5, 10, 2, 256, 256))
@@ -720,7 +728,9 @@ class PTWriter(DataWriter):
         ...     for bundle_id, (x, y) in enumerate(zip(x_data, y_data)):
         ...         writer.write(x, y, index=bundle_id, bundle_length=len(x))
         """
-        x, y = self.get_half_image(x, y, overlap=overlap)
+        if self.half_image:
+            x, y = self.get_half_image(x, y, overlap=overlap)
+
         x = torch.from_numpy(x)
         y = torch.from_numpy(y)
 
