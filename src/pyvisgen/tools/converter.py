@@ -63,7 +63,7 @@ from pyvisgen.io import DataConverter
     default="%06d.tar",
     help="""
         Shard pattern for [bold blue]WebDataset[/] files. Must be a C-style format
-        specifier with the '.tar' file suffix. Has no effect on other
+        specifier with the '.tar' file suffix. Not applied for other
         data formats.
     """,
     show_default=True,
@@ -72,8 +72,8 @@ from pyvisgen.io import DataConverter
     "--compress",
     is_flag=True,
     help="""
-        Whether to compress [bold blue]WebDataset[/] shards using gzip. Has no effect
-        other data formats.
+        Whether to compress [bold blue]WebDataset[/] shards using gzip.
+        Not applied for other data formats.
     """,
 )
 def main(
