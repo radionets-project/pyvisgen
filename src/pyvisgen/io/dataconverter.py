@@ -1,5 +1,6 @@
 import re
 from pathlib import Path
+from typing import Self
 
 import h5py
 import numpy as np
@@ -18,8 +19,48 @@ except ImportError:
 
 
 class DataConverter:
+    """Convert datasets between HDF5, WebDataset, and PyTorch formats.
+
+    This class allows loading datasets from various formats
+    and convert them to a target format. Where available or required,
+    metadata is read or added to the respective datasets.
+
+
+    Examples
+    --------
+    Convert WebDataset to HDF5:
+
+    >>> converter = DataConverter.from_wds("~/data/visibilities")
+    >>> converter.to("~/data/output", output_format="h5")
+
+    Convert HDF5 train split to WebDataset:
+
+    >>> converter = DataConverter.from_h5("~/data/visibilities", dataset_type="train")
+    >>> converter.to("~/data/output", output_format="wds", compress=True)
+    """
+
     @classmethod
-    def from_wds(cls, data_dir, dataset_type="all"):
+    def from_wds(cls, data_dir, dataset_type="all") -> Self:
+        """Create a DataConverter instance from WebDataset files.
+
+        Parameters
+        ----------
+        data_dir : str or :class:`~pathlib.Path`
+            Directory containing WebDataset .tar(.gz) files.
+        dataset_type :  str or list
+            Dataset split to load.  If "all", loads train, valid, and test.
+            Default: ``"all"``
+
+        Returns
+        -------
+        DataConverter
+            Configured DataConverter instance with WebDataset source files.
+
+        Raises
+        ------
+        ImportError
+            If webdataset package is not installed.
+        """
         if not _WDS_AVAIL:
             raise ImportError(
                 "Could not import webdataset. Please make sure you install "
@@ -43,7 +84,22 @@ class DataConverter:
         return cls
 
     @classmethod
-    def from_h5(cls, data_dir, dataset_type="all"):
+    def from_h5(cls, data_dir, dataset_type="all") -> Self:
+        """Create a DataConverter instance from HDF5 files.
+
+        Parameters
+        ----------
+        data_dir : str or :class:`~pathlib.Path`
+            Directory containing HDF5 files.
+        dataset_type :  str or list
+            Dataset split to load.  If "all", loads train, valid, and test.
+            Default: ``"all"``
+
+        Returns
+        -------
+        DataConverter
+            Configured DataConverter instance with HDF5 source files.
+        """
         cls = cls()
         cls._FMT = "h5"
 
@@ -63,7 +119,8 @@ class DataConverter:
     def from_pt(cls, data_dir, dataset_type="all"):
         raise NotImplementedError("PT will be supported in a future release.")
 
-    def _to_h5(self):
+    def _to_h5(self) -> None:
+        """Internal method to handle conversion to HDF5 files."""
         if self._FMT == "wds":
             for dataset_type, files in track(
                 self.datasets.items(), description="Converting Dataset to HDF5"
@@ -98,7 +155,8 @@ class DataConverter:
         elif self._FMT == "h5":
             raise RuntimeError("Forbidden: Cannot convert HDF5 to  HDF5.")
 
-    def _to_wds(self):
+    def _to_wds(self) -> None:
+        """Internal method to handle conversion to WebDataset files."""
         if self._FMT == "h5":
             for dataset_type, files in track(
                 self.datasets.items(), description="Converting Dataset to HDF5"
@@ -138,12 +196,37 @@ class DataConverter:
 
     def to(
         self,
-        output_dir,
+        output_dir: str | Path,
         output_format: str = "h5",
-        compress=True,
-        shard_pattern="%06d.tar",
-        amp_phase=True,
-    ):
+        amp_phase: bool = True,
+        shard_pattern: str = "%06d.tar",
+        compress: bool = True,
+        bundle_size: int = 100,
+    ) -> None:
+        """Convert the loaded dataset to the specified output format.
+
+        Parameters
+        ----------
+        output_dir : str or :class:`~pathlib.Path`
+            Directory to write converted files to.
+        output_format : str
+            Target format for conversion. One of h5, wds or pt.
+            Default: ``"h5"``
+        amp_phase : bool
+            Whether to store data in amplitude/phase or real/imaginary
+            representation. Default: ``True``
+        shard_pattern :  str
+            Naming pattern for WebDataset shards (only applies to wds output).
+            Default: ``"%06d.tar"``
+        compress : bool
+            Whether to compress WebDataset shards (only applies to wds output).
+            Default: ``True``
+
+        Raises
+        ------
+        RuntimeError
+            If source and target formats are identical.
+        """
         self.output_dir = Path(output_dir).expanduser().resolve()
         if not self.output_dir.is_dir():
             self.output_dir.mkdir(parents=True)
