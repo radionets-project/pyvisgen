@@ -89,7 +89,7 @@ def main(
         kwargs = dict(zip(keys, args[1::2]))
 
     # Get correct converter from DataConverter attribute
-    converter = getattr(DataConverter, f"from_{input_format}")
+    converter: DataConverter = getattr(DataConverter, f"from_{input_format}")
     converter(input_dir, dataset_type=dataset_type).to(
         output_dir, output_format=output_format, **kwargs
     )
