@@ -76,6 +76,16 @@ from pyvisgen.io import DataConverter
         Not applied for other data formats.
     """,
 )
+@click.option(
+    "--bundle-size",
+    type=int,
+    default=100,
+    help="""
+        Bundle size used when converting from [bold blue]PyTorch[/] pickle files.
+        Not applied when converting from different data formats.
+    """,
+    show_default=True,
+)
 def main(
     input_dir: str,
     output_dir: str | None,
@@ -85,6 +95,7 @@ def main(
     amp_phase: bool,
     shard_pattern: str,
     compress: bool,
+    bundle_size: int,
 ) -> None:
     """Data format conversion tool for pyvisgen."""
     input_format = input_format.lower()
@@ -107,6 +118,7 @@ def main(
         amp_phase=amp_phase,
         shard_pattern=shard_pattern,
         compress=compress,
+        bundle_size=bundle_size,
     )
 
 
