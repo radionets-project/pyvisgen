@@ -672,6 +672,7 @@ class PTWriter(DataWriter):
         """
         self.output_path = output_path
         self.dataset_type = dataset_type
+        self.half_image = half_image
 
         if amp_phase:
             self.data_type = "amp_phase"
