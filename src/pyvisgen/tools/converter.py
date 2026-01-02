@@ -3,17 +3,7 @@ import rich_click as click
 from pyvisgen.io import DataConverter
 
 
-@click.command(
-    context_settings=dict(
-        ignore_unknown_options=True,
-        allow_extra_args=True,
-    ),
-    epilog="""
-    See https://pyvisgen.readthedocs.io/en/latest/api/pyvisgen.io.dataconverter.DataConverter.html
-    for more information on extra arguments.
-    """,
-)
-@click.pass_context
+@click.command()
 @click.argument(
     "input_dir",
     type=click.Path(exists=True, dir_okay=True),
@@ -29,14 +19,14 @@ from pyvisgen.io import DataConverter
     "--input-format",
     type=click.Choice(["h5", "wds"], case_sensitive=False),
     default="h5",
-    help="Data format of the input dataset.",
+    help="Format of the input dataset.",
     show_default=True,
 )
 @click.option(
     "--output-format",
     type=click.Choice(["h5", "wds"], case_sensitive=False),
     default="wds",
-    help="Data format of the output dataset.",
+    help="Format of the output dataset.",
     show_default=True,
 )
 @click.option(
@@ -52,46 +42,70 @@ from pyvisgen.io import DataConverter
         case_sensitive=False,
     ),
     default="all",
+    help="""Choose between different splits of the datasets to convert.
+        'all' converts 'train', 'valid', and 'test' splits in one go.
+        """,
     show_default=True,
 )
+@click.option(
+    "--amp-phase",
+    is_flag=True,
+    help="""
+        Whether data contains amplitude/phase or real/imaginary data.
+        This is important for metadata in formats like [bold blue]WebDataset[/] or
+        [bold blue]PyTorch[/] pickle files.
+    """,
+)
+@click.option(
+    "--shard-pattern",
+    type=str,
+    default="%06d.tar",
+    help="""
+        Shard pattern for [bold blue]WebDataset[/] files. Must be a C-style format
+        specifier with the '.tar' file suffix. Has no effect on other
+        data formats.
+    """,
+    show_default=True,
+)
+@click.option(
+    "--compress",
+    is_flag=True,
+    help="""
+        Whether to compress [bold blue]WebDataset[/] shards using gzip. Has no effect
+        other data formats.
+    """,
+)
 def main(
-    ctx: click.Context,
     input_dir: str,
     output_dir: str | None,
     input_format: str,
     output_format: str,
     dataset_type: str,
-):
+    amp_phase: bool,
+    shard_pattern: str,
+    compress: bool,
+) -> None:
     """Data format conversion tool for pyvisgen."""
     input_format = input_format.lower()
     output_format = output_format.lower()
     dataset_type = dataset_type.lower()
 
     if input_format == output_format:
-        raise ValueError(
+        raise click.BadParameter(
             "Expected input and output format to be different but "
-            f"got '{input_format}', '{output_format}'."
+            f"both are '{input_format}'."
         )
 
     output_dir = output_dir or input_dir  # If output_dir is None, use input_dir
 
-    kwargs = {}
-    args = ctx.args
-    if args:
-        if len(args) % 2 != 0:
-            raise click.UsageError(
-                "Extra arguments must be key-value pairs: --key value", ctx
-            )
-        # Remove (left) dashes from flags, and replace dashes in args
-        # with underscores so that, e.g. amp-phase will become amp_phase
-        # (just in case)
-        keys = [k.lstrip("-").replace("-", "_") for k in args[::2]]
-        kwargs = dict(zip(keys, args[1::2]))
-
     # Get correct converter from DataConverter attribute
     converter: DataConverter = getattr(DataConverter, f"from_{input_format}")
     converter(input_dir, dataset_type=dataset_type).to(
-        output_dir, output_format=output_format, **kwargs
+        output_dir,
+        output_format=output_format,
+        amp_phase=amp_phase,
+        shard_pattern=shard_pattern,
+        compress=compress,
     )
 
 
