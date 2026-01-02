@@ -30,12 +30,14 @@ class DataConverter:
         cls = cls()
         cls._FMT = "wds"
 
-        cls.datasets = {dataset_type: Path(data_dir).glob(f"{dataset_type}-*.tar*")}
+        data_dir = Path(data_dir).expanduser().resolve()
+
+        cls.datasets = {dataset_type: data_dir.glob(f"{dataset_type}-*.tar*")}
         if dataset_type == "all":
             cls.datasets = {
-                "train": Path(data_dir).glob("train-*.tar*"),
-                "valid": Path(data_dir).glob("valid-*.tar*"),
-                "test": Path(data_dir).glob("test-*.tar*"),
+                "train": data_dir.glob("train-*.tar*"),
+                "valid": data_dir.glob("valid-*.tar*"),
+                "test": data_dir.glob("test-*.tar*"),
             }
 
         return cls
@@ -45,12 +47,14 @@ class DataConverter:
         cls = cls()
         cls._FMT = "h5"
 
-        cls.datasets = {dataset_type: Path(data_dir).glob(f"*{dataset_type}_*.h5")}
+        data_dir = Path(data_dir).expanduser().resolve()
+
+        cls.datasets = {dataset_type: data_dir.glob(f"*{dataset_type}_*.h5")}
         if dataset_type == "all":
             cls.datasets = {
-                "train": Path(data_dir).glob("*train_*.h5"),
-                "valid": Path(data_dir).glob("*valid_*.h5"),
-                "test": Path(data_dir).glob("*test_*.h5"),
+                "train": data_dir.glob("*train_*.h5"),
+                "valid": data_dir.glob("*valid_*.h5"),
+                "test": data_dir.glob("*test_*.h5"),
             }
 
         return cls
@@ -141,7 +145,7 @@ class DataConverter:
         shard_pattern="%06d.tar",
         amp_phase=True,
     ):
-        self.output_dir = Path(output_dir)
+        self.output_dir = Path(output_dir).expanduser().resolve()
         if not self.output_dir.is_dir():
             self.output_dir.mkdir(parents=True)
 
