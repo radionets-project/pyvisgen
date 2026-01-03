@@ -304,7 +304,7 @@ def create_antenna_hdu(obs) -> fits.BinTableHDU:
     STABXYZ = np.array([array["X"], array["Y"], array["Z"]], dtype=">f8").T
     col2 = fits.Column(name="STABXYZ", format="3D", unit="METERS", array=STABXYZ)
 
-    ORBPARM = np.array([], dtype=">f8")
+    ORBPARM = np.array([None], dtype=">f8")
     col3 = fits.Column(name="ORBPARM", format="0D", unit=" ", array=ORBPARM)
 
     NOSTA = np.arange(len(array), dtype=">i4") + 1
