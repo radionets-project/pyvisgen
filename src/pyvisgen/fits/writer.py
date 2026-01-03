@@ -297,8 +297,7 @@ def create_antenna_hdu(obs) -> fits.BinTableHDU:
     """
     array = layouts.get_array_layout(obs.layout, writer=True)
 
-    ANNAME = np.chararray(len(array), itemsize=8, unicode=True)
-    ANNAME[:] = array["station_name"].values
+    ANNAME = np.array(array["station_name"].values, dtype="U8")
     col1 = fits.Column(name="ANNAME", format="8A", array=ANNAME)
 
     STABXYZ = np.array([array["X"], array["Y"], array["Z"]], dtype=">f8").T
@@ -316,8 +315,7 @@ def create_antenna_hdu(obs) -> fits.BinTableHDU:
     STAXOF = np.zeros(len(array), dtype=">f4")
     col6 = fits.Column(name="STAXOF", format="1E", unit="METERS", array=STAXOF)
 
-    POLTYA = np.chararray(len(array), itemsize=1, unicode=True)
-    POLTYA[:] = "X"
+    POLTYA = np.full(len(array), "X", dtype="U")
     col7 = fits.Column(name="POLTYA", format="1A", unit=" ", array=POLTYA)
 
     POLAA = np.ones(len(array), dtype=">f4") * -90
@@ -326,8 +324,7 @@ def create_antenna_hdu(obs) -> fits.BinTableHDU:
     POLCALA = np.zeros((len(array)), dtype=">f4")
     col9 = fits.Column(name="POLCALA", format="1E", unit=" ", array=POLCALA)
 
-    POLTYB = np.chararray(len(array), itemsize=1, unicode=True)
-    POLTYB[:] = "Y"
+    POLTYB = np.full(len(array), "Y", dtype="U")
     col10 = fits.Column(name="POLTYB", format="1A", unit=" ", array=POLTYB)
 
     POLAB = np.ones(len(array), dtype=">f4") * -90
