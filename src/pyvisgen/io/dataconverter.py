@@ -49,7 +49,8 @@ def _batch_array(
     indices = np.arange(batch_size, len(array), batch_size)
 
     if return_indices:
-        return np.split(array, indices), indices
+        # also include zero when returning indices
+        return np.split(array, indices), np.insert(indices, 0, 0)
 
     return np.split(array, indices)
 
@@ -66,12 +67,12 @@ class DataConverter:
     --------
     Convert WebDataset to HDF5:
 
-    >>> converter = DataConverter.from_wds("~/data/visibilities")
-    >>> converter.to("~/data/output", output_format="h5")
+    >>> converter = DataConverter.from_wds("./data/visibilities")
+    >>> converter.to("./data/output", output_format="h5")
 
     Convert HDF5 train split to WebDataset:
 
-    >>> converter = DataConverter.from_h5("~/data/visibilities", dataset_type="train")
+    >>> converter = DataConverter.from_h5("./data/visibilities", dataset_type="train")
     >>> converter.to("~/data/output", output_format="wds", compress=True)
     """
 
