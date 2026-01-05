@@ -743,10 +743,10 @@ class PTWriter(DataWriter):
 
         for i in range(bundle_length):
             output_file = self.output_path / Path(
-                f"samp_{self.dataset_type}_{index + i}.pt"
+                f"samp_{self.dataset_type}_{index * bundle_length + i}.pt"
             )
 
             torch.save(
-                obj={"SIM": x.to_sparse(), "TRUTH": y, "TYPE": self.data_type},
+                obj={"SIM": x[i].to_sparse(), "TRUTH": y[i], "TYPE": self.data_type},
                 f=output_file,
             )
