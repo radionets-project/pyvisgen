@@ -211,14 +211,16 @@ class DataConverter:
                         y = []
                         for file in bundle:
                             data = torch.load(file)
-                            x.append(data["SIM"])
+                            x.append(data["SIM"].to_dense())
                             y.append(data["TRUTH"])
 
+                        x = np.asarray(x)
+                        y = np.asarray(y)
+                        x = np.stack((x.real, x.imag), axis=1)
+                        y = np.stack((y.real, y.imag), axis=1)
+
                         writer.write(
-                            np.asarray(x),
-                            np.asarray(y),
-                            index=int(index),
-                            bundle_length=len(data["SIM"]),
+                            x, y, index=int(index), bundle_length=len(data["SIM"])
                         )
 
     def _to_wds(self) -> None:
@@ -281,16 +283,18 @@ class DataConverter:
                         y = []
                         for file in bundle:
                             data = torch.load(file)
-                            x.append(data["SIM"])
+                            x.append(data["SIM"].to_dense())
                             y.append(data["TRUTH"])
                             if not amp_phase:
                                 amp_phase = data["TYPE"]
 
+                        x = np.asarray(x)
+                        y = np.asarray(y)
+                        x = np.stack((x.real, x.imag), axis=1)
+                        y = np.stack((y.real, y.imag), axis=1)
+
                         writer.write(
-                            np.asarray(x),
-                            np.asarray(y),
-                            index=int(index),
-                            bundle_length=len(data["SIM"]),
+                            x, y, index=int(index), bundle_length=len(data["SIM"])
                         )
                         total_samples += len(x)
 
