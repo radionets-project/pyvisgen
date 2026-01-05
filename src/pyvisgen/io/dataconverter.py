@@ -182,7 +182,7 @@ class DataConverter:
         """Internal method to handle conversion to HDF5 files."""
         if self._FMT == "wds":
             for dataset_type, files in track(
-                self.datasets.items(), description="Converting Dataset to PT"
+                self.datasets.items(), description="Converting Dataset to HDF5"
             ):
                 with H5Writer(
                     output_path=self.output_dir,
@@ -192,7 +192,7 @@ class DataConverter:
                     self._handle_wds(files, writer)
         elif self._FMT == "pt":
             for dataset_type, files in track(
-                self.datasets.items(), description="Converting Dataset to PT"
+                self.datasets.items(), description="Converting Dataset to HDF5"
             ):
                 with H5Writer(
                     output_path=self.output_dir,
@@ -225,7 +225,7 @@ class DataConverter:
         """Internal method to handle conversion to WebDataset files."""
         if self._FMT == "h5":
             for dataset_type, files in track(
-                self.datasets.items(), description="Converting Dataset to HDF5"
+                self.datasets.items(), description="Converting Dataset to WDS"
             ):
                 # total_samples is updated after writing all files
                 total_samples = 0
@@ -254,13 +254,17 @@ class DataConverter:
 
         elif self._FMT == "pt":
             amp_phase = None
+
+            # total_samples is updated after writing all files
+            total_samples = 0
             for dataset_type, files in track(
-                self.datasets.items(), description="Converting Dataset to PT"
+                self.datasets.items(), description="Converting Dataset to WDS"
             ):
                 with WDSShardWriter(
                     output_path=self.output_dir,
                     dataset_type=dataset_type,
                     total_samples=total_samples,
+                    amp_phase=self.amp_phase,
                     shard_pattern=self.shard_pattern,
                     compress=self.compress,
                     half_image=False,
