@@ -332,11 +332,14 @@ class DataConverter:
                         data = h5py.File(file)
                         file_idx = re.findall(r"\d+", file.stem)
 
+                        x = np.asarray(data["x"])
+                        y = np.asarray(data["y"])
+
                         writer.write(
-                            data["x"],
-                            data["y"],
+                            x,
+                            y,
                             index=int(file_idx[0]),
-                            bundle_length=len(data["x"]),
+                            bundle_length=len(x),
                         )
 
     def _handle_wds(self, files, writer):
