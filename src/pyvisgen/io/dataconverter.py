@@ -236,8 +236,8 @@ class DataConverter:
                     output_path=self.output_dir,
                     dataset_type=dataset_type,
                     total_samples=total_samples,
-                    shard_pattern=self.shard_pattern,
                     amp_phase=self.amp_phase,
+                    shard_pattern=self.shard_pattern,
                     compress=self.compress,
                     half_image=False,
                 ) as writer:
@@ -362,7 +362,7 @@ class DataConverter:
             x_data = np.asarray(x_data)
             y_data = np.asarray(y_data)
 
-            writer.write(x_data, y_data, index=file_idx, bundle_length=len(x_data))
+            writer.write(x_data, y_data, index=int(file_idx), bundle_length=len(x_data))
 
     def to(
         self,
