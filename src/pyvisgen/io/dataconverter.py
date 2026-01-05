@@ -72,19 +72,19 @@ class DataConverter:
 
     Convert HDF5 train split to WebDataset:
 
-    >>> converter = DataConverter.from_h5("./data/visibilities", dataset_type="train")
+    >>> converter = DataConverter.from_h5("./data/visibilities", dataset_split="train")
     >>> converter.to("~/data/output", output_format="wds", compress=True)
     """
 
     @classmethod
-    def from_wds(cls, data_dir, dataset_type="all") -> Self:
+    def from_wds(cls, data_dir, dataset_split="all") -> Self:
         """Create a DataConverter instance from WebDataset files.
 
         Parameters
         ----------
         data_dir : str or :class:`~pathlib.Path`
             Directory containing WebDataset .tar(.gz) files.
-        dataset_type :  str or list
+        dataset_split :  str or list
             Dataset split to load.  If "all", loads train, valid, and test.
             Default: ``"all"``
 
@@ -109,26 +109,21 @@ class DataConverter:
         cls._FMT = "wds"
 
         data_dir = Path(data_dir).expanduser().resolve()
+        dataset_split = cls._get_dataset_split(dataset_split)
 
-        if not isinstance(dataset_type, list):
-            dataset_type = [dataset_type]
-
-        if "all" in dataset_type:
-            dataset_type = ["train", "valid", "test"]
-
-        cls.datasets = {t: data_dir.glob(f"{t}-*.tar*") for t in dataset_type}
+        cls.datasets = {t: data_dir.glob(f"{t}-*.tar*") for t in dataset_split}
 
         return cls
 
     @classmethod
-    def from_h5(cls, data_dir, dataset_type="all") -> Self:
+    def from_h5(cls, data_dir, dataset_split="all") -> Self:
         """Create a DataConverter instance from HDF5 files.
 
         Parameters
         ----------
         data_dir : str or :class:`~pathlib.Path`
             Directory containing HDF5 files.
-        dataset_type :  str or list
+        dataset_split :  str or list
             Dataset split to load.  If "all", loads train, valid, and test.
             Default: ``"all"``
 
@@ -141,26 +136,21 @@ class DataConverter:
         cls._FMT = "h5"
 
         data_dir = Path(data_dir).expanduser().resolve()
+        dataset_split = cls._get_dataset_split(dataset_split)
 
-        if not isinstance(dataset_type, list):
-            dataset_type = [dataset_type]
-
-        if "all" in dataset_type:
-            dataset_type = ["train", "valid", "test"]
-
-        cls.datasets = {t: data_dir.glob(f"*{dataset_type}_*.h5") for t in dataset_type}
+        cls.datasets = {t: data_dir.glob(f"*{t}_*.h5") for t in dataset_split}
 
         return cls
 
     @classmethod
-    def from_pt(cls, data_dir, dataset_type="all"):
+    def from_pt(cls, data_dir, dataset_split="all"):
         """Create a DataConverter instance from HDF5 files.
 
         Parameters
         ----------
         data_dir : str or :class:`~pathlib.Path`
             Directory containing .pt files.
-        dataset_type :  str or list
+        dataset_split :  str or list
             Dataset split to load.  If "all", loads train, valid, and test.
             Default: ``"all"``
 
@@ -173,16 +163,20 @@ class DataConverter:
         cls._FMT = "pt"
 
         data_dir = Path(data_dir).expanduser().resolve()
+        dataset_split = cls._get_dataset_split(dataset_split)
 
-        if not isinstance(dataset_type, list):
-            dataset_type = [dataset_type]
-
-        if "all" in dataset_type:
-            dataset_type = ["train", "valid", "test"]
-
-        cls.datasets = {t: data_dir.glob(f"*{dataset_type}_*.pt") for t in dataset_type}
+        cls.datasets = {t: data_dir.glob(f"*{t}_*.pt") for t in dataset_split}
 
         return cls
+
+    def _get_dataset_split(self, dataset_split):
+        if not isinstance(dataset_split, list):
+            dataset_split = [dataset_split]
+
+        if "all" in dataset_split:
+            dataset_split = ["train", "valid", "test"]
+
+        return dataset_split
 
     def _to_h5(self) -> None:
         """Internal method to handle conversion to HDF5 files."""
