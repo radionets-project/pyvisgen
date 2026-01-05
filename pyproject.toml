@@ -109,6 +109,7 @@ omit = [
   "src/pyvisgen/_version.py",
   "src/pyvisgen/gridding/alt_gridder.py",
   "src/pyvisgen/version.py",
+  "tests/*"
 ]
 
 [tool.coverage.xml]
