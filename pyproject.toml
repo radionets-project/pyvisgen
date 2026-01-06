@@ -28,7 +28,7 @@ classifiers = [
   "Topic :: Scientific/Engineering :: Physics",
 ]
 dependencies = [
-  "astropy<=6.1.0",
+  "astropy>=7.2.0",
   "click",
   "h5py",
   "joblib",
