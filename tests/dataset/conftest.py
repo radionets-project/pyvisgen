@@ -11,11 +11,6 @@ def simulate_dataset() -> SimulateDataSet:
 
 
 @pytest.fixture
-def _simulate_dataset() -> type[SimulateDataSet]:
-    return SimulateDataSet
-
-
-@pytest.fixture
 def sd_sampling(simulate_dataset: SimulateDataSet) -> SimulateDataSet:
     simulate_dataset.conf = Config.from_toml("tests/test_conf.toml")
     simulate_dataset.rng = np.random.default_rng()
