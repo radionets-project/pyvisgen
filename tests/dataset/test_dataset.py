@@ -1,5 +1,5 @@
 from datetime import datetime
-from logging import WARNING
+from logging import INFO, WARNING
 from unittest.mock import call, patch
 
 import numpy as np
@@ -9,11 +9,6 @@ import torch
 from pyvisgen.dataset import SimulateDataSet
 from pyvisgen.io import Config
 from pyvisgen.layouts import Stations
-
-
-class MockProgress:
-    def update(self, **kwargs) -> None:
-        pass
 
 
 class TestGetGridder:
@@ -99,7 +94,6 @@ class TestCreateObservation:
             assert call_kwargs["dense"] is True
 
 
-@patch("pyvisgen.dataset.dataset.overall_progress", new=MockProgress)
 class TestCreateSamplingRC:
     def test_samp_opts_const_keys(self, sd_sampling: SimulateDataSet) -> None:
         sd_sampling.create_sampling_rc(1)
@@ -435,3 +429,94 @@ class TestFromConfig:
         assert "No images found in bundles! Please check your input path!" in str(
             excinfo.value
         )
+
+
+class TestRun:
+    @pytest.fixture
+    def sd_run(self, mocker, sd_sampling: SimulateDataSet) -> SimulateDataSet:
+        sd_sampling.data_paths = [None, None]  # 2 bundles
+        sd_sampling.writer = None  # dummy to add writer attribute for mocks
+        sd_sampling.gridder = None  # dummy to add gridder attribute for mocks
+
+        mocker.patch.object(
+            sd_sampling, "get_images", return_value=torch.zeros((10, 1, 32, 32))
+        )
+        mocker.patch.object(sd_sampling, "create_observation")
+        mocker.patch("pyvisgen.dataset.dataset.vis_loop")
+        mocker.patch.object(sd_sampling, "writer")
+        mocker.patch.object(sd_sampling, "gridder")
+
+        return sd_sampling
+
+    @pytest.mark.parametrize("amp_phase", [True, False])
+    def test_grid(
+        self, amp_phase: bool, mocker, caplog, sd_run: SimulateDataSet
+    ) -> None:
+        sd_run.grid = True
+        sd_run.stokes_comp = "I"
+        sd_run.conf.bundle.amp_phase = amp_phase
+
+        mock_gridder = mocker.patch.object(sd_run.gridder, "from_pyvisgen")
+        mock_writer = mocker.patch.object(sd_run.writer, "write")
+        mock_convert_amp_phase = mocker.patch(
+            "pyvisgen.dataset.dataset.convert_amp_phase",
+            return_value=torch.zeros((10, 2, 32, 32)),
+        )
+        mock_convert_real_imag = mocker.patch(
+            "pyvisgen.dataset.dataset.convert_real_imag",
+            return_value=torch.zeros((10, 2, 32, 32)),
+        )
+
+        with caplog.at_level(INFO):
+            sd_run._run()
+
+        assert mock_gridder.called
+        assert mock_writer.called
+
+        if amp_phase:
+            assert mock_convert_amp_phase.called
+            assert not mock_convert_real_imag.called
+        else:
+            assert mock_convert_real_imag.called
+            assert not mock_convert_amp_phase.called
+
+        assert "Successfully simulated and saved" in caplog.text
+
+    @pytest.mark.parametrize("amp_phase", [True, False])
+    def test_grid_raise_wrong_shape(
+        self, amp_phase: bool, mocker, sd_run: SimulateDataSet
+    ) -> None:
+        sd_run.grid = True
+        sd_run.stokes_comp = "I"
+        sd_run.conf.bundle.amp_phase = amp_phase
+
+        mocker.patch.object(sd_run.gridder, "from_pyvisgen")
+        mocker.patch.object(sd_run.writer, "write")
+        mocker.patch(
+            "pyvisgen.dataset.dataset.convert_amp_phase",
+            return_value=torch.zeros((10, 1, 32, 32)),
+        )
+        mocker.patch(
+            "pyvisgen.dataset.dataset.convert_real_imag",
+            return_value=torch.zeros((10, 1, 32, 32)),
+        )
+
+        with pytest.raises(ValueError) as excinfo:
+            sd_run._run()
+
+        assert "Expected 'sim_data' axis at index 1 to be 2!" in str(excinfo.value)
+
+    def test_no_grid(self, mocker, caplog, sd_run: SimulateDataSet) -> None:
+        sd_run.grid = False
+        sd_run.stokes_comp = "I"
+
+        mock_gridder = mocker.patch.object(sd_run.gridder, "from_pyvisgen")
+        mock_writer = mocker.patch.object(sd_run.writer, "write")
+
+        with caplog.at_level(INFO):
+            sd_run._run()
+
+        assert not mock_gridder.called
+        assert mock_writer.called
+
+        assert "Successfully simulated and saved" in caplog.text
