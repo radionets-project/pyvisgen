@@ -492,12 +492,12 @@ class SimulateDataSet:
         delta, amp_ratio, field_order, field_scale = np.full((4, size), np.nan)
 
         if self.conf.polarization.mode:
-            if self.conf.polarization.delta:
+            if self.conf.polarization.delta is not None:
                 delta = np.repeat(self.conf.polarization.delta, size)
             else:
                 delta = self.rng.uniform(0, 180, size)
 
-            if self.conf.polarization.amp_ratio:
+            if self.conf.polarization.amp_ratio is not None:
                 amp_ratio = np.repeat(self.conf.polarization.amp_ratio, size)
             else:
                 amp_ratio = self.rng.uniform(0, 1, size)
