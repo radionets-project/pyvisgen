@@ -222,6 +222,8 @@ class SimulateDataSet:
                     ).grid()
 
                     sim_data.append(np.array(grid_data.get_mask_real_imag()))
+                else:
+                    sim_data.append(vis)
 
                 current_bundle_progress.update(current_bundle_task_id, advance=1)
 
