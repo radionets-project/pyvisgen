@@ -157,12 +157,9 @@ class SimulateDataSet:
                 for bundle_id in range(len(cls.data_paths)):
                     num_images_list.append(len(cls.get_images(bundle_id)))
                     counting_progress.update(counting_task_id, advance=1)
-                print(num_images_list)
 
                 cls.num_images = int(np.sum(num_images_list))
                 overall_progress.update(cls.overall_task_id, advance=1)
-
-                print(cls.num_images)
 
             if cls.num_images == 0:
                 raise ValueError(
