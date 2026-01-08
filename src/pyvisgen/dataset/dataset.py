@@ -299,9 +299,9 @@ class SimulateDataSet:
             LOGGER.warning(e)
             LOGGER.warning("Falling back to default gridder!")
 
-            gridder = Gridder
+            self.gridder = Gridder
 
-        return gridder
+        return self.gridder
 
     def get_images(self, i: int) -> torch.tensor:
         """Opens bundle with index i and returns :func:`~torch.tensor`
