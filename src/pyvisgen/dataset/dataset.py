@@ -55,7 +55,7 @@ class SimulateDataSet:
     @classmethod
     def from_config(
         cls,
-        config: str | Path | dict,
+        config: str | Path | dict | Config,
         /,
         image_key: str = "y",
         *,
