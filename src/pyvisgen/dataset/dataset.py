@@ -303,7 +303,7 @@ class SimulateDataSet:
 
         return self.gridder
 
-    def get_images(self, i: int) -> torch.tensor:
+    def get_images(self, i: int) -> torch.Tensor:
         """Opens bundle with index i and returns :func:`~torch.tensor`
         of images.
 
@@ -516,7 +516,7 @@ class SimulateDataSet:
                 )
             else:
                 a = self.rng.uniform(0, 1 - 1e-6, size)
-                b = np.repeat(1, size, dtype=float)
+                b = np.repeat(1, size)
                 field_scale = np.stack((a, b), axis=1)
 
         samp_opts = dict(
@@ -634,8 +634,8 @@ class SimulateDataSet:
         return Time(time_steps)
 
     def _geocentric_to_spherical(
-        self, x: torch.tensor, y: torch.tensor, z: torch.tensor
-    ) -> torch.tensor:
+        self, x: torch.Tensor, y: torch.Tensor, z: torch.Tensor
+    ) -> tuple[torch.Tensor, torch.Tensor]:
         """Convert geocentric coordinates to lon/lat.
 
         Parameters
@@ -657,8 +657,8 @@ class SimulateDataSet:
         return lat, lon
 
     def _compute_altitude(
-        self, ra: torch.tensor, dec: torch.tensor, lst: torch.tensor
-    ) -> torch.tensor:
+        self, ra: torch.Tensor, dec: torch.Tensor, lst: torch.Tensor
+    ) -> torch.Tensor:
         """Computes altitude for a given RA/DEC, and local sidereal time (LST).
 
         Parameters
