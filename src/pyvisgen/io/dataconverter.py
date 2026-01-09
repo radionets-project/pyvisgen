@@ -190,6 +190,7 @@ class DataConverter:
                     half_image=False,
                 ) as writer:
                     self._handle_wds(files, writer)
+
         elif self._FMT == "pt":
             for dataset_type, files in track(
                 self.datasets.items(), description="Converting Dataset to HDF5"
@@ -199,29 +200,24 @@ class DataConverter:
                     dataset_type=dataset_type,
                     half_image=False,
                 ) as writer:
-                    bundles, indices = _batch_array(
-                        np.asarray(natsorted(files)),
-                        self.bundle_size,
-                        return_indices=True,
-                    )
-                    for bundle, index in track(
-                        zip(bundles, indices), description="Processing files..."
-                    ):
-                        x = []
-                        y = []
-                        for file in bundle:
-                            data = torch.load(file)
-                            x.append(data["SIM"].to_dense())
-                            y.append(data["TRUTH"])
+                    self._handle_pt(files, writer)
+        elif self._FMT == "h5":
+            if not self.convert_representation:
+                raise RuntimeError(
+                    f"Forbidden: Cannot convert {self._FMT} to h5 if "
+                    "'convert_representation' is set to 'False'. "
+                    "Please make sure that input and output formats are different."
+                )
 
-                        x = np.asarray(x)
-                        y = np.asarray(y)
-                        x = np.stack((x.real, x.imag), axis=1)
-                        y = np.stack((y.real, y.imag), axis=1)
-
-                        writer.write(
-                            x, y, index=int(index), bundle_length=len(data["SIM"])
-                        )
+            for dataset_type, files in track(
+                self.datasets.items(), description="Converting Dataset to HDF5"
+            ):
+                with H5Writer(
+                    output_path=self.output_dir,
+                    dataset_type=dataset_type,
+                    half_image=False,
+                ) as writer:
+                    self._handle_h5(files, writer)
 
     def _to_wds(self) -> None:
         """Internal method to handle conversion to WebDataset files."""
@@ -236,17 +232,14 @@ class DataConverter:
                     output_path=self.output_dir,
                     dataset_type=dataset_type,
                     total_samples=total_samples,
-                    amp_phase=self.amp_phase,
+                    amp_phase=not self.amp_phase
+                    if self.convert_representation
+                    else self.amp_phase,
                     shard_pattern=self.shard_pattern,
                     compress=self.compress,
                     half_image=False,
                 ) as writer:
-                    for file in track(list(files), description="Processing files..."):
-                        data = h5py.File(file)
-                        file_idx = re.findall(r"\d+", file.stem)
-
-                        writer.write(data["x"], data["y"], index=int(file_idx[0]))
-                        total_samples += len(data["x"])
+                    total_samples = self._handle_h5(files, writer, total_samples)
 
                     for file in self.output_dir.glob(f"{dataset_type}*.parquet"):
                         metadata = pa.parquet.read_table(file).to_pandas()
@@ -255,8 +248,6 @@ class DataConverter:
                         pa.parquet.write_table(table, file)
 
         elif self._FMT == "pt":
-            amp_phase = None
-
             # total_samples is updated after writing all files
             total_samples = 0
             for dataset_type, files in track(
@@ -266,42 +257,43 @@ class DataConverter:
                     output_path=self.output_dir,
                     dataset_type=dataset_type,
                     total_samples=total_samples,
-                    amp_phase=self.amp_phase,
+                    amp_phase=not self.amp_phase
+                    if self.convert_representation
+                    else self.amp_phase,
                     shard_pattern=self.shard_pattern,
                     compress=self.compress,
                     half_image=False,
                 ) as writer:
-                    bundles, indices = _batch_array(
-                        np.asarray(natsorted(files)),
-                        self.bundle_size,
-                        return_indices=True,
-                    )
-                    for bundle, index in track(
-                        zip(bundles, indices), description="Processing files..."
-                    ):
-                        x = []
-                        y = []
-                        for file in bundle:
-                            data = torch.load(file)
-                            x.append(data["SIM"].to_dense())
-                            y.append(data["TRUTH"])
-                            if not amp_phase:
-                                amp_phase = data["TYPE"]
-
-                        x = np.asarray(x)
-                        y = np.asarray(y)
-                        x = np.stack((x.real, x.imag), axis=1)
-                        y = np.stack((y.real, y.imag), axis=1)
-
-                        writer.write(
-                            x, y, index=int(index), bundle_length=len(data["SIM"])
-                        )
-                        total_samples += len(x)
+                    total_samples = self._handle_pt(files, writer, total_samples)
 
                     for file in self.output_dir.glob(f"{dataset_type}*.parquet"):
                         metadata = pa.parquet.read_table(file).to_pandas()
                         metadata["total_samples_in_dataset"] = [total_samples]
-                        metadata["data_type"] = [amp_phase]
+                        table = pa.Table.from_pandas(metadata)
+                        pa.parquet.write_table(table, file)
+
+        elif self._FMT == "wds":
+            # total_samples is updated after writing all files
+            total_samples = 0
+            for dataset_type, files in track(
+                self.datasets.items(), description="Converting Dataset to WDS"
+            ):
+                with WDSShardWriter(
+                    output_path=self.output_dir,
+                    dataset_type=dataset_type,
+                    total_samples=total_samples,
+                    amp_phase=not self.amp_phase
+                    if self.convert_representation
+                    else self.amp_phase,
+                    shard_pattern=self.shard_pattern,
+                    compress=self.compress,
+                    half_image=False,
+                ) as writer:
+                    total_samples = self._handle_wds(files, writer, total_samples)
+
+                    for file in self.output_dir.glob(f"{dataset_type}*.parquet"):
+                        metadata = pa.parquet.read_table(file).to_pandas()
+                        metadata["total_samples_in_dataset"] = [total_samples]
                         table = pa.Table.from_pandas(metadata)
                         pa.parquet.write_table(table, file)
 
@@ -314,10 +306,13 @@ class DataConverter:
                 with PTWriter(
                     output_path=self.output_dir,
                     dataset_type=dataset_type,
-                    amp_phase=self.amp_phase,
+                    amp_phase=not self.amp_phase
+                    if self.convert_representation
+                    else self.amp_phase,
                     half_image=False,
                 ) as writer:
                     self._handle_wds(files, writer)
+
         elif self._FMT == "h5":
             for dataset_type, files in track(
                 self.datasets.items(), description="Converting Dataset to PT"
@@ -325,24 +320,28 @@ class DataConverter:
                 with PTWriter(
                     output_path=self.output_dir,
                     dataset_type=dataset_type,
-                    amp_phase=self.amp_phase,
+                    amp_phase=not self.amp_phase
+                    if self.convert_representation
+                    else self.amp_phase,
                     half_image=False,
                 ) as writer:
-                    for file in track(list(files), description="Processing files..."):
-                        data = h5py.File(file)
-                        file_idx = re.findall(r"\d+", file.stem)
+                    self._handle_h5(files, writer)
 
-                        x = np.asarray(data["x"])
-                        y = np.asarray(data["y"])
+        elif self._FMT == "pt":
+            for dataset_type, files in track(
+                self.datasets.items(), description="Converting Dataset to PT"
+            ):
+                with PTWriter(
+                    output_path=self.output_dir,
+                    dataset_type=dataset_type,
+                    amp_phase=not self.amp_phase
+                    if self.convert_representation
+                    else self.amp_phase,
+                    half_image=False,
+                ) as writer:
+                    self._handle_pt(files, writer)
 
-                        writer.write(
-                            x,
-                            y,
-                            index=int(file_idx[0]),
-                            bundle_length=len(x),
-                        )
-
-    def _handle_wds(self, files, writer):
+    def _handle_wds(self, files, writer, total_samples=0):
         for file in track(list(files), description="Processing files..."):
             file_idx = re.findall(r"\d+", file.stem)
             file_idx = re.sub(r"0+(.+)", r"\1", *file_idx)
@@ -353,16 +352,78 @@ class DataConverter:
                 .to_tuple("input.npy", "target.npy")
             )
 
-            x_data = []
-            y_data = []
+            x = []
+            y = []
             for inp, tar in webdataset:
-                x_data.append(inp)
-                y_data.append(tar)
+                x.append(inp)
+                y.append(tar)
 
-            x_data = np.asarray(x_data)
-            y_data = np.asarray(y_data)
+            x = np.asarray(x)
+            y = np.asarray(y)
 
-            writer.write(x_data, y_data, index=int(file_idx), bundle_length=len(x_data))
+            if self.convert_representation:
+                x = self.convert_repr.convert(torch.from_numpy(x))
+                y = self.convert_repr.convert(torch.from_numpy(y))
+
+            writer.write(x, y, index=int(file_idx), bundle_length=len(x))
+
+            total_samples += len(x)
+
+            return total_samples
+
+    def _handle_h5(self, files, writer, total_samples=0):
+        for file in track(list(files), description="Processing files..."):
+            data = h5py.File(file)
+            file_idx = re.findall(r"\d+", file.stem)
+
+            x = np.asarray(data["x"])
+            y = np.asarray(data["y"])
+
+            if self.convert_representation:
+                x = self.convert_repr.convert(torch.from_numpy(x))
+                y = self.convert_repr.convert(torch.from_numpy(y))
+
+            writer.write(
+                x,
+                y,
+                index=int(file_idx[0]),
+                bundle_length=len(x),
+            )
+
+            total_samples += len(x)
+
+            return total_samples
+
+    def _handle_pt(self, files, writer, total_samples=0):
+        bundles, indices = _batch_array(
+            np.asarray(natsorted(files)),
+            self.bundle_size,
+            return_indices=True,
+        )
+
+        for bundle, index in track(
+            zip(bundles, indices), description="Processing files..."
+        ):
+            x = []
+            y = []
+            for file in bundle:
+                data = torch.load(file)
+                x.append(data["SIM"].to_dense())
+                y.append(data["TRUTH"])
+
+            x = np.asarray(x)
+            y = np.asarray(y)
+            x = np.stack((x.real, x.imag), axis=1)
+            y = np.stack((y.real, y.imag), axis=1)
+
+            if self.convert_representation:
+                x = self.convert_repr.convert(torch.from_numpy(x))
+                y = self.convert_repr.convert(torch.from_numpy(y))
+
+            writer.write(x, y, index=int(index), bundle_length=len(x))
+            total_samples += len(x)
+
+        return total_samples
 
     def to(
         self,
@@ -372,6 +433,7 @@ class DataConverter:
         shard_pattern: str = "%06d.tar",
         compress: bool = True,
         bundle_size: int = 100,
+        convert_representation: bool = False,
     ) -> None:
         """Convert the loaded dataset to the specified output format.
 
@@ -379,18 +441,27 @@ class DataConverter:
         ----------
         output_dir : str or :class:`~pathlib.Path`
             Directory to write converted files to.
-        output_format : str
+        output_format : str, optional
             Target format for conversion. One of h5, wds or pt.
             Default: ``"h5"``
-        amp_phase : bool
-            Whether to store data in amplitude/phase or real/imaginary
+        amp_phase : bool, optional
+            Whether data is in amplitude/phase or real/imaginary
             representation. Default: ``True``
-        shard_pattern :  str
+        shard_pattern :  str, optional
             Naming pattern for WebDataset shards (only applies to wds output).
             Default: ``"%06d.tar"``
         compress : bool
             Whether to compress WebDataset shards (only applies to wds output).
             Default: ``True``
+        bundle_size : int, optional
+            Bundle size for HDF5 and WebDataset shards when converting from
+            PyTorch pickle files. Default: 100
+        convert_representation : bool, optional
+            If ``True`` convert from one amplitude/phase representation to
+            real/imaginary or vice versa. Note, that this requires amp_phase
+            to match the actual representation in the input data as this
+            determines which way the conversion will be applied.
+            Default: False
 
         Raises
         ------
@@ -412,6 +483,17 @@ class DataConverter:
         self.compress = compress
         self.bundle_size = bundle_size
 
+        self.convert_representation = convert_representation
+
+        if self.convert_representation:
+            if amp_phase is None:
+                raise ValueError(
+                    "Cannot convert data representation without "
+                    "a valid value for 'amp_phase'. Please set 'amp_phase' "
+                    "to either 'True' or 'False'."
+                )
+            self.convert_repr = DataTypeConverter(input_amp_phase=self.amp_phase)
+
         match output_format:
             case "h5":
                 self._to_h5()
@@ -419,3 +501,30 @@ class DataConverter:
                 self._to_wds()
             case "pt":
                 self._to_pt()
+
+
+class DataTypeConverter:
+    def __init__(self, input_amp_phase) -> None:
+        self.input_amp_phase = input_amp_phase
+
+    def to_amp_phase(self, data: torch.Tensor) -> torch.Tensor:
+        real, imag = data[:, 0], data[:, 1]
+
+        amp = torch.hypot(real, imag)
+        phase = torch.atan2(imag, real)
+
+        return torch.stack((amp, phase), dim=1)
+
+    def to_real_imag(self, data: torch.Tensor) -> torch.Tensor:
+        amp, phase = data[:, 0], data[:, 1]
+
+        real = amp * torch.cos(phase)
+        imag = amp * torch.sin(phase)
+
+        return torch.stack((real, imag), dim=1)
+
+    def convert(self, data: torch.Tensor) -> torch.Tensor:
+        if self.input_amp_phase:
+            return self.to_real_imag(data)
+        else:
+            return self.to_amp_phase(data)
