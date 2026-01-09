@@ -3,7 +3,7 @@ import os
 import tomllib
 from collections.abc import Callable
 from pathlib import Path
-from typing import Literal
+from typing import Annotated, Literal
 
 from pydantic import BaseModel, Field, ValidationInfo, field_validator
 
@@ -73,15 +73,25 @@ class PolarizationConfig(BaseModel, validate_assignment=True):
     """Polarization config BaseModel"""
 
     mode: Literal["linear", "circular", "none"] | None = None
-    delta: float = Field(default=45)
-    amp_ratio: float = Field(default=0.5)
-    field_order: list[float] = [0.01, 0.01]
-    field_scale: list[float] = [0, 1]
-    field_threshold: float | Literal["none"] | None = None
+    delta: float | None = Field(default=45)
+    amp_ratio: Annotated[float, Field(ge=0.0, le=1.0)] | None = Field(default=0.5)
+    field_order: list[float] | None = [0.01, 0.01]
+    field_scale: list[float] | None = [0.0, 1.0]
+    field_threshold: float | None = None
 
-    @field_validator("mode", "field_threshold")
+    @field_validator(
+        "mode",
+        "delta",
+        "amp_ratio",
+        "field_order",
+        "field_scale",
+        "field_threshold",
+        mode="before",
+    )
     @classmethod
-    def parse_mode_thresh(cls, v: str | float) -> str | float | None:
+    def parse_mode_thresh(
+        cls, v: str | float | list | None
+    ) -> str | float | list | None:
         if v == "none":
             v = None
 
@@ -101,14 +111,13 @@ class BundleConfig(BaseModel, validate_assignment=True):
 
     @field_validator("in_path", "out_path")
     @classmethod
-    def expand_path(cls, v: Path, info: ValidationInfo) -> Path:
+    def expand_path(cls, v: str | Path, info: ValidationInfo) -> Path:
         """Expand and resolve paths."""
 
-        if v in {None, False, "none", ""}:
+        if v in {"none", ""}:
             raise ValueError(f"'{info.field_name}' cannot be empty!")
-        else:
-            v = Path(v)
-            v.expanduser().resolve()
+
+        v = Path(v).expanduser().resolve()
 
         return v
 
@@ -136,7 +145,7 @@ class DataWriterConfig(BaseModel, validate_assignment=True):
             output_writer = _avail_writers["H5Writer"]
         elif writer.lower() in ["wds", "webdataset"]:
             output_writer = _avail_writers["WDSShardWriter"]
-        elif writer.lower() in ["pt", "ptx"]:
+        elif writer.lower() in ["pt"]:
             output_writer = _avail_writers["PTWriter"]
         else:
             output_writer = _avail_writers[writer]
@@ -178,10 +187,6 @@ class Config(BaseModel):
             data = tomllib.load(f)
 
         return cls(**data)
-
-    def to_dict(self) -> dict:
-        """Export configuration as a dictionary."""
-        return self.model_dump()
 
     @field_validator("codecarbon", mode="after")
     @classmethod
