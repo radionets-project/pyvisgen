@@ -681,8 +681,8 @@ class PTWriter(DataWriter):
 
     def write(
         self,
-        x: np.ndarray,
-        y: np.ndarray,
+        x: np.ndarray | torch.Tensor,
+        y: np.ndarray | torch.Tensor,
         *,
         index,
         bundle_length: int,
@@ -732,8 +732,10 @@ class PTWriter(DataWriter):
         if self.half_image:
             x, y = self.get_half_image(x, y, overlap=overlap)
 
-        x = torch.from_numpy(x)
-        y = torch.from_numpy(y)
+        if isinstance(x, np.ndarray):
+            x = torch.from_numpy(x)
+        if isinstance(y, np.ndarray):
+            y = torch.from_numpy(y)
 
         self.test_shapes(x, "X")
         self.test_shapes(y, "y")
