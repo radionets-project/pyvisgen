@@ -188,12 +188,14 @@ class Config(BaseModel):
 
         return cls(**data)
 
-    @field_validator("codecarbon", mode="after")
+    @field_validator("codecarbon", mode="before")
     @classmethod
     def validate_codecarbon(cls, v: bool | CodeCarbonEmissionTrackerConfig):
-        if isinstance(v, dict):  # pragma: no cover
+        if isinstance(v, dict):
+            print("hi")
             return CodeCarbonEmissionTrackerConfig(**v, project_name="pyvisgen")
         elif v is True:
+            print("why")
             return CodeCarbonEmissionTrackerConfig(project_name="pyvisgen")
 
         return v

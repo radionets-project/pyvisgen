@@ -311,10 +311,14 @@ class TestConfig:
         assert isinstance(cfg.fft, FFTConfig)
         assert cfg.codecarbon is False
 
-    def test_codecarbon_true(self) -> None:
-        cfg = Config(codecarbon=True)
+    @pytest.mark.parametrize("enabled", [True, False])
+    def test_codecarbon(self, enabled: bool) -> None:
+        cfg = Config(codecarbon=enabled)
 
-        assert isinstance(cfg.codecarbon, CodeCarbonEmissionTrackerConfig)
+        if enabled:
+            assert isinstance(cfg.codecarbon, CodeCarbonEmissionTrackerConfig)
+        else:
+            assert cfg.codecarbon is False
 
     def test_codecarbon_dict(self) -> None:
         cfg = Config(codecarbon={"log_level": "info", "country_iso_code": "JPN"})
