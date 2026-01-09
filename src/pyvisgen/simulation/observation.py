@@ -518,7 +518,7 @@ class Observation:
         device: str,
         dense: bool = False,
         sensitivity_cut: float = 1e-6,
-        polarization: str = None,
+        polarization: str | None = None,
         pol_kwargs: dict = DEFAULT_POL_KWARGS,
         field_kwargs: dict = DEFAULT_FIELD_KWARGS,
         show_progress: bool = False,
