@@ -1,0 +1,3 @@
+Added data format converter (:class:`pyvisgen.io.DataConverter`) that enables fast conversion between HDF5, WebDatset, and PyTorch files
+
+Added CLI tool (``$ pyvisgen convert``) for the new data format converter

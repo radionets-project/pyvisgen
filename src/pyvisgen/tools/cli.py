@@ -2,19 +2,15 @@ import rich_click as click
 
 from pyvisgen import __version__
 
+from .converter import main as converter
 from .create_dataset import main as create_dataset
 from .quickstart import main as quickstart
 
 click.rich_click.COMMAND_GROUPS = {
     "pyvisgen": [
-        {
-            "name": "Simulation",
-            "commands": ["simulate"],
-        },
-        {
-            "name": "Setup",
-            "commands": ["quickstart"],
-        },
+        {"name": "Simulation", "commands": ["simulate"]},
+        {"name": "Setup", "commands": ["quickstart"]},
+        {"name": "Data Format Conversion", "commands": ["convert"]},
     ]
 }
 
@@ -31,6 +27,7 @@ def main():
 
 main.add_command(quickstart, name="quickstart")
 main.add_command(create_dataset, name="simulate")
+main.add_command(converter, name="convert")
 
 if __name__ == "__main__":
     main()

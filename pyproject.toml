@@ -109,6 +109,7 @@ omit = [
   "src/pyvisgen/_version.py",
   "src/pyvisgen/gridding/alt_gridder.py",
   "src/pyvisgen/version.py",
+  "tests/*"
 ]
 
 [tool.coverage.xml]
@@ -120,6 +121,8 @@ exclude_also = [
   "raise NotImplementedError",
   "if __name__ == .__main__.:",
   "if TYPE_CHECKING:",
+  "if not _WDS_AVAIL:",
+  "try:(?s:.)*?except ImportError:",
 ]
 
 [tool.hatch.version]

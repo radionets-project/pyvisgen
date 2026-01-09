@@ -146,15 +146,7 @@ class SimulateDataSet:
             f"Simulating {cls.conf.bundle.dataset_type} dataset", total=3
         )
 
-        with (
-            Live(progress_group),
-            cls.conf.datawriter.writer(
-                output_path=cls.out_path,
-                dataset_type=cls.conf.bundle.dataset_type,
-                amp_phase=cls.conf.bundle.amp_phase,
-                **cls.conf.datawriter.model_dump(),
-            ) as cls.writer,
-        ):
+        with Live(progress_group):
             if cls.num_images is None:
                 # get number of random parameter draws from number of images in data
                 counting_task_id = counting_progress.add_task(
