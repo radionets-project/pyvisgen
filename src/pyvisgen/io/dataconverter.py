@@ -202,13 +202,6 @@ class DataConverter:
                 ) as writer:
                     self._handle_pt(files, writer)
         elif self._FMT == "h5":
-            if not self.convert_representation:
-                raise RuntimeError(
-                    f"Forbidden: Cannot convert {self._FMT} to h5 if "
-                    "'convert_representation' is set to 'False'. "
-                    "Please make sure that input and output formats are different."
-                )
-
             for dataset_type, files in track(
                 self.datasets.items(), description="Converting Dataset to HDF5"
             ):
@@ -468,10 +461,16 @@ class DataConverter:
         RuntimeError
             If source and target formats are identical.
         """
-        if self._FMT.lower() == output_format.lower():
+        self.convert_representation = convert_representation
+
+        if (
+            self._FMT.lower() == output_format.lower()
+            and not self.convert_representation
+        ):
             raise RuntimeError(
-                f"Forbidden: Cannot convert {self._FMT} to {output_format}. "
-                "Check that input and output formats are different."
+                f"Forbidden: Cannot convert {self._FMT} to h5 if "
+                "'convert_representation' is set to 'False'. "
+                "Please make sure that input and output formats are different."
             )
 
         self.output_dir = Path(output_dir).expanduser().resolve()
@@ -482,8 +481,6 @@ class DataConverter:
         self.shard_pattern = shard_pattern
         self.compress = compress
         self.bundle_size = bundle_size
-
-        self.convert_representation = convert_representation
 
         if self.convert_representation:
             if amp_phase is None:
@@ -504,7 +501,7 @@ class DataConverter:
 
 
 class DataTypeConverter:
-    def __init__(self, input_amp_phase) -> None:
+    def __init__(self, input_amp_phase=True) -> None:
         self.input_amp_phase = input_amp_phase
 
     def to_amp_phase(self, data: torch.Tensor) -> torch.Tensor:
