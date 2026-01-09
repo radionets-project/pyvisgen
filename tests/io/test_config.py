@@ -283,3 +283,53 @@ class TestSamplingConfig:
         cfg = SamplingConfig(seed=seed)
 
         assert cfg.seed == expected
+
+
+class TestConfig:
+    def test_keys(self) -> None:
+        cfg = Config()
+        expected_keys = {
+            "sampling",
+            "polarization",
+            "bundle",
+            "datawriter",
+            "gridding",
+            "fft",
+            "codecarbon",
+        }
+
+        assert set(cfg.model_dump()) == expected_keys
+
+    def test_defaults(self) -> None:
+        cfg = Config()
+
+        assert isinstance(cfg.sampling, SamplingConfig)
+        assert isinstance(cfg.polarization, PolarizationConfig)
+        assert isinstance(cfg.bundle, BundleConfig)
+        assert isinstance(cfg.datawriter, DataWriterConfig)
+        assert isinstance(cfg.gridding, GriddingConfig)
+        assert isinstance(cfg.fft, FFTConfig)
+        assert cfg.codecarbon is False
+
+    def test_codecarbon_true(self) -> None:
+        cfg = Config(codecarbon=True)
+
+        assert isinstance(cfg.codecarbon, CodeCarbonEmissionTrackerConfig)
+
+    def test_codecarbon_dict(self) -> None:
+        cfg = Config(codecarbon={"log_level": "info", "country_iso_code": "JPN"})
+
+        assert isinstance(cfg.codecarbon, CodeCarbonEmissionTrackerConfig)
+        assert cfg.codecarbon.log_level == "info"
+        assert cfg.codecarbon.country_iso_code == "JPN"
+
+    def test_from_toml(self) -> None:
+        cfg = Config.from_toml("tests/test_conf.toml")
+
+        # random selection of keys
+        assert cfg.sampling.mode == "full"
+        assert cfg.sampling.device == "cpu"
+        assert cfg.polarization.mode is None
+        assert cfg.polarization.delta == 45
+        assert cfg.bundle.dataset_type == ""
+        assert cfg.bundle.out_path == Path("./tests/build/gridded").resolve()
