@@ -8,7 +8,13 @@ import torch
 import webdataset as wds
 from natsort import natsorted
 
-from pyvisgen.io.datawriters import DataWriter, H5Writer, PTWriter, WDSShardWriter
+from pyvisgen.io.datawriters import (
+    DataWriter,
+    FITSWriter,
+    H5Writer,
+    PTWriter,
+    WDSShardWriter,
+)
 
 
 class TestH5Writer:
@@ -224,6 +230,22 @@ class TestPTWriter:
 
             np.testing.assert_array_equal(pt_x, x[i, :, :half_image, :])
             np.testing.assert_array_equal(pt_y, y[i, :, :half_image, :])
+
+
+class TestFITSWriter:
+    def test_write(self, output_dir: Path, mocker) -> None:
+        vis_data = None
+        obs = None
+
+        mock_create_hdu_list = mocker.patch("pyvisgen.io.datawriters.create_hdu_list")
+
+        writer = FITSWriter(output_path=output_dir, dataset_type="train")
+        writer.write(vis_data, obs, index=0)
+
+        # check that create_hdu_list is called
+        # but do not call actual method since we're
+        # missing vis_data and obs here
+        assert mock_create_hdu_list.called
 
 
 class TestWriterABC:
