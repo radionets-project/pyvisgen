@@ -1,9 +1,5 @@
 import numpy as np
 
-from pyvisgen.utils.logging import setup_logger
-
-LOGGER = setup_logger()
-
 
 def calc_truth_fft(sky_dist):
     truth_fft = np.fft.fftshift(
