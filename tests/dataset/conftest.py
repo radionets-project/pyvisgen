@@ -24,3 +24,24 @@ def sd_sampling(mocker, simulate_dataset: SimulateDataSet) -> SimulateDataSet:
     mocker.patch("pyvisgen.dataset.dataset.current_bundle_progress")
 
     return simulate_dataset
+
+
+@pytest.fixture
+def sky_dist() -> np.ndarray:
+    rng = np.random.default_rng()
+
+    return rng.uniform(size=(10, 1, 32, 32))
+
+
+@pytest.fixture
+def two_channel_sky_dist() -> np.ndarray:
+    rng = np.random.default_rng()
+
+    return rng.uniform(size=(10, 2, 32, 32))
+
+
+@pytest.fixture
+def complex_sky_dist() -> np.ndarray:
+    rng = np.random.default_rng()
+
+    return rng.uniform(size=(10, 1, 32, 32)) + 1j * rng.uniform(size=(10, 1, 32, 32))
