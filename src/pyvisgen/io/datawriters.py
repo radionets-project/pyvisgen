@@ -60,7 +60,9 @@ class DataWriter(ABC):
     """
 
     @abstractmethod
-    def __init__(self, output_path: Path, dataset_type: str, *args, **kwargs) -> None:
+    def __init__(
+        self, output_path: Path, dataset_type: str, *args, **kwargs
+    ) -> None:  # pragma: no cover
         """Initialize the data writer.
 
         This method must be implemented by subclasses to handle the setup
@@ -80,7 +82,7 @@ class DataWriter(ABC):
         ...
 
     @abstractmethod
-    def write(self, *args, **kwargs) -> None:
+    def write(self, *args, **kwargs) -> None:  # pragma: no cover
         """Write data to the output destination.
 
         This method must be implemented by subclasses to handle the actual
@@ -716,10 +718,10 @@ class PTWriter(DataWriter):
 
         for i in range(bundle_length):
             output_file = self.output_path / Path(
-                f"samp_{self.dataset_type}_{index + i}.pt"
+                f"samp_{self.dataset_type}_{index * bundle_length + i}.pt"
             )
 
             torch.save(
-                obj={"SIM": x.to_sparse(), "TRUTH": y, "TYPE": self.data_type},
+                obj={"SIM": x[i].to_sparse(), "TRUTH": y[i], "TYPE": self.data_type},
                 f=output_file,
             )
