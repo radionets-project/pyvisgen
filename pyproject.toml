@@ -118,6 +118,7 @@ exclude_also = [
   "raise NotImplementedError",
   "if __name__ == .__main__.:",
   "if TYPE_CHECKING:",
+  "try:(?s:.)*?except ImportError:",
 ]
 
 [tool.hatch.version]
