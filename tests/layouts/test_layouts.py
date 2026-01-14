@@ -4,7 +4,7 @@ import numpy as np
 import pandas as pd
 import pytest
 
-from pyvisgen.layouts import Stations, get_array_layout
+from pyvisgen.layouts import Stations, get_array_layout, get_array_names
 
 
 class TestStations:
@@ -72,3 +72,27 @@ class TestGetArrayLayout:
 
         assert isinstance(stations, pd.DataFrame)
         pd.testing.assert_frame_equal(stations, df)
+
+    def test_vla_abs_pos(self, mocker, monkeypatch):
+        mock_loc = mocker.MagicMock()
+        mock_loc.value = np.ones(shape=(27))
+
+        mock_earth_location = mocker.patch(
+            "pyvisgen.layouts.layouts.EarthLocation.of_site", return_value=mock_loc
+        )
+        get_array_layout(array_layout="vla")
+
+        assert mock_earth_location.called
+
+
+class TestGetArrayNames:
+    def test_array_names(self) -> None:
+        names = get_array_names()
+
+        expected_subset = {"alma", "vla", "eht", "vlba", "meerkat", "dsa2000_31b"}
+
+        assert isinstance(names, list)
+        assert len(names) > 0
+        assert all(isinstance(n, str) for n in names)
+        # assert that expected_subset is a subset of names
+        assert set(names) >= expected_subset
