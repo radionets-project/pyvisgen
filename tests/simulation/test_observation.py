@@ -1,10 +1,17 @@
 from dataclasses import fields
 
+import astropy.units as un
 import numpy as np
 import pytest
 import torch
+from astropy.time import Time
 
-from pyvisgen.simulation.observation import Baselines, ValidBaselineSubset
+from pyvisgen.simulation.observation import (
+    Baselines,
+    Observation,
+    Scan,
+    ValidBaselineSubset,
+)
 
 
 class TestBaselines:
@@ -106,3 +113,131 @@ class TestValidBaselineSubset:
 
         assert isinstance(unique, ValidBaselineSubset)
         assert unique.u_valid.shape == torch.Size([expected])
+
+    def test_lexsort(self, subset: ValidBaselineSubset):
+        vals = torch.rand(4)
+        arr = vals[(torch.rand(3, 9) * 4).long()]
+
+        expected = np.lexsort(arr.detach().cpu().numpy())
+        result = subset._lexsort(arr)
+
+        np.testing.assert_array_equal(result, expected)
+
+
+class TestScan:
+    def test_get_num_timesteps(self, scan: Scan) -> None:
+        assert scan.get_num_timesteps() == 181
+
+    def test_get_timesteps(self, scan: Scan) -> None:
+        timesteps = scan.get_timesteps()
+
+        assert isinstance(timesteps, Time)
+        assert len(timesteps) == scan.get_num_timesteps()
+        assert timesteps[0] == scan.start
+        assert timesteps[-1] == scan.stop
+
+    def test_post_init_cast_to_astropy_quantity(self):
+        start = Time("2026-01-21T00:00:00", format="isot", scale="utc")
+        stop = Time("2026-01-21T01:00:00", format="isot", scale="utc")
+
+        scan = Scan(start=start, stop=stop, separation=10, integration_time=10)
+
+        assert isinstance(scan.separation, un.Quantity)
+        assert isinstance(scan.integration_time, un.Quantity)
+        assert scan.separation.unit == un.second
+        assert scan.integration_time.unit == un.second
+
+    def test_post_init_unit_conversion(self):
+        start = Time("2026-01-21T00:00:00", format="isot", scale="utc")
+        stop = Time("2026-01-21T01:00:00", format="isot", scale="utc")
+
+        scan = Scan(
+            start=start,
+            stop=stop,
+            separation=10 * un.minute,
+            integration_time=10 * un.minute,
+        )
+
+        assert scan.separation.unit == un.second
+        assert scan.integration_time.unit == un.second
+        assert scan.separation == 600 * un.second
+        assert scan.integration_time == 600 * un.second
+
+
+class TestObservation:
+    def test_init(self, obs: Observation, obs_params: dict) -> None:
+        assert obs.ra == obs_params["src_ra"]
+        assert obs.dec == obs_params["src_dec"]
+        assert obs.ra.dtype == torch.double
+        assert obs.dec.dtype == torch.double
+
+        assert obs.num_scans == obs_params["num_scans"]
+        assert len(obs.scans) == obs_params["num_scans"]
+
+    def test_create_scans(self, obs_params: dict) -> None:
+        obs_params["num_scans"] = 2
+        obs_params["scan_duration"] = [400, 600]
+        obs_params["scan_separation"] = [60]
+        obs_params["integration_time"] = [30, 60]
+        obs = Observation(**obs_params)
+
+        assert len(obs.scans) == 2
+
+    def test_create_lm_grid(self, obs: Observation, device) -> None:
+        img_size = obs.img_size
+
+        lm = obs.create_lm_grid()
+        dev = torch.device(device)
+
+        assert lm.shape == (img_size, img_size, 2)
+        assert lm.device.type == dev.type
+
+    def test_create_rd_grid(self, obs: Observation, device) -> None:
+        img_size = obs.img_size
+
+        rd = obs.create_rd_grid()
+        dev = torch.device(device)
+
+        assert rd.shape == (img_size, img_size, 2)
+        assert rd.device.type == dev.type
+
+    def test_calc_direction_cosines(self, obs: Observation) -> None:
+        ha = torch.rand(1)
+        el_st = torch.rand(10)
+        delta_x = torch.rand((1, 10))
+        delta_y = torch.rand((1, 10))
+        delta_z = torch.rand((1, 10))
+
+        u, v, w = obs.calc_direction_cosines(ha, el_st, delta_x, delta_y, delta_z)
+
+        assert u.shape == v.shape == w.shape
+        assert u.shape[0] == 10
+
+    def test_calc__ref_elev(self, obs: Observation) -> None:
+        times = obs.scans[0].get_timesteps()
+
+        gha, ha_local, el_st = obs.calc_ref_elev(times)
+
+        assert gha.shape[0] == ha_local.shape[0] == el_st.shape[0] == len(times)
+
+    def test_calc_ref_elev_scalar_time(self, obs: Observation) -> None:
+        time = obs.scans[0].start
+
+        gha, ha_local, el_st = obs.calc_ref_elev(time)
+
+        assert gha.shape[0] == ha_local.shape[0] == el_st.shape[0] == 1
+
+    def test_calc_feed_rotation(self, mocker, obs: Observation) -> None:
+        ha = torch.tensor([-30, 0, 30])
+
+        array_loc = mocker.MagicMock()
+        array_loc.lat = 45
+
+        obs.array_earth_loc = array_loc
+        obs.dec = torch.tensor([45])
+
+        q = obs.calc_feed_rotation(torch.deg2rad(ha))
+
+        np.testing.assert_allclose(
+            torch.rad2deg(q), [-79.2714, 0.0, 79.2714], rtol=1e-5
+        )
