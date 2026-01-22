@@ -922,15 +922,13 @@ class Observation:
         """
         # We need to create a tensor from the EarthLocation object
         # and save only the geographical latitude of each antenna
-        ant_lat = torch.tensor(self.array_earth_loc.lat)
+        ant_lat = torch.deg2rad(torch.tensor(self.array_earth_loc.lat))
+        dec = torch.deg2rad(self.dec)
 
         # Eqn (13.1) of Meeus' Astronomical Algorithms
         q = torch.arctan2(
             torch.sin(ha),
-            (
-                torch.tan(ant_lat) * torch.cos(self.dec)
-                - torch.sin(self.dec) * torch.cos(ha)
-            ),
+            torch.tan(ant_lat) * torch.cos(dec) - torch.sin(dec) * torch.cos(ha),
         )
 
         return q
