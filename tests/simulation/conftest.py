@@ -1,8 +1,15 @@
+import datetime
+
 import pytest
 import torch
 from astropy.time import Time
 
-from pyvisgen.simulation.observation import Baselines, ValidBaselineSubset
+from pyvisgen.simulation.observation import (
+    Baselines,
+    Observation,
+    Scan,
+    ValidBaselineSubset,
+)
 
 
 @pytest.fixture(scope="module")
@@ -64,3 +71,37 @@ def baselines(baselines_data: dict[str, torch.Tensor]) -> Baselines:
 @pytest.fixture(scope="module")
 def subset(subset_data: dict[str, torch.Tensor]) -> ValidBaselineSubset:
     return ValidBaselineSubset(**subset_data)
+
+
+@pytest.fixture(scope="module")
+def scan() -> Scan:
+    start = Time("2026-01-21T00:00:00", format="isot", scale="utc")
+    stop = Time("2026-01-21T03:00:00", format="isot", scale="utc")
+
+    return Scan(start=start, stop=stop, separation=4500.0, integration_time=60.0)
+
+
+@pytest.fixture(scope="module")
+def obs_params() -> dict:
+    return {
+        "src_ra": 180.0,
+        "src_dec": 45.0,
+        "start_time": datetime.datetime(2026, 1, 21, 0, 0, 0),
+        "scan_duration": 400,
+        "num_scans": 6,
+        "scan_separation": 120,
+        "integration_time": 60,
+        "ref_frequency": 15.7e9,
+        "frequency_offsets": [0.0],
+        "bandwidths": [1e8],
+        "fov": 0.1,
+        "image_size": 64,
+        "array_layout": "vlba",
+        "corrupted": False,
+        "device": "cuda" if torch.cuda.is_available() else "cpu",
+    }
+
+
+@pytest.fixture(scope="module")
+def obs(obs_params: dict) -> Observation:
+    return Observation(**obs_params)
