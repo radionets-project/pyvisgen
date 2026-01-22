@@ -5,7 +5,7 @@ import astropy.units as un
 import numpy as np
 import torch
 from astropy.constants import c
-from astropy.coordinates import AltAz, Angle, EarthLocation, Longitude, SkyCoord
+from astropy.coordinates import AltAz, EarthLocation, Longitude, SkyCoord
 from astropy.time import Time
 from tqdm.auto import tqdm
 
@@ -65,15 +65,15 @@ class Baselines:
         Tensor of parallactic angle values.
     """
 
-    st1: torch.tensor
-    st2: torch.tensor
-    u: torch.tensor
-    v: torch.tensor
-    w: torch.tensor
-    valid: torch.tensor
-    time: torch.tensor
-    q1: torch.tensor
-    q2: torch.tensor
+    st1: torch.Tensor
+    st2: torch.Tensor
+    u: torch.Tensor
+    v: torch.Tensor
+    w: torch.Tensor
+    valid: torch.Tensor
+    time: torch.Tensor
+    q1: torch.Tensor
+    q2: torch.Tensor
 
     def __getitem__(self, i):
         """Returns element at index ``i`` for all fields."""
@@ -217,23 +217,23 @@ class ValidBaselineSubset:
         Valid parallactic angle values (second half of the pair).
     """
 
-    u_start: torch.tensor
-    u_stop: torch.tensor
-    u_valid: torch.tensor
-    v_start: torch.tensor
-    v_stop: torch.tensor
-    v_valid: torch.tensor
-    w_start: torch.tensor
-    w_stop: torch.tensor
-    w_valid: torch.tensor
-    baseline_nums: torch.tensor
-    date: torch.tensor
-    q1_start: torch.tensor
-    q1_stop: torch.tensor
-    q1_valid: torch.tensor
-    q2_start: torch.tensor
-    q2_stop: torch.tensor
-    q2_valid: torch.tensor
+    u_start: torch.Tensor
+    u_stop: torch.Tensor
+    u_valid: torch.Tensor
+    v_start: torch.Tensor
+    v_stop: torch.Tensor
+    v_valid: torch.Tensor
+    w_start: torch.Tensor
+    w_stop: torch.Tensor
+    w_valid: torch.Tensor
+    baseline_nums: torch.Tensor
+    date: torch.Tensor
+    q1_start: torch.Tensor
+    q1_stop: torch.Tensor
+    q1_valid: torch.Tensor
+    q2_start: torch.Tensor
+    q2_stop: torch.Tensor
+    q2_valid: torch.Tensor
 
     def __getitem__(self, i):
         """Returns element at index ``i`` for all fields."""
@@ -342,7 +342,7 @@ class ValidBaselineSubset:
 
         return self[:][:, indices_bucket_sort[first_indices]]
 
-    def _lexsort(self, a: torch.tensor, dim: int = -1) -> torch.tensor:
+    def _lexsort(self, a: torch.Tensor, dim: int = -1) -> torch.Tensor:
         """Sort a sequence of tensors in lexicographic order.
 
         Parameters
@@ -378,19 +378,14 @@ class Scan:
 
     Attributes
     ----------
-
     start: astropy.times.Time
-    The start time of the scan
-
+        The start time of the scan
     stop: astropy.times.Time
-    The stop time of the scan
-
+        The stop time of the scan
     separation: float
-    The separation to the next scan in seconds
-
+        The separation to the next scan in seconds
     integration_time: float
-    The integration time of the interferometer for this scan.
-
+        The integration time of the interferometer for this scan.
     """
 
     start: Time
@@ -661,10 +656,8 @@ class Observation:
 
         Returns
         -------
-
         list[Scan]:
             List of scans with a specific start, stop and integration time
-
         """
         scans = []
 
@@ -900,9 +893,21 @@ class Observation:
             torch.tensor(el_st_all.alt.degree),
         )
 
-    def calc_feed_rotation(self, ha: Angle) -> Angle:
+    def calc_feed_rotation(self, ha: torch.Tensor) -> torch.Tensor:
         r"""Calculates feed rotation for every antenna at
         every time step.
+
+        Parameters
+        ----------
+        ha : torch.tensor
+            Local hour angle in radian.
+
+        Returns
+        -------
+        q : torch.tensor
+            Feed rotation, or parallactic angle of the source for
+            an observer at :attr:`Observation.array_earth_loc` and
+            local hour angle ``ha``.
 
         Notes
         -----
@@ -1005,11 +1010,11 @@ class Observation:
 
     def calc_direction_cosines(
         self,
-        ha: torch.tensor,
-        el_st: torch.tensor,
-        delta_x: torch.tensor,
-        delta_y: torch.tensor,
-        delta_z: torch.tensor,
+        ha: torch.Tensor,
+        el_st: torch.Tensor,
+        delta_x: torch.Tensor,
+        delta_y: torch.Tensor,
+        delta_z: torch.Tensor,
     ):
         """Calculates direction cosines u, v, and w for
         given hour angles and relative antenna positions.
