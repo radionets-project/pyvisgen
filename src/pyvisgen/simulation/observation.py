@@ -401,7 +401,7 @@ class Scan:
 
         """
         return int(
-            ((self.stop - self.start).to(un.second) // self.integration_time).value
+            ((self.stop - self.start).to(un.second) // self.integration_time).value + 1
         )
 
     def get_timesteps(self):
@@ -417,7 +417,7 @@ class Scan:
         return Time(
             [
                 min([self.start + i * self.integration_time, self.stop])
-                for i in range(0, self.get_num_timesteps() + 1)
+                for i in range(0, self.get_num_timesteps())
             ]
         )
 
