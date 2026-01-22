@@ -79,6 +79,8 @@ class TestValidBaselineSubset:
             (0.1, 15e9, 32, 8),
             (0.1, 15e9, 64, 10),
             (3600, 1.4e9, 32, 2),
+            (0.1, 15e9, 35, 8),  # also test for odd image size
+            (1e-8, 1.4e9, 32, 1),  # very small fov
         ],
     )
     def test_get_unique_grid(
