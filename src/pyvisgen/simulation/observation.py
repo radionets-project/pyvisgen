@@ -237,27 +237,7 @@ class ValidBaselineSubset:
 
     def __getitem__(self, i):
         """Returns element at index ``i`` for all fields."""
-        return torch.stack(
-            [
-                self.u_start,
-                self.u_stop,
-                self.u_valid,
-                self.v_start,
-                self.v_stop,
-                self.v_valid,
-                self.w_start,
-                self.w_stop,
-                self.w_valid,
-                self.baseline_nums,
-                self.date,
-                self.q1_start,
-                self.q1_stop,
-                self.q1_valid,
-                self.q2_start,
-                self.q2_stop,
-                self.q2_valid,
-            ]
-        )
+        return ValidBaselineSubset(*[getattr(self, f.name)[i] for f in fields(self)])
 
     def get_timerange(self, t_start, t_stop):
         """Returns all attributes that fall into the time range
