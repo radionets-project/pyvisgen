@@ -307,7 +307,7 @@ class ValidBaselineSubset:
             bins = bins[:-1]
 
         indices_bucket = torch.bucketize(uv, bins)
-        indices_bucket_sort, indices_bucket_inv = self._lexsort(indices_bucket)
+        indices_bucket_sort = self._lexsort(indices_bucket)
         indices_unique, indices_unique_inv, counts = torch.unique_consecutive(
             indices_bucket[:, indices_bucket_sort],
             dim=1,
@@ -337,7 +337,7 @@ class ValidBaselineSubset:
         # To be consistent with numpy, we flip the keys (sort by last row first)
         a_unq, inv = torch.unique(a.flip(0), dim=dim, sorted=True, return_inverse=True)
 
-        return torch.argsort(inv), inv
+        return torch.argsort(inv)
 
 
 @dataclass
