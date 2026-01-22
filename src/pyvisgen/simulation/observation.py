@@ -320,7 +320,11 @@ class ValidBaselineSubset:
         cum_sum = torch.cat((torch.tensor([0], device=device), cum_sum[:-1]))
         first_indices = ind_sorted[cum_sum]
 
-        return self[:][:, indices_bucket_sort[first_indices]]
+        unique_grid_indices = indices_bucket_sort[first_indices]
+
+        return ValidBaselineSubset(
+            *[getattr(self, f.name)[unique_grid_indices] for f in fields(self)]
+        )
 
     def _lexsort(self, a: torch.Tensor, dim: int = -1) -> torch.Tensor:
         """Sort a sequence of tensors in lexicographic order.
