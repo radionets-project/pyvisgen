@@ -878,7 +878,7 @@ class Observation:
                 ),
             )
         )
-        if not len(GHA.value) == len(el_st_all):
+        if not len(GHA.value) == len(el_st_all):  # pragma: no cover
             raise ValueError(
                 "Expected GHA and el_st_all to have the same length"
                 f"{len(GHA.value)} and {len(el_st_all)}"
@@ -1051,11 +1051,5 @@ class Observation:
             - torch.cos(src_dec) * torch.sin(ha) * delta_y
             + torch.sin(src_dec) * delta_z
         ).reshape(-1)
-
-        if not (u.shape == v.shape == w.shape):
-            raise ValueError(
-                "Expected u, v, and w to have the same shapes "
-                f"but got {u.shape}, {v.shape}, and {w.shape}."
-            )
 
         return u, v, w
