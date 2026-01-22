@@ -377,6 +377,19 @@ class Scan:
     separation: float
     integration_time: float
 
+    def __post_init__(self):
+        if not isinstance(self.separation, un.Quantity):
+            self.separation *= un.second
+
+        if not isinstance(self.integration_time, un.Quantity):
+            self.integration_time *= un.second
+
+        if self.separation.unit != un.second:
+            self.separation = self.separation.to("second")
+
+        if self.integration_time.unit != un.second:
+            self.integration_time = self.integration_time.to("second")
+
     def get_num_timesteps(self):
         """
         Get the number of time steps in the scan.
