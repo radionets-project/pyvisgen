@@ -776,8 +776,8 @@ class Observation:
         GHA, ha_local, el_st_all = self.calc_ref_elev(time=times)
 
         ar = Array(self.array)
-        delta_x, delta_y, delta_z = ar.calc_relative_pos
-        st_num_pairs, els_low_pairs, els_high_pairs = ar.calc_ant_pair_vals
+        delta_x, delta_y, delta_z = ar.relative_pos
+        st_num_pairs, els_low_pairs, els_high_pairs = ar.antenna_pairs
 
         baselines = Baselines(
             torch.tensor([]),  # st1
