@@ -20,7 +20,7 @@ class TestStations:
             diam=np.full(shape=(10), fill_value=5),
             el_low=np.full(shape=(10), fill_value=15),
             el_high=np.full(shape=(10), fill_value=85),
-            altitude=rng.uniform(1e4, 8e4, size=(10)),
+            altitude=rng.uniform(1e2, 8e3, size=(10)),
             sefd=np.full(shape=(10), fill_value=100),
         )
 
