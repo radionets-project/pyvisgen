@@ -276,10 +276,10 @@ class TestObservation:
     def test_calc_feed_rotation(self, mocker, obs: Observation) -> None:
         ha = torch.tensor([-30, 0, 30])
 
-        array_loc = mocker.MagicMock()
-        array_loc.lat = 45
+        mock_array_loc = mocker.MagicMock()
+        mock_array_loc.lat = 45
 
-        obs.array_earth_loc = array_loc
+        obs.array_earth_loc = mock_array_loc
         obs.dec = torch.tensor([45])
 
         q = obs.calc_feed_rotation(torch.deg2rad(ha))
