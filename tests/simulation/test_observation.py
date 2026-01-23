@@ -4,6 +4,7 @@ import astropy.units as un
 import numpy as np
 import pytest
 import torch
+from astropy.coordinates import Angle
 from astropy.time import Time
 
 from pyvisgen.simulation.observation import (
@@ -243,12 +244,27 @@ class TestObservation:
         assert u.shape == v.shape == w.shape
         assert u.shape[0] == 10
 
-    def test_calc__ref_elev(self, obs: Observation) -> None:
-        times = obs.scans[0].get_timesteps()
+    def test_calc_ref_elev(self, obs: Observation) -> None:
+        times = ["1999-01-01T10:00:00", "2010-12-02T18:00:00", "2026-01-21T12:00:00"]
 
-        gha, ha_local, el_st = obs.calc_ref_elev(times)
+        expected_gha = Angle(
+            [
+                "70:36:53 degrees",
+                "161:28:22 degrees",
+                "120:52:6 degrees",
+            ]
+        )
+
+        gha, ha_local, el_st = obs.calc_ref_elev(Time(times))
 
         assert gha.shape[0] == ha_local.shape[0] == el_st.shape[0] == len(times)
+        np.testing.assert_allclose(gha, expected_gha.value, rtol=1e-2)
+
+        assert (
+            ha_local.shape
+            == el_st.shape
+            == torch.Size([len(times), len(obs.array_earth_loc)])
+        )
 
     def test_calc_ref_elev_scalar_time(self, obs: Observation) -> None:
         time = obs.scans[0].start
