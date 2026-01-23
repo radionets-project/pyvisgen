@@ -191,6 +191,19 @@ class TestObservation:
         assert obs.num_scans == obs_params["num_scans"]
         assert len(obs.scans) == obs_params["num_scans"]
 
+    @pytest.mark.skipif(not torch.cuda.is_available(), reason="CUDA not available")
+    def test_init_device_cuda(self, obs_params: dict) -> None:
+        obs_params["device"] = "cuda"
+        obs = Observation(**obs_params)
+
+        assert obs.rd.device.type == "cuda"
+        assert obs.lm.device.type == "cuda"
+
+        subset = obs.baselines.get_valid_subset(obs.num_baselines, "cuda")
+
+        assert subset.u_valid.device.type == "cuda"
+        assert subset.v_valid.device.type == "cuda"
+
     def test_create_scans(self, obs_params: dict) -> None:
         obs_params["num_scans"] = 2
         obs_params["scan_duration"] = [400, 600]
