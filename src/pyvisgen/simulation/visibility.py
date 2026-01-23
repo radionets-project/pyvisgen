@@ -45,18 +45,18 @@ class Visibilities:
     circular_dop : :func:`~torch.tensor`
     """
 
-    V_11: torch.tensor
-    V_22: torch.tensor
-    V_12: torch.tensor
-    V_21: torch.tensor
-    num: torch.tensor
-    base_num: torch.tensor
-    u: torch.tensor
-    v: torch.tensor
-    w: torch.tensor
-    date: torch.tensor
-    linear_dop: torch.tensor
-    circular_dop: torch.tensor
+    V_11: torch.Tensor
+    V_22: torch.Tensor
+    V_12: torch.Tensor
+    V_21: torch.Tensor
+    num: torch.Tensor
+    base_num: torch.Tensor
+    u: torch.Tensor
+    v: torch.Tensor
+    w: torch.Tensor
+    date: torch.Tensor
+    linear_dop: torch.Tensor
+    circular_dop: torch.Tensor
 
     def __getitem__(self, i):
         return Visibilities(*[getattr(self, f.name)[i] for f in fields(self)])
@@ -114,7 +114,7 @@ class Polarization:
 
     def __init__(
         self,
-        SI: torch.tensor,
+        SI: torch.Tensor,
         sensitivity_cut: float,
         amp_ratio: float,
         delta: float,
@@ -331,7 +331,7 @@ class Polarization:
         random_state: int = None,
         scale: list = None,
         threshold: float = None,
-    ) -> torch.tensor:
+    ) -> torch.Tensor:
         """
         Generates a random noise mask for polarization.
 
@@ -405,7 +405,7 @@ class Polarization:
 
 def vis_loop(
     obs,
-    SI: torch.tensor,
+    SI: torch.Tensor,
     num_threads: int = 10,
     noisy: bool = True,
     mode: str = "full",
@@ -551,10 +551,10 @@ def _batch_loop(
     visibilities,
     vis_num: int,
     obs,
-    B: torch.tensor,
+    B: torch.Tensor,
     bas,
-    lm: torch.tensor,
-    rd: torch.tensor,
+    lm: torch.Tensor,
+    rd: torch.Tensor,
     noisy: bool | float,
     show_progress: bool,
     mode: str,
