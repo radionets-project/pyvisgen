@@ -287,3 +287,111 @@ class TestObservation:
         np.testing.assert_allclose(
             torch.rad2deg(q), [-79.2714, 0.0, 79.2714], rtol=1e-5
         )
+
+    def test_get_baselines2(self, obs_params: dict) -> None:
+        obs = Observation(**obs_params)
+        times = obs.scans[0].get_timesteps()
+
+        baselines = obs.get_baselines(times)
+
+        assert isinstance(baselines, Baselines)
+        assert baselines.u.shape[0] > 0
+
+    def test_get_baselines(self, mocker, obs_params: dict) -> None:
+        obs = Observation(**obs_params)
+        times = obs.scans[0].get_timesteps()
+
+        mock_calc_rev_elev = mocker.patch.object(
+            obs,
+            "calc_ref_elev",
+            return_value=(
+                torch.rand(len(times)),
+                torch.rand((len(times), len(obs.array_earth_loc))),
+                torch.rand((len(times), len(obs.array_earth_loc))),
+            ),
+        )
+
+        mock_calc_feed_rotation = mocker.patch.object(
+            obs,
+            "calc_feed_rotation",
+            return_value=torch.rand((len(times), len(obs.array_earth_loc))),
+        )
+
+        mock_uvw = torch.ones(obs.num_baselines)
+        mock_calc_direction_cosines = mocker.patch.object(
+            obs, "calc_direction_cosines", return_value=(mock_uvw, mock_uvw, mock_uvw)
+        )
+
+        baselines = obs.get_baselines(times)
+
+        assert isinstance(baselines, Baselines)
+        assert mock_calc_rev_elev.called
+        assert mock_calc_feed_rotation.called
+        assert mock_calc_direction_cosines.called
+        assert baselines.u.shape[0] == len(times) * obs.num_baselines
+        np.testing.assert_array_equal(baselines.u[0], mock_uvw)
+
+    def test_get_baselines_scalar_time(self, obs_params: dict) -> None:
+        obs = Observation(**obs_params)
+        time = obs.scans[0].start
+
+        baselines = obs.get_baselines(time)
+
+        assert isinstance(baselines, Baselines)
+        assert baselines.u.shape[0] == obs.num_baselines
+
+    def test_calc_baselines(self, obs_params: dict) -> None:
+        obs = Observation(**obs_params)
+
+        assert hasattr(obs, "baselines")
+        assert hasattr(obs.baselines, "num")
+        assert hasattr(obs.baselines, "times_unique")
+        assert hasattr(obs.baselines, "u")
+        assert obs.baselines.u.shape[0] > 0
+
+    def test_frequencies(self, obs_params: dict) -> None:
+        obs = Observation(**obs_params)
+
+        assert obs.ref_frequency == obs_params["ref_frequency"]
+        assert obs.waves_low.shape == obs.waves_high.shape
+        assert torch.all(obs.waves_high <= obs.waves_high)
+
+    def test_multiple_frequency_offsets(self, obs_params: dict) -> None:
+        obs_params["frequency_offsets"] = [0.0, 1.28e8, 2.56e8]
+        obs_params["bandwidths"] = [1.28e8, 1.28e8, 1.28e8]
+
+        obs = Observation(**obs_params)
+
+        assert obs.waves_low.shape[0] == obs.waves_high.shape[0] == 3
+
+    def test_single_scan(self, obs_params: dict) -> None:
+        obs_params["num_scans"] = 1
+        obs = Observation(**obs_params)
+
+        assert len(obs.scans) == 1
+
+    def test_polarization_attr(self, obs_params: dict) -> None:
+        obs_params["polarization"] = "linear"
+        obs_params["pol_kwargs"] = {"delta": 45, "amp_ratio": 0.5, "random_state": 42}
+        obs_params["field_kwargs"] = {
+            "order": [0.1, 0.1],
+            "scale": [0, 1],
+            "threshold": None,
+            "random_state": 42,
+        }
+
+        obs = Observation(**obs_params)
+
+        assert obs.polarization == obs_params["polarization"]
+        assert obs.pol_kwargs == obs_params["pol_kwargs"]
+        assert obs.field_kwargs == obs_params["field_kwargs"]
+
+    def test_dense(self, obs_params: dict, device: str) -> None:
+        obs_params["dense"] = True
+        obs = Observation(**obs_params)
+
+        assert isinstance(obs.waves_low, list)
+        assert isinstance(obs.waves_high, list)
+        assert hasattr(obs, "dense_baselines_gpu")
+        assert isinstance(obs.dense_baselines_gpu, torch.Tensor)
+        assert obs.ra.device.type == obs.dec.device.type == device
