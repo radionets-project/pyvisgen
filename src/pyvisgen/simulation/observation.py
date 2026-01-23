@@ -303,7 +303,7 @@ class ValidBaselineSubset:
             ).astype(np.float64)
         ).to(device)
 
-        if len(bins) - 1 > img_size:
+        if len(bins) - 1 > img_size:  # pragma: no cover
             bins = bins[:-1]
 
         indices_bucket = torch.bucketize(uv, bins)
@@ -625,7 +625,7 @@ class Observation:
             len(self.array.st_num) * (len(self.array.st_num) - 1) / 2
         )
 
-        if dense:  # pragma: no cover
+        if dense:
             self.waves_low = [self.ref_frequency]
             self.waves_high = [self.ref_frequency]
             self.calc_dense_baselines()
@@ -686,7 +686,7 @@ class Observation:
 
         return scans
 
-    def calc_dense_baselines(self):  # pragma: no cover
+    def calc_dense_baselines(self):
         """Calculates the baselines of a densely-built
         antenna array, which would provide full coverage of the
         uv space.
