@@ -51,6 +51,23 @@ class TestBaselines:
         assert isinstance(subset, ValidBaselineSubset)
         assert len(subset.date) == sum(valid)
 
+    def test_add_baseline_to_empty(self, baselines: Baselines) -> None:
+        empty = Baselines(
+            st1=torch.tensor([]),
+            st2=torch.tensor([]),
+            u=torch.tensor([]),
+            v=torch.tensor([]),
+            w=torch.tensor([]),
+            valid=torch.tensor([]),
+            time=torch.tensor([]),
+            q1=torch.tensor([]),
+            q2=torch.tensor([]),
+        )
+
+        empty.add_baseline(baselines)
+
+        assert empty.u.shape == baselines.u.shape
+
 
 class TestValidBaselineSubset:
     def test_get_item(self, subset: ValidBaselineSubset) -> None:
