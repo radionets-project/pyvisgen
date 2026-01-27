@@ -522,7 +522,7 @@ def vis_loop(
         raise ValueError(f"Unsupported mode: {mode}")
 
     if batch_size == "auto":
-        batch_size = bas[:].shape[1]
+        batch_size = bas.baseline_nums.shape[0]
 
     visibilities = adaptive_batch_size(
         _batch_loop,
@@ -601,7 +601,7 @@ def _batch_loop(
     visibilities : Visibilities
         Visibilities dataclass object.
     """
-    batches = torch.arange(bas[:].shape[1]).split(batch_size)
+    batches = torch.arange(bas.baseline_nums.shape[0]).split(batch_size)
     batches = tqdm(
         batches,
         position=0,
@@ -611,7 +611,7 @@ def _batch_loop(
     )
 
     for p in batches:
-        bas_p = bas[:][:, p]
+        bas_p = bas[p]
 
         int_values = torch.cat(
             [
@@ -650,11 +650,11 @@ def _batch_loop(
             int_values[..., 0, 1].cpu(),  # V_12
             int_values[..., 1, 0].cpu(),  # V_21
             vis_num,
-            bas_p[9].cpu(),
-            bas_p[2].cpu(),
-            bas_p[5].cpu(),
-            bas_p[8].cpu(),
-            bas_p[10].cpu(),
+            bas_p.baseline_nums.cpu(),
+            bas_p.u_valid.cpu(),
+            bas_p.v_valid.cpu(),
+            bas_p.w_valid.cpu(),
+            bas_p.date.cpu(),
             torch.tensor([]),
             torch.tensor([]),
         )
