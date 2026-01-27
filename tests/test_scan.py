@@ -114,7 +114,9 @@ class TestScan:
         # Test with zero
         x_zero = torch.tensor([0.0], dtype=torch.float64, device=device)
         result_zero = jinc(x_zero)
-        assert torch.isclose(result_zero, torch.tensor([1.0], dtype=torch.float64, device=device))
+        assert torch.isclose(
+            result_zero, torch.tensor([1.0], dtype=torch.float64, device=device)
+        )
 
         # Test with standard values
         x_values = torch.tensor([1.0, 2.0, 3.0], dtype=torch.float64, device=device)
@@ -133,13 +135,19 @@ class TestScan:
         # Additional test to verify actual values
         # Compare with actual values from the executed function
         assert torch.isclose(
-            result[0], torch.tensor(0.8801, dtype=torch.float64, device=device), rtol=1e-4
+            result[0],
+            torch.tensor(0.8801, dtype=torch.float64, device=device),
+            rtol=1e-4,
         )
         assert torch.isclose(
-            result[1], torch.tensor(0.5767, dtype=torch.float64, device=device), rtol=1e-4
+            result[1],
+            torch.tensor(0.5767, dtype=torch.float64, device=device),
+            rtol=1e-4,
         )
         assert torch.isclose(
-            result[2], torch.tensor(0.2260, dtype=torch.float64, device=device), rtol=1e-3
+            result[2],
+            torch.tensor(0.2260, dtype=torch.float64, device=device),
+            rtol=1e-3,
         )
 
     def test_angular_distance(self, setup_test_data):
@@ -157,7 +165,10 @@ class TestScan:
 
         # For our values (0.001, 0.001), the angular distance is approximately 0.0014
         expected_value = torch.arcsin(
-            torch.sqrt(torch.tensor(0.001, device=device) ** 2 + torch.tensor(0.001, device=device) ** 2)
+            torch.sqrt(
+                torch.tensor(0.001, device=device) ** 2
+                + torch.tensor(0.001, device=device) ** 2
+            )
         )
         assert torch.allclose(result, expected_value, rtol=1e-5)
 
@@ -277,7 +288,9 @@ class TestScan:
         # Check that values match expectation
         assert torch.allclose(
             result.real,
-            torch.full(expected_shape, expected_value.real, dtype=torch.float64, device=device),
+            torch.full(
+                expected_shape, expected_value.real, dtype=torch.float64, device=device
+            ),
         )
 
     def test_rime(self, setup_test_data):
