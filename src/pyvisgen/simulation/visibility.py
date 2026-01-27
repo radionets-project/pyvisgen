@@ -174,10 +174,10 @@ class Polarization:
 
             self.delta = delta
 
-            if amp_ratio and (amp_ratio >= 0):
-                ax2 = amp_ratio
-            else:
-                ax2 = torch.rand(1).to(self.device)
+            ax2 = amp_ratio if amp_ratio and amp_ratio >= 0 else torch.rand(1)
+
+            if isinstance(ax2, torch.Tensor):
+                ax2 = ax2.to(self.device)
 
             ay2 = 1 - ax2
 
