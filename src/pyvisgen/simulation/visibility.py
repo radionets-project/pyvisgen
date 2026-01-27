@@ -117,7 +117,7 @@ class Polarization:
         SI: torch.Tensor,
         sensitivity_cut: float,
         amp_ratio: float,
-        delta: float,
+        delta: float | torch.Tensor,
         polarization: str,
         field_kwargs: dict,
         random_state: int,
@@ -519,7 +519,7 @@ def vis_loop(
         obs.calc_dense_baselines()  # pragma: no cover
         bas = obs.dense_baselines_gpu  # pragma: nocover
     else:
-        raise ValueError("Unsupported mode!")
+        raise ValueError(f"Unsupported mode: {mode}")
 
     if batch_size == "auto":
         batch_size = bas[:].shape[1]
