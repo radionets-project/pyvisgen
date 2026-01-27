@@ -121,7 +121,10 @@ class DataWriter(ABC):
         if array.shape[1] != 2:
             raise ValueError(
                 f"Expected array {name} axis 1 to be 2 but got "
-                f"{array.shape} with axis 1: {array.shape[1]}!"
+                f"{array.shape} with axis 1: {array.shape[1]}! "
+                "This usually indicates that the images do not have "
+                "separate channels for amplitude/phase or real/imaginary "
+                "data."
             )
 
         if array.ndim != 4:
@@ -219,7 +222,9 @@ class H5Writer(DataWriter):
     ...         writer.write(x, y, index=bundle_id)
     """
 
-    def __init__(self, output_path: Path, dataset_type: str, **kwargs) -> None:
+    def __init__(
+        self, output_path: Path, dataset_type: str, half_image: bool = True, **kwargs
+    ) -> None:
         """Initialize the HDF5 writer.
 
         Parameters
@@ -232,6 +237,7 @@ class H5Writer(DataWriter):
         """
         self.output_path = output_path
         self.dataset_type = dataset_type
+        self.half_image = half_image
 
         os.environ["HDF5_USE_FILE_LOCKING"] = "FALSE"
 
@@ -290,7 +296,8 @@ class H5Writer(DataWriter):
             f"samp_{self.dataset_type}_" + str(index) + ".h5"
         )
 
-        x, y = self.get_half_image(x, y, overlap=overlap)
+        if self.half_image:
+            x, y = self.get_half_image(x, y, overlap=overlap)
 
         self.test_shapes(x, "x")
         self.test_shapes(y, "y")
@@ -445,10 +452,11 @@ class WDSShardWriter(DataWriter):
         output_path: str | Path,
         *,
         dataset_type: str,
-        total_samples: int,
         shard_pattern: str,
         amp_phase: bool,
         compress: bool = False,
+        total_samples: int,
+        half_image: bool = True,
         **kwargs,
     ) -> None:
         """Initializes the WebDataset writer.
@@ -474,14 +482,22 @@ class WDSShardWriter(DataWriter):
         **kwargs
             Additional keyword arguments for compatibility with other writers.
         """
+        if not _WDS_AVAIL:
+            raise ImportError(
+                "Could not import webdataset. Please make sure you install "
+                "pyvisgen with the webdataset extra: "
+                "uv pip install pyvisgen[webdataset]"
+            )
+
         if not isinstance(output_path, Path):
             output_path = Path(output_path)
 
         self.output_path = output_path
         self.dataset_type = dataset_type
-        self.total_samples = total_samples
         self.shard_pattern = shard_pattern
         self.compress = compress
+        self.half_image = half_image
+        self.total_samples = total_samples
 
         if amp_phase:
             self.data_type = "amp_phase"
@@ -557,10 +573,13 @@ class WDSShardWriter(DataWriter):
 
         shard_path = str(self.output_path / filename)
 
-        inputs, targets = self.get_half_image(x, y, overlap=overlap)
+        if self.half_image:
+            inputs, targets = self.get_half_image(x, y, overlap=overlap)
+        else:
+            inputs, targets = x, y
 
-        self.test_shapes(x, "x")
-        self.test_shapes(y, "y")
+        self.test_shapes(inputs, "x")
+        self.test_shapes(targets, "y")
 
         with wds.TarWriter(shard_path, compress=self.compress) as tarwriter:
             for x, y in zip(inputs, targets):
@@ -637,7 +656,12 @@ class PTWriter(DataWriter):
     """
 
     def __init__(
-        self, output_path: Path, dataset_type: str, amp_phase: bool, **kwargs
+        self,
+        output_path: Path,
+        dataset_type: str,
+        amp_phase: bool,
+        half_image: bool = True,
+        **kwargs,
     ) -> None:
         """Initialize the PT writer.
 
@@ -654,6 +678,7 @@ class PTWriter(DataWriter):
         """
         self.output_path = output_path
         self.dataset_type = dataset_type
+        self.half_image = half_image
 
         if amp_phase:
             self.data_type = "amp_phase"
@@ -662,8 +687,8 @@ class PTWriter(DataWriter):
 
     def write(
         self,
-        x: np.ndarray,
-        y: np.ndarray,
+        x: np.ndarray | torch.Tensor,
+        y: np.ndarray | torch.Tensor,
         *,
         index,
         bundle_length: int,
@@ -701,7 +726,7 @@ class PTWriter(DataWriter):
         --------
         >>> rng = np.random.default_rng()
         >>>
-        >>> with H5Writer(
+        >>> with PTWriter(
         ...     output_path="./data", dataset_type="train", amp_phase=True
         ... ) as writer:
         ...     x_data = rng.uniform(size=(5, 10, 2, 256, 256))
@@ -710,9 +735,13 @@ class PTWriter(DataWriter):
         ...     for bundle_id, (x, y) in enumerate(zip(x_data, y_data)):
         ...         writer.write(x, y, index=bundle_id, bundle_length=len(x))
         """
-        x, y = self.get_half_image(x, y, overlap=overlap)
-        x = torch.from_numpy(x)
-        y = torch.from_numpy(y)
+        if self.half_image:
+            x, y = self.get_half_image(x, y, overlap=overlap)
+
+        if isinstance(x, np.ndarray):
+            x = torch.from_numpy(x)
+        if isinstance(y, np.ndarray):
+            y = torch.from_numpy(y)
 
         self.test_shapes(x, "X")
         self.test_shapes(y, "y")
