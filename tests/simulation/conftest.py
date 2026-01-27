@@ -10,6 +10,7 @@ from pyvisgen.simulation.observation import (
     Scan,
     ValidBaselineSubset,
 )
+from pyvisgen.simulation.visibility import Polarization, Visibilities
 
 
 @pytest.fixture(scope="module")
@@ -105,3 +106,65 @@ def obs_params() -> dict:
 @pytest.fixture(scope="module")
 def obs(obs_params: dict) -> Observation:
     return Observation(**obs_params)
+
+
+@pytest.fixture(scope="module")
+def visibilities_data(device: str) -> dict:
+    size = 10
+    img_size = 32
+    dev = torch.device(device)
+
+    time = Time(torch.linspace(0, 1000, size) / (60 * 60 * 24), format="mjd").jd
+    date = (torch.from_numpy(time) / 2).to(dev)
+
+    return {
+        "V_11": torch.rand(size=(size, 1), device=dev),
+        "V_22": torch.rand(size=(size, 1), device=dev),
+        "V_12": torch.rand(size=(size, 1), device=dev),
+        "V_21": torch.rand(size=(size, 1), device=dev),
+        "num": torch.rand(size, device=dev),
+        "base_num": torch.rand(size, device=dev),
+        "u": torch.rand(size, device=dev),
+        "v": torch.rand(size, device=dev),
+        "w": torch.rand(size, device=dev),
+        "date": date,
+        "linear_dop": torch.rand((img_size, img_size), device=dev),
+        "circular_dop": torch.rand((img_size, img_size), device=dev),
+    }
+
+
+@pytest.fixture(scope="module")
+def visibilities(visibilities_data: dict) -> Visibilities:
+    return Visibilities(**visibilities_data)
+
+
+@pytest.fixture(scope="module")
+def field_kwargs() -> dict:
+    return {
+        "order": 1,
+        "random_state": None,
+        "scale": None,
+        "threshold": None,
+    }
+
+
+@pytest.fixture(scope="function")
+def polarization_data(device: str, field_kwargs: dict) -> dict:
+    img_size = 32
+    dev = torch.device(device)
+
+    return {
+        "SI": torch.rand((1, img_size, img_size), device=dev),
+        "sensitivity_cut": torch.rand(1, device=dev),
+        "amp_ratio": torch.rand(1, device=dev),
+        "delta": torch.randint(low=0, high=90, size=(1,), device=dev),
+        "polarization": None,
+        "field_kwargs": field_kwargs,
+        "random_state": None,
+        "device": dev,
+    }
+
+
+@pytest.fixture(scope="function")
+def polarization(polarization_data: dict) -> Polarization:
+    return Polarization(**polarization_data)
