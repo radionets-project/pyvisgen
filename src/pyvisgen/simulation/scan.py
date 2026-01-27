@@ -119,13 +119,13 @@ def rime(
 
 
 def apply_finufft(
-    X1: torch.tensor,
-    X2: torch.tensor,
+    X1: torch.Tensor,
+    X2: torch.Tensor,
     bas,
-    lm: torch.tensor,
+    lm: torch.Tensor,
     spw_low: float,
     spw_high: float,
-) -> tuple[torch.tensor, torch.tensor]:  # pragma: no cover
+) -> tuple[torch.Tensor, torch.Tensor]:  # pragma: no cover
     if not torch.cuda.is_available():
         raise RuntimeError(
             "CUDA is not available. Finufft backend requires a CUDA-enabled GPU to run."
@@ -194,13 +194,13 @@ def apply_finufft(
 
 
 def calc_fourier(
-    X1: torch.tensor,
-    X2: torch.tensor,
+    X1: torch.Tensor,
+    X2: torch.Tensor,
     bas,
-    lm: torch.tensor,
+    lm: torch.Tensor,
     spw_low: float,
     spw_high: float,
-) -> tuple[torch.tensor, torch.tensor]:
+) -> tuple[torch.Tensor, torch.Tensor]:
     """Calculates Fourier transformation kernel for
     every baseline and pixel in the lm grid.
 
@@ -315,15 +315,15 @@ def calc_feed_rotation(
 
 
 def calc_beam(
-    X1: torch.tensor,
-    X2: torch.tensor,
-    rd: torch.tensor,
+    X1: torch.Tensor,
+    X2: torch.Tensor,
+    rd: torch.Tensor,
     ra: float,
     dec: float,
-    ant_diam: torch.tensor,
+    ant_diam: torch.Tensor,
     spw_low: float,
     spw_high: float,
-) -> tuple[torch.tensor, torch.tensor]:
+) -> tuple[torch.Tensor, torch.Tensor]:
     """Computes the beam influence on the image.
 
     Parameters
