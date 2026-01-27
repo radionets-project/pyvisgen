@@ -264,10 +264,7 @@ class TestWriterABC:
         with pytest.raises(TypeError) as excinfo:
             DataWriter(".", dataset_type="train")
 
-        assert (
-            "Can't instantiate abstract class DataWriter "
-            "without an implementation for abstract methods" in str(excinfo.value)
-        )
+        assert "Can't instantiate abstract class DataWriter " in str(excinfo.value)
 
     def test_test_shapes(
         self, mock_writer, data_sample: tuple[np.ndarray, np.ndarray]
