@@ -186,6 +186,12 @@ class TestPolarization:
             mock_torch_rand.assert_called_with(1)
 
     def test_linear(self, mocker, polarization_data: dict) -> None:
+        mocker.patch.object(
+            Polarization,
+            "rand_polarization_field",
+            reurn_value=None,
+        )
+
         polarization_data["polarization"] = "linear"
         pol = Polarization(**polarization_data)
 
@@ -204,6 +210,12 @@ class TestPolarization:
         mock_deg2rad.assert_called_with(pol.delta)
 
     def test_circular(self, mocker, polarization_data: dict) -> None:
+        mocker.patch.object(
+            Polarization,
+            "rand_polarization_field",
+            reurn_value=None,
+        )
+
         polarization_data["polarization"] = "circular"
         pol = Polarization(**polarization_data)
 
