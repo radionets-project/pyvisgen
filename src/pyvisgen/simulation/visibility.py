@@ -358,7 +358,7 @@ class Polarization:
             scale[0] and scale[1].
         """
         if random_state:
-            torch.random.manual_seed(random_state)
+            torch.manual_seed(random_state)
 
         if isinstance(shape, int):
             shape = [shape]
