@@ -143,7 +143,7 @@ def visibilities(visibilities_data: dict) -> Visibilities:
     return Visibilities(**visibilities_data)
 
 
-@pytest.fixture(scope="module")
+@pytest.fixture(scope="function")
 def field_kwargs() -> dict:
     return {
         "order": 1,
