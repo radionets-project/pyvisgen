@@ -45,18 +45,18 @@ class Visibilities:
     circular_dop : :func:`~torch.tensor`
     """
 
-    V_11: torch.tensor
-    V_22: torch.tensor
-    V_12: torch.tensor
-    V_21: torch.tensor
-    num: torch.tensor
-    base_num: torch.tensor
-    u: torch.tensor
-    v: torch.tensor
-    w: torch.tensor
-    date: torch.tensor
-    linear_dop: torch.tensor
-    circular_dop: torch.tensor
+    V_11: torch.Tensor
+    V_22: torch.Tensor
+    V_12: torch.Tensor
+    V_21: torch.Tensor
+    num: torch.Tensor
+    base_num: torch.Tensor
+    u: torch.Tensor
+    v: torch.Tensor
+    w: torch.Tensor
+    date: torch.Tensor
+    linear_dop: torch.Tensor
+    circular_dop: torch.Tensor
 
     def __getitem__(self, i):
         return Visibilities(*[getattr(self, f.name)[i] for f in fields(self)])
@@ -114,10 +114,10 @@ class Polarization:
 
     def __init__(
         self,
-        SI: torch.tensor,
+        SI: torch.Tensor,
         sensitivity_cut: float,
         amp_ratio: float,
-        delta: float,
+        delta: float | torch.Tensor,
         polarization: str,
         field_kwargs: dict,
         random_state: int,
@@ -174,10 +174,10 @@ class Polarization:
 
             self.delta = delta
 
-            if amp_ratio and (amp_ratio >= 0):
-                ax2 = amp_ratio
-            else:
-                ax2 = torch.rand(1).to(self.device)
+            ax2 = amp_ratio if amp_ratio and amp_ratio >= 0 else torch.rand(1)
+
+            if isinstance(ax2, torch.Tensor):
+                ax2 = ax2.to(self.device)
 
             ay2 = 1 - ax2
 
@@ -326,12 +326,12 @@ class Polarization:
 
     def rand_polarization_field(
         self,
-        shape: list[int, int] | int,
-        order: list[int, int] | int = 1,
-        random_state: int = None,
-        scale: list = None,
-        threshold: float = None,
-    ) -> torch.tensor:
+        shape: list[int] | int,
+        order: list[int] | int = 1,
+        random_state: int | None = None,
+        scale: list | None = None,
+        threshold: float | None = None,
+    ) -> torch.Tensor:
         """
         Generates a random noise mask for polarization.
 
@@ -358,7 +358,7 @@ class Polarization:
             scale[0] and scale[1].
         """
         if random_state:
-            torch.random.manual_seed(random_state)
+            torch.manual_seed(random_state)
 
         if isinstance(shape, int):
             shape = [shape]
@@ -369,9 +369,9 @@ class Polarization:
         if len(shape) < 2:
             shape *= 2
         elif len(shape) > 2:
-            raise ValueError("Only 2d shapes are allowed!")
+            raise ValueError("Expected len of 'shape' to be 2!")
 
-        if isinstance(order, int):
+        if isinstance(order, int | float):
             order = [order]
 
         if not isinstance(order, list):
@@ -380,7 +380,7 @@ class Polarization:
         if len(order) < 2:
             order *= 2
         elif len(order) > 2:
-            raise ValueError("Only 2d shapes are allowed!")
+            raise ValueError("Expected len of 'order' to be 2!")
 
         sigma = torch.mean(torch.tensor(shape).double()) / (40 * torch.tensor(order))
 
@@ -390,6 +390,9 @@ class Polarization:
         if scale is None:
             scale = [im.min(), im.max()]
 
+        if len(scale) != 2:
+            raise ValueError("Expected len of 'scale' to be 2!")
+
         im_flatten = torch.from_numpy(im.flatten())
         im_argsort = torch.argsort(torch.argsort(im_flatten))
         im_linspace = torch.linspace(*scale, im_argsort.size()[0])
@@ -398,18 +401,18 @@ class Polarization:
         im = torch.reshape(uniform_flatten, im.shape)
 
         if threshold:
-            im = im < threshold
+            im = im[im < threshold]
 
         return im
 
 
 def vis_loop(
     obs,
-    SI: torch.tensor,
+    SI: torch.Tensor,
     num_threads: int = 10,
     noisy: bool = True,
     mode: str = "full",
-    batch_size: int = "auto",
+    batch_size: int | Literal["auto"] = "auto",
     show_progress: bool = False,
     normalize: bool = True,
     ft: Literal["default", "finufft", "reversed"] = "default",
@@ -513,16 +516,16 @@ def vis_loop(
         ).get_unique_grid(obs.fov, obs.ref_frequency, obs.img_size, obs.device)
     elif mode == "dense":
         if obs.device == torch.device("cpu"):
-            raise ValueError("Only available for GPU calculations!")
+            raise ValueError("Mode 'dense' is only available for GPU calculations!")
 
-        # We cannot test this at the moment
+        # We cannot test this with our CI at the moment
         obs.calc_dense_baselines()  # pragma: no cover
         bas = obs.dense_baselines_gpu  # pragma: nocover
     else:
-        raise ValueError("Unsupported mode!")
+        raise ValueError(f"Unsupported mode: {mode}")
 
     if batch_size == "auto":
-        batch_size = bas[:].shape[1]
+        batch_size = bas.baseline_nums.shape[0]
 
     visibilities = adaptive_batch_size(
         _batch_loop,
@@ -551,10 +554,10 @@ def _batch_loop(
     visibilities,
     vis_num: int,
     obs,
-    B: torch.tensor,
+    B: torch.Tensor,
     bas,
-    lm: torch.tensor,
-    rd: torch.tensor,
+    lm: torch.Tensor,
+    rd: torch.Tensor,
     noisy: bool | float,
     show_progress: bool,
     mode: str,
@@ -601,7 +604,7 @@ def _batch_loop(
     visibilities : Visibilities
         Visibilities dataclass object.
     """
-    batches = torch.arange(bas[:].shape[1]).split(batch_size)
+    batches = torch.arange(bas.baseline_nums.shape[0]).split(batch_size)
     batches = tqdm(
         batches,
         position=0,
@@ -611,7 +614,7 @@ def _batch_loop(
     )
 
     for p in batches:
-        bas_p = bas[:][:, p]
+        bas_p = bas[p]
 
         int_values = torch.cat(
             [
@@ -650,11 +653,11 @@ def _batch_loop(
             int_values[..., 0, 1].cpu(),  # V_12
             int_values[..., 1, 0].cpu(),  # V_21
             vis_num,
-            bas_p[9].cpu(),
-            bas_p[2].cpu(),
-            bas_p[5].cpu(),
-            bas_p[8].cpu(),
-            bas_p[10].cpu(),
+            bas_p.baseline_nums.cpu(),
+            bas_p.u_valid.cpu(),
+            bas_p.v_valid.cpu(),
+            bas_p.w_valid.cpu(),
+            bas_p.date.cpu(),
             torch.tensor([]),
             torch.tensor([]),
         )

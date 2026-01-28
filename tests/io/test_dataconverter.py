@@ -1,12 +1,11 @@
-from unittest.mock import patch
 from pathlib import Path
+from unittest.mock import patch
 
 import numpy as np
 import pytest
 import torch
-import webdataset as wds
 
-from pyvisgen.io.dataconverter import DataConverter, _batch_array, DataTypeConverter
+from pyvisgen.io.dataconverter import DataConverter, DataTypeConverter, _batch_array
 
 
 class TestBatchArray:

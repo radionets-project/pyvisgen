@@ -95,7 +95,7 @@ def rime(
             vis = integrate(X1, X2)
     if ft == "reversed":
         with torch.no_grad():
-            img = torch.repeat_interleave(img.clone()[None], len(bas[2]), dim=0)
+            img = torch.repeat_interleave(img.clone()[None], len(bas.u_valid), dim=0)
             X1 = img.clone()
             X2 = img.clone()
             if polarization and mode != "dense":
@@ -119,13 +119,13 @@ def rime(
 
 
 def apply_finufft(
-    X1: torch.tensor,
-    X2: torch.tensor,
+    X1: torch.Tensor,
+    X2: torch.Tensor,
     bas,
-    lm: torch.tensor,
+    lm: torch.Tensor,
     spw_low: float,
     spw_high: float,
-) -> tuple[torch.tensor, torch.tensor]:  # pragma: no cover
+) -> tuple[torch.Tensor, torch.Tensor]:  # pragma: no cover
     if not torch.cuda.is_available():
         raise RuntimeError(
             "CUDA is not available. Finufft backend requires a CUDA-enabled GPU to run."
@@ -135,15 +135,15 @@ def apply_finufft(
     m_coords = lm[..., 1]
     n_coords = torch.sqrt(1 - l_coords**2 - m_coords**2)
 
-    u_coords_low = bas[2] / c * spw_low
-    v_coords_low = bas[5] / c * spw_low
-    w_coords_low = bas[8] / c * spw_low
+    u_coords_low = bas.u_valid / c * spw_low
+    v_coords_low = bas.v_valid / c * spw_low
+    w_coords_low = bas.w_valid / c * spw_low
 
-    u_coords_high = bas[2] / c * spw_high
-    v_coords_high = bas[5] / c * spw_high
-    w_coords_high = bas[8] / c * spw_high
+    u_coords_high = bas.u_valid / c * spw_high
+    v_coords_high = bas.v_valid / c * spw_high
+    w_coords_high = bas.w_valid / c * spw_high
 
-    n_baselines = len(bas[2])
+    n_baselines = len(bas.u_valid)
 
     # Pre-allocate output
     vis = torch.empty([n_baselines, 2, 2], dtype=torch.complex128, device=X1.device)
@@ -194,13 +194,13 @@ def apply_finufft(
 
 
 def calc_fourier(
-    X1: torch.tensor,
-    X2: torch.tensor,
+    X1: torch.Tensor,
+    X2: torch.Tensor,
     bas,
-    lm: torch.tensor,
+    lm: torch.Tensor,
     spw_low: float,
     spw_high: float,
-) -> tuple[torch.tensor, torch.tensor]:
+) -> tuple[torch.Tensor, torch.Tensor]:
     """Calculates Fourier transformation kernel for
     every baseline and pixel in the lm grid.
 
@@ -229,9 +229,9 @@ def calc_fourier(
         baseline axis.
     """
     # only use u, v, w valid
-    u_valid = bas[2]
-    v_valid = bas[5]
-    w_valid = bas[8]
+    u_valid = bas.u_valid
+    v_valid = bas.v_valid
+    w_valid = bas.w_valid
 
     l = lm[..., 0]  # noqa: E741
     m = lm[..., 1]
@@ -279,8 +279,8 @@ def calc_feed_rotation(
     X2 : :func:`~torch.tensor`
         Fourier kernel with the applied feed rotation.
     """
-    q1 = bas[13][..., None]
-    q2 = bas[16][..., None]
+    q1 = bas.q1_valid[..., None]
+    q2 = bas.q2_valid[..., None]
 
     xa = torch.zeros_like(X1)
     xb = torch.zeros_like(X2)
@@ -315,15 +315,15 @@ def calc_feed_rotation(
 
 
 def calc_beam(
-    X1: torch.tensor,
-    X2: torch.tensor,
-    rd: torch.tensor,
+    X1: torch.Tensor,
+    X2: torch.Tensor,
+    rd: torch.Tensor,
     ra: float,
     dec: float,
-    ant_diam: torch.tensor,
+    ant_diam: torch.Tensor,
     spw_low: float,
     spw_high: float,
-) -> tuple[torch.tensor, torch.tensor]:
+) -> tuple[torch.Tensor, torch.Tensor]:
     """Computes the beam influence on the image.
 
     Parameters
