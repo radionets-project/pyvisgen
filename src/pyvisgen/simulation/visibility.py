@@ -369,7 +369,7 @@ class Polarization:
         if len(shape) < 2:
             shape *= 2
         elif len(shape) > 2:
-            raise ValueError("Only 2d shapes are allowed!")
+            raise ValueError("Expected len of 'shape' to be 2!")
 
         if isinstance(order, int | float):
             order = [order]
@@ -380,7 +380,7 @@ class Polarization:
         if len(order) < 2:
             order *= 2
         elif len(order) > 2:
-            raise ValueError("Only 2d shapes are allowed!")
+            raise ValueError("Expected len of 'order' to be 2!")
 
         sigma = torch.mean(torch.tensor(shape).double()) / (40 * torch.tensor(order))
 
@@ -389,6 +389,9 @@ class Polarization:
 
         if scale is None:
             scale = [im.min(), im.max()]
+
+        if len(scale) != 2:
+            raise ValueError("Expected len of 'scale' to be 2!")
 
         im_flatten = torch.from_numpy(im.flatten())
         im_argsort = torch.argsort(torch.argsort(im_flatten))
@@ -513,9 +516,9 @@ def vis_loop(
         ).get_unique_grid(obs.fov, obs.ref_frequency, obs.img_size, obs.device)
     elif mode == "dense":
         if obs.device == torch.device("cpu"):
-            raise ValueError("Only available for GPU calculations!")
+            raise ValueError("Mode 'dense' is only available for GPU calculations!")
 
-        # We cannot test this at the moment
+        # We cannot test this with our CI at the moment
         obs.calc_dense_baselines()  # pragma: no cover
         bas = obs.dense_baselines_gpu  # pragma: nocover
     else:
