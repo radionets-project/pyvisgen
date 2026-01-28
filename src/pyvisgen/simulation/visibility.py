@@ -401,7 +401,7 @@ class Polarization:
         im = torch.reshape(uniform_flatten, im.shape)
 
         if threshold:
-            im = im < threshold
+            im = im[im < threshold]
 
         return im
 
