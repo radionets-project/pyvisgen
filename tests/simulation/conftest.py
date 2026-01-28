@@ -101,7 +101,7 @@ def obs_params() -> dict:
         "frequency_offsets": [0.0],
         "bandwidths": [1e8],
         "fov": 0.1,
-        "image_size": 64,
+        "image_size": 32,
         "array_layout": "vlba",
         "corrupted": False,
         "device": "cuda" if torch.cuda.is_available() else "cpu",
