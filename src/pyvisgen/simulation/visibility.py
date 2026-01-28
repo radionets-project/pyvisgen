@@ -326,11 +326,11 @@ class Polarization:
 
     def rand_polarization_field(
         self,
-        shape: list[int, int] | int,
-        order: list[int, int] | int = 1,
-        random_state: int = None,
-        scale: list = None,
-        threshold: float = None,
+        shape: list[int] | int,
+        order: list[int] | int = 1,
+        random_state: int | None = None,
+        scale: list | None = None,
+        threshold: float | None = None,
     ) -> torch.Tensor:
         """
         Generates a random noise mask for polarization.
@@ -371,7 +371,7 @@ class Polarization:
         elif len(shape) > 2:
             raise ValueError("Only 2d shapes are allowed!")
 
-        if isinstance(order, int):
+        if isinstance(order, int | float):
             order = [order]
 
         if not isinstance(order, list):
@@ -409,7 +409,7 @@ def vis_loop(
     num_threads: int = 10,
     noisy: bool = True,
     mode: str = "full",
-    batch_size: int = "auto",
+    batch_size: int | Literal["auto"] = "auto",
     show_progress: bool = False,
     normalize: bool = True,
     ft: Literal["default", "finufft", "reversed"] = "default",
