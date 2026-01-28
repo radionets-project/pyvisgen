@@ -4,7 +4,10 @@ import numpy as np
 import pytest
 import torch
 
-from pyvisgen.simulation.visibility import Polarization, Visibilities
+from pyvisgen.simulation.visibility import (
+    Polarization,
+    Visibilities,
+)
 
 
 class TestVisibilities:
