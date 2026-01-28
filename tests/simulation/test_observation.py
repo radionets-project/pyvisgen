@@ -393,5 +393,5 @@ class TestObservation:
         assert isinstance(obs.waves_low, list)
         assert isinstance(obs.waves_high, list)
         assert hasattr(obs, "dense_baselines_gpu")
-        assert isinstance(obs.dense_baselines_gpu, torch.Tensor)
+        assert isinstance(obs.dense_baselines_gpu, ValidBaselineSubset)
         assert obs.ra.device.type == obs.dec.device.type == device
