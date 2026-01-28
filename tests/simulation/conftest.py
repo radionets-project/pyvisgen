@@ -13,6 +13,11 @@ from pyvisgen.simulation.observation import (
 from pyvisgen.simulation.visibility import Polarization, Visibilities
 
 
+@pytest.fixture
+def sky_dist() -> torch.Tensor:
+    return torch.rand(size=(1, 32, 32))
+
+
 @pytest.fixture(scope="module")
 def device() -> str:
     return "cuda" if torch.cuda.is_available() else "cpu"
