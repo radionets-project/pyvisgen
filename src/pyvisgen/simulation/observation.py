@@ -710,20 +710,24 @@ class Observation:
         u = uu.flatten()
         v = vv.flatten()
 
-        self.dense_baselines_gpu = torch.stack(
-            [
-                u,
-                u,
-                u,
-                v,
-                v,
-                v,
-                torch.zeros(u.shape, device=self.device),
-                torch.zeros(u.shape, device=self.device),
-                torch.zeros(u.shape, device=self.device),
-                torch.ones(u.shape, device=self.device),
-                torch.ones(u.shape, device=self.device),
-            ]
+        self.dense_baselines_gpu = ValidBaselineSubset(
+            u_start=u,
+            u_stop=u,
+            u_valid=u,
+            v_start=v,
+            v_stop=v,
+            v_valid=v,
+            w_start=torch.zeros(u.shape, device=self.device),
+            w_stop=torch.zeros(u.shape, device=self.device),
+            w_valid=torch.zeros(u.shape, device=self.device),
+            baseline_nums=torch.ones(u.shape, device=self.device),
+            date=torch.ones(u.shape, device=self.device),
+            q1_start=torch.zeros(u.shape, device=self.device),
+            q1_stop=torch.zeros(u.shape, device=self.device),
+            q1_valid=torch.zeros(u.shape, device=self.device),
+            q2_start=torch.zeros(u.shape, device=self.device),
+            q2_stop=torch.zeros(u.shape, device=self.device),
+            q2_valid=torch.zeros(u.shape, device=self.device),
         )
 
     def calc_baselines(self):
