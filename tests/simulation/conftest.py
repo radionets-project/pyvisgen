@@ -173,3 +173,50 @@ def polarization_data(device: str, field_kwargs: dict) -> dict:
 @pytest.fixture(scope="function")
 def polarization(polarization_data: dict) -> Polarization:
     return Polarization(**polarization_data)
+
+
+@pytest.fixture(scope="class")
+def batch_size() -> int:
+    return 5
+
+
+@pytest.fixture(scope="class")
+def int_values(batch_size: int) -> torch.Tensor:
+    return torch.rand(batch_size, 2, 2)
+
+
+@pytest.fixture(scope="class")
+def batch_loop_args(
+    batch_size: int, obs: Observation, subset: ValidBaselineSubset
+) -> dict:
+    return {
+        "batch_size": batch_size,
+        "vis_num": torch.zeros(1),
+        "obs": obs,
+        "B": torch.rand(32, 32, 2, 2),
+        "bas": subset,
+        "lm": obs.lm,
+        "rd": obs.rd,
+        "noisy": False,
+        "show_progress": False,
+        "mode": "full",
+        "ft": "default",
+    }
+
+
+@pytest.fixture(scope="function")
+def empty_vis(obs):
+    return Visibilities(
+        torch.empty(size=[0] + [len(obs.waves_low)]),
+        torch.empty(size=[0] + [len(obs.waves_low)]),
+        torch.empty(size=[0] + [len(obs.waves_low)]),
+        torch.empty(size=[0] + [len(obs.waves_low)]),
+        torch.tensor([]),
+        torch.tensor([]),
+        torch.tensor([]),
+        torch.tensor([]),
+        torch.tensor([]),
+        torch.tensor([]),
+        torch.tensor([]),
+        torch.tensor([]),
+    )
