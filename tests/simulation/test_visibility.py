@@ -7,6 +7,7 @@ import torch
 from pyvisgen.simulation.visibility import (
     Polarization,
     Visibilities,
+    _batch_loop,
     vis_loop,
 )
 
@@ -544,3 +545,63 @@ class TestVisLoop:
             vis_loop(**vis_args, mode=mode)
 
         assert f"Unsupported mode: {mode}" in str(excinfo.value)
+
+
+class TestBatchLoop:
+    @pytest.fixture
+    def mock_scan(self, mocker, int_values: torch.Tensor):
+        return mocker.patch(
+            "pyvisgen.simulation.visibility.scan.rime", return_value=int_values
+        )
+
+    def test_loop(
+        self, mock_scan, batch_loop_args: dict, empty_vis: Visibilities
+    ) -> None:
+        mock_scan  # noqa: B018
+
+        vis = _batch_loop(visibilities=empty_vis, **batch_loop_args)
+
+        expected_size = len(batch_loop_args["bas"].baseline_nums)
+
+        assert mock_scan.called
+        assert vis.V_11.shape == torch.Size([expected_size, 1])
+        assert vis.num.shape == torch.Size([expected_size])
+        assert vis.u.device.type == "cpu"
+
+        # linear_dop and circular_dop are set in vis_loop, not in _batch_loop,
+        # so this should be only empty tensors
+        assert all(vis.linear_dop == torch.tensor([]))
+        assert all(vis.circular_dop == torch.tensor([]))
+
+    def test_int_values_numel_zero(
+        self, mocker, batch_loop_args: dict, empty_vis: Visibilities
+    ) -> None:
+        mocker.patch(
+            "pyvisgen.simulation.visibility.scan.rime",
+            return_value=torch.rand([0, 2, 2]),
+        )
+
+        vis = _batch_loop(visibilities=empty_vis, **batch_loop_args)
+
+        assert vis.V_11.shape == torch.Size([0, 1])
+
+    def test_noise(
+        self, mocker, mock_scan, batch_loop_args: dict, empty_vis: Visibilities
+    ) -> None:
+        mock_scan  # noqa: B018
+
+        # If we return nan here, we effectively add NaN to the int_values and thus
+        # convert them to NaN. We can then check if the resulting vis.V_ij are NaN
+        # as expected. Normally vis.V_ij should *not* contain any NaNs.
+        mock_generate_noise = mocker.patch(
+            "pyvisgen.simulation.visibility.generate_noise",
+            return_value=torch.nan,
+        )
+
+        args = batch_loop_args.copy()
+        args["noisy"] = True
+
+        vis = _batch_loop(visibilities=empty_vis, **args)
+
+        assert mock_generate_noise.called
+        assert torch.isnan(vis.V_11).all()
