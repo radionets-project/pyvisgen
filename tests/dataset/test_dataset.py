@@ -430,6 +430,15 @@ class TestFromConfig:
             excinfo.value
         )
 
+    def test_out_path_does_not_exist(self, mock_get_images, mock_run, tmp_path) -> None:
+        cfg = Config.from_toml("tests/test_conf.toml")
+        cfg.bundle.out_path = tmp_path / "this_dir_does_not_exist"
+        assert not cfg.bundle.out_path.is_dir()
+
+        sd = SimulateDataSet.from_config(cfg)
+
+        assert sd.out_path.is_dir()
+
 
 class TestRun:
     @pytest.fixture
