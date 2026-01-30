@@ -41,7 +41,7 @@ def rime(
     ant_diam: ArrayLike,
     spw_low: ArrayLike,
     spw_high: ArrayLike,
-    polarization: str,
+    polarization: str | None,
     mode: str,
     corrupted: bool = False,
     ft: Literal["default", "finufft", "reversed"] = "default",
