@@ -1,6 +1,7 @@
 import pytest
 import torch
 
+from pyvisgen.simulation.observation import ValidBaselineSubset
 from pyvisgen.simulation.scan import (
     angular_distance,
     calc_beam,
@@ -25,14 +26,6 @@ def disable_torch_compile(monkeypatch):
     monkeypatch.setattr(torch, "compile", identity)
 
 
-@pytest.fixture(scope="session")
-def device():
-    """Determine device to use for tests (GPU if available, else CPU)."""
-    if torch.cuda.is_available():
-        return torch.device("cuda")
-    return torch.device("cpu")
-
-
 @pytest.fixture
 def setup_test_data(device):
     # Set deterministic behavior
@@ -49,30 +42,25 @@ def setup_test_data(device):
     lm[..., 1] = torch.tensor([0.01], device=device)
     lm = lm.flatten(end_dim=1)
 
-    # Simulate baselines dataclass as a list for testing
-    # [0:u1, 1:u2, 2:u_valid, 3:v1, 4:v2, 5:v_valid,
-    #  6:w1, 7:w2, 8:w_valid, 9:t1, 10:t2, 11:t_valid,
-    #  12:q1a, 13:q1b, 14:q1ab_valid, 15:q2a, 16:q2b, 17:q2ab_valid]
-    bas = [
-        None,
-        None,
-        torch.tensor([100.0, 200.0, 300.0], device=device),  # u
-        None,
-        None,
-        torch.tensor([150.0, 250.0, 350.0], device=device),  # v
-        None,
-        None,
-        torch.tensor([50.0, 100.0, 150.0], device=device),  # w
-        None,
-        None,
-        None,
-        None,
-        torch.tensor([0.1], device=device),  # q1
-        None,
-        None,
-        torch.tensor([0.15], device=device),  # q2
-        None,
-    ]
+    bas = ValidBaselineSubset(
+        u_start=torch.Tensor([]),
+        u_stop=torch.Tensor([]),
+        u_valid=torch.tensor([100.0, 200.0, 300.0], device=device),  # u
+        v_start=torch.Tensor([]),
+        v_stop=torch.Tensor([]),
+        v_valid=torch.tensor([150.0, 250.0, 350.0], device=device),  # v
+        w_start=torch.Tensor([]),
+        w_stop=torch.Tensor([]),
+        w_valid=torch.tensor([50.0, 100.0, 150.0], device=device),  # w
+        baseline_nums=torch.Tensor([]),
+        date=torch.Tensor([]),
+        q1_start=torch.Tensor([]),
+        q1_stop=torch.Tensor([]),
+        q1_valid=torch.tensor([0.1], device=device),  # q1
+        q2_start=torch.Tensor([]),
+        q2_stop=torch.Tensor([]),
+        q2_valid=torch.tensor([0.15], device=device),  # q2
+    )
 
     # Sky position
     ra = torch.tensor(0.0, device=device)
