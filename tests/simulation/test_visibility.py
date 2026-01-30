@@ -8,6 +8,7 @@ from pyvisgen.simulation.visibility import (
     Polarization,
     Visibilities,
     _batch_loop,
+    generate_noise,
     vis_loop,
 )
 
@@ -605,3 +606,22 @@ class TestBatchLoop:
 
         assert mock_generate_noise.called
         assert torch.isnan(vis.V_11).all()
+
+
+class TestGenerateNoise:
+    @pytest.mark.parametrize(
+        "shape,SEFD",
+        [
+            ((1, 32, 32), 1e-3),
+            ((32, 32), 1),
+            ((32, 32), 200),
+            ((64, 64), 1000),
+            ((64, 64), 3000),
+        ],
+    )
+    def test_generate_noise(self, shape, SEFD, obs) -> None:
+        noise = generate_noise(shape=shape, obs=obs, SEFD=SEFD)
+
+        assert noise.device.type == obs.device.type
+        assert noise.shape == torch.Size(shape)
+        assert torch.is_complex(noise)
