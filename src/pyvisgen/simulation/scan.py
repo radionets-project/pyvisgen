@@ -30,7 +30,6 @@ __all__ = [
 ]
 
 
-# @torch.compile
 def rime(
     img: ArrayLike,
     bas: ArrayLike,
