@@ -103,6 +103,7 @@ requires = ["hatch-vcs", "hatchling"]
 build-backend = "hatchling.build"
 
 [tool.coverage.run]
+source = ["src"]
 omit = [
   "docs/*",
   "src/pyvisgen/_version.py",
