@@ -13,19 +13,6 @@ from pyvisgen.simulation.scan import (
 )
 
 
-# This is added to mock torch.compile
-@pytest.fixture(autouse=True)
-def disable_torch_compile(monkeypatch):
-    """Disable torch.compile to make tests work properly."""
-
-    def identity(func, *args, **kwargs):
-        """Return the function unchanged."""
-        return func
-
-    # Replace torch.compile with the identity function
-    monkeypatch.setattr(torch, "compile", identity)
-
-
 @pytest.fixture
 def setup_test_data(device):
     # Set deterministic behavior
