@@ -20,8 +20,8 @@ def setup_test_data(device):
 
     # Create a simple 2x2 image with a single source in the center
     img = torch.zeros(1, 2, 2, dtype=torch.complex128, device=device)
-    img[0, 0, 0] = 1.0 + 0.5j
-    img[0, 0, 1] = 1.0 + 0.5j
+    img[0, 0, 0] = 1.0 + 0.5j  # type: ignore
+    img[0, 0, 1] = 1.0 + 0.5j  # type: ignore
 
     # Create a simple 2D lm grid
     lm = torch.zeros(1, 1, 2, dtype=torch.float64, device=device)
