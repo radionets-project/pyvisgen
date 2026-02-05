@@ -91,7 +91,7 @@ def main(
     output_dir: str | None,
     input_format: str,
     output_format: str,
-    dataset_type: str,
+    dataset_split: str | list[str],
     amp_phase: bool,
     shard_pattern: str,
     compress: bool,
@@ -100,7 +100,11 @@ def main(
     """Data format conversion tool for pyvisgen."""
     input_format = input_format.lower()
     output_format = output_format.lower()
-    dataset_type = [t.lower() for t in dataset_type]
+
+    if isinstance(dataset_split, list | tuple):
+        dataset_split = [t.lower() for t in dataset_split]
+    else:
+        dataset_split = dataset_split.lower()
 
     if input_format == output_format:
         raise click.BadParameter(
@@ -110,9 +114,10 @@ def main(
 
     output_dir = output_dir or input_dir  # If output_dir is None, use input_dir
 
+    converter = DataConverter()  # Instantiate here first, this allows patching in tests
     # Get correct converter from DataConverter attribute
-    converter: DataConverter = getattr(DataConverter, f"from_{input_format}")
-    converter(input_dir, dataset_type=dataset_type).to(
+    converter: DataConverter = getattr(converter, f"from_{input_format}")
+    converter(input_dir, dataset_split=dataset_split).to(
         output_dir,
         output_format=output_format,
         amp_phase=amp_phase,
