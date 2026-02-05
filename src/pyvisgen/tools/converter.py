@@ -17,20 +17,20 @@ from pyvisgen.io import DataConverter
 )
 @click.option(
     "--input-format",
-    type=click.Choice(["h5", "wds"], case_sensitive=False),
+    type=click.Choice(["h5", "wds", "pt"], case_sensitive=False),
     default="h5",
     help="Format of the input dataset.",
     show_default=True,
 )
 @click.option(
     "--output-format",
-    type=click.Choice(["h5", "wds"], case_sensitive=False),
+    type=click.Choice(["h5", "wds", "pt"], case_sensitive=False),
     default="wds",
     help="Format of the output dataset.",
     show_default=True,
 )
 @click.option(
-    "--dataset_type",
+    "--dataset_split",
     "-t",
     type=click.Choice(
         [
@@ -42,7 +42,7 @@ from pyvisgen.io import DataConverter
         case_sensitive=False,
     ),
     multiple=True,
-    default="all",
+    default=["all"],
     help="""Choose between different splits of the datasets to convert.
         'all' converts 'train', 'valid', and 'test' splits in one go.
         """,
