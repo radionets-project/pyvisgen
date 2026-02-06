@@ -5,6 +5,10 @@ import pytest
 
 import pyvisgen.tools.converter as conv_module
 
+# reload converter module so that we get a fresh import of
+# the pyvisgen.io.dataconvert.DataConverter class
+# which for some reason fails the following tests if the
+# tests for DataConverter run before them
 importlib.reload(conv_module)
 
 from pyvisgen.tools.converter import main  # noqa: E402
