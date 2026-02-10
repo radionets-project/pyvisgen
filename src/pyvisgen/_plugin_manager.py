@@ -39,7 +39,9 @@ class Manager:
                 plugin_class = entry_point.load()
                 self.plugins[entry_point.name] = plugin_class
             except ImportError as e:
-                LOGGER.warn(f"Failed to load plugin {entry_point.name} in {group}: {e}")
+                LOGGER.warning(
+                    f"Failed to load plugin {entry_point.name} in {group}: {e}"
+                )
 
         return self.plugins
 
