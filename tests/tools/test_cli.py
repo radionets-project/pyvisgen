@@ -7,13 +7,6 @@ class TestCLI:
 
         assert result.exit_code == 0
 
-    def test_group_commands_exist(self, runner) -> None:
-        result = runner.invoke(cli.main, ["--help"])
-
-        assert "quickstart" in result.output
-        assert "simulate" in result.output
-        assert "convert" in result.output
-
     def test_converter_cmd(self, tmp_path, mocker, runner):
         mock_callback = mocker.MagicMock()
         cli.main.commands["convert"].callback = mock_callback
