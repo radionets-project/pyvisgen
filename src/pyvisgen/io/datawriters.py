@@ -60,7 +60,9 @@ class DataWriter(ABC):
     """
 
     @abstractmethod
-    def __init__(self, output_path: Path, dataset_type: str, *args, **kwargs) -> None:
+    def __init__(
+        self, output_path: Path, dataset_type: str, *args, **kwargs
+    ) -> None:  # pragma: no cover
         """Initialize the data writer.
 
         This method must be implemented by subclasses to handle the setup
@@ -80,7 +82,7 @@ class DataWriter(ABC):
         ...
 
     @abstractmethod
-    def write(self, *args, **kwargs) -> None:
+    def write(self, *args, **kwargs) -> None:  # pragma: no cover
         """Write data to the output destination.
 
         This method must be implemented by subclasses to handle the actual
@@ -316,6 +318,9 @@ class FITSWriter(DataWriter):
     ----------
     output_path : str or Path
         Directory path where FITS files will be written.
+    dataset_type : str
+        Type of dataset being written (e.g., 'train', 'test',
+        'validation'). This is used in the file names.
 
     Examples
     --------
@@ -328,7 +333,7 @@ class FITSWriter(DataWriter):
     ...     writer.write(vis_data, obs, index=0)
     """
 
-    def __init__(self, output_path: Path, **kwargs) -> None:
+    def __init__(self, output_path: Path, dataset_type: str, **kwargs) -> None:
         """Initialize the FITS writer.
 
         Parameters
@@ -337,6 +342,7 @@ class FITSWriter(DataWriter):
             Directory path where FITS files will be written.
         """
         self.output_path = output_path
+        self.dataset_type = dataset_type
 
     def write(
         self,
@@ -379,7 +385,7 @@ class FITSWriter(DataWriter):
         >>> # Creates file: ./data/vis_train_1.fits (raises error if exists)
         """
         output_file = self.output_path / Path(
-            f"vis_{self.conf.bundle.dataset_type}_" + str(index) + ".fits"
+            f"vis_{self.dataset_type}_" + str(index) + ".fits"
         )
         hdu_list = create_hdu_list(vis_data, obs)
         hdu_list.writeto(output_file, overwrite=overwrite)
