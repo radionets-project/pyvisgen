@@ -17,20 +17,20 @@ from pyvisgen.io import DataConverter
 )
 @click.option(
     "--input-format",
-    type=click.Choice(["h5", "wds"], case_sensitive=False),
+    type=click.Choice(["h5", "wds", "pt"], case_sensitive=False),
     default="h5",
     help="Format of the input dataset.",
     show_default=True,
 )
 @click.option(
     "--output-format",
-    type=click.Choice(["h5", "wds"], case_sensitive=False),
+    type=click.Choice(["h5", "wds", "pt"], case_sensitive=False),
     default="wds",
     help="Format of the output dataset.",
     show_default=True,
 )
 @click.option(
-    "--dataset_type",
+    "--dataset_split",
     "-t",
     type=click.Choice(
         [
@@ -42,7 +42,7 @@ from pyvisgen.io import DataConverter
         case_sensitive=False,
     ),
     multiple=True,
-    default="all",
+    default=["all"],
     help="""Choose between different splits of the datasets to convert.
         'all' converts 'train', 'valid', and 'test' splits in one go.
         """,
@@ -91,7 +91,7 @@ def main(
     output_dir: str | None,
     input_format: str,
     output_format: str,
-    dataset_type: str,
+    dataset_split: str | list[str],
     amp_phase: bool,
     shard_pattern: str,
     compress: bool,
@@ -100,7 +100,11 @@ def main(
     """Data format conversion tool for pyvisgen."""
     input_format = input_format.lower()
     output_format = output_format.lower()
-    dataset_type = [t.lower() for t in dataset_type]
+
+    if isinstance(dataset_split, list | tuple):
+        dataset_split = [t.lower() for t in dataset_split]
+    else:
+        dataset_split = dataset_split.lower()
 
     if input_format == output_format:
         raise click.BadParameter(
@@ -110,9 +114,10 @@ def main(
 
     output_dir = output_dir or input_dir  # If output_dir is None, use input_dir
 
+    converter = DataConverter()  # Instantiate here first, this allows patching in tests
     # Get correct converter from DataConverter attribute
-    converter: DataConverter = getattr(DataConverter, f"from_{input_format}")
-    converter(input_dir, dataset_type=dataset_type).to(
+    converter: DataConverter = getattr(converter, f"from_{input_format}")
+    converter(input_dir, dataset_split=dataset_split).to(
         output_dir,
         output_format=output_format,
         amp_phase=amp_phase,
