@@ -8,6 +8,7 @@ import torch
 from tqdm.auto import tqdm
 
 import pyvisgen.simulation.scan as scan
+from pyvisgen.simulation.noise import generate_noise
 from pyvisgen.utils.batch_size import adaptive_batch_size
 from pyvisgen.utils.logging import setup_logger
 
@@ -35,6 +36,7 @@ class Visibilities:
     V_22 : :func:`~torch.tensor`
     V_12 : :func:`~torch.tensor`
     V_21 : :func:`~torch.tensor`
+    weights : :func:`~torch.tensor`
     num : :func:`~torch.tensor`
     base_num : :func:`~torch.tensor`
     u : :func:`~torch.tensor`
@@ -49,6 +51,7 @@ class Visibilities:
     V_22: torch.tensor
     V_12: torch.tensor
     V_21: torch.tensor
+    weights: torch.tensor
     num: torch.tensor
     base_num: torch.tensor
     u: torch.tensor
@@ -407,7 +410,7 @@ def vis_loop(
     obs,
     SI: torch.tensor,
     num_threads: int = 10,
-    noisy: bool = True,
+    system_temp: int = 0,
     mode: str = "full",
     batch_size: int = "auto",
     show_progress: bool = False,
@@ -426,9 +429,10 @@ def vis_loop(
     num_threads : int, optional
         Number of threads used for intraoperative parallelism
         on the CPU. See `~torch.set_num_threads`. Default: 10
-    noisy : bool, optional
+    system_temp : int/float, optional
         If `True`, generate and add additional noise to
-        the simulated measurements. Default: True
+        the simulated visibilities based on system temperature.
+        Default: 0
     mode : str, optional
         Select one of `'full'`, `'grid'`, or `'dense'` to get
         all valid baselines, a grid of unique baselines, or
@@ -501,6 +505,7 @@ def vis_loop(
         torch.tensor([]),
         torch.tensor([]),
         torch.tensor([]),
+        torch.tensor([]),
     )
 
     vis_num = torch.zeros(1)
@@ -534,7 +539,7 @@ def vis_loop(
         bas=bas,
         lm=lm,
         rd=rd,
-        noisy=noisy,
+        system_temp=system_temp,
         show_progress=show_progress,
         mode=mode,
         ft=ft,
@@ -555,7 +560,7 @@ def _batch_loop(
     bas,
     lm: torch.tensor,
     rd: torch.tensor,
-    noisy: bool | float,
+    system_temp: bool | float,
     show_progress: bool,
     mode: str,
     ft: Literal["default", "finufft", "reversed"] = "default",
@@ -581,8 +586,8 @@ def _batch_loop(
         lm grid.
     rd : torch.tensor
         rd grid.
-    noisy : float or bool
-        Simulate noise as SEFD with given value. If set to False,
+    system_temp : float or bool
+        Simulate noise based on system temperature with given value. If set to False,
         no noise is simulated.
     show_progress : bool
         If True, show a progress bar tracking the loop.
@@ -637,10 +642,13 @@ def _batch_loop(
             continue
 
         int_values = torch.swapaxes(int_values, 0, 1)
-
-        if noisy != 0:
-            noise = generate_noise(int_values.shape, obs, noisy)
+        if system_temp != 0:
+            noise, weights = generate_noise(
+                int_values.shape, obs, bas_p[-4], bas_p[-1], system_temp
+            )
             int_values += noise
+        else:
+            weights = torch.ones(int_values.shape[0], int_values.shape[1])
 
         vis_num = torch.arange(int_values.shape[0]) + 1 + vis_num.max()
 
@@ -649,6 +657,7 @@ def _batch_loop(
             int_values[..., 1, 1].cpu(),  # V_22
             int_values[..., 0, 1].cpu(),  # V_12
             int_values[..., 1, 0].cpu(),  # V_21
+            weights.cpu(),  # visibility weights
             vis_num,
             bas_p[9].cpu(),
             bas_p[2].cpu(),
@@ -663,27 +672,3 @@ def _batch_loop(
         del int_values
 
     return visibilities
-
-
-def generate_noise(shape, obs, SEFD):
-    # scaling factor for the noise
-    factor = 1
-
-    # system efficency factor, near 1
-    eta = 0.93
-
-    # taken from simulations
-    chan_width = obs.bandwidths[0] * len(obs.bandwidths)
-
-    # corr_int_time
-    exposure = obs.int_time
-
-    # taken from:
-    # https://science.nrao.edu/facilities/vla/docs/manuals/oss/performance/sensitivity
-
-    std = factor * 1 / eta * SEFD
-    std /= torch.sqrt(2 * exposure * chan_width)
-    noise = torch.normal(mean=0, std=std, size=shape, device=obs.device)
-    noise = noise + 1.0j * torch.normal(mean=0, std=std, size=shape, device=obs.device)
-
-    return noise
