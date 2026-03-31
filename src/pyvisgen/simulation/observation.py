@@ -63,6 +63,10 @@ class Baselines:
         Tensor of parallactic angle values.
     q2 : :func:`~torch.tensor`
         Tensor of parallactic angle values.
+    el1 : :func:`~torch.tensor`
+        Tensor of elevations for ant 1
+    el2 : :func:`~torch.tensor`
+        Tensor of elevations for ant 2
     """
 
     st1: torch.tensor
@@ -74,6 +78,8 @@ class Baselines:
     time: torch.tensor
     q1: torch.tensor
     q2: torch.tensor
+    el1: torch.tensor
+    el2: torch.tensor
 
     def __getitem__(self, i):
         """Returns element at index ``i`` for all fields."""
@@ -148,6 +154,13 @@ class Baselines:
         q1_valid = (q1_start + q1_stop) / 2
         q2_valid = (q2_start + q2_stop) / 2
 
+        el1_start = bas_reshaped.el1[:-1][mask].to(device)
+        el2_start = bas_reshaped.el2[:-1][mask].to(device)
+        el1_stop = bas_reshaped.el1[1:][mask].to(device)
+        el2_stop = bas_reshaped.el2[1:][mask].to(device)
+        el1_valid = (el1_start + el1_stop) / 2
+        el2_valid = (el2_start + el2_stop) / 2
+
         t = Time(bas_reshaped.time / (60 * 60 * 24), format="mjd").jd
         date = (torch.from_numpy(t[:-1][mask] + t[1:][mask]) / 2).to(device)
 
@@ -169,6 +182,12 @@ class Baselines:
             q2_start,
             q2_stop,
             q2_valid,
+            el1_start,
+            el1_stop,
+            el1_valid,
+            el2_start,
+            el2_stop,
+            el2_valid,
         )
 
 
@@ -215,6 +234,14 @@ class ValidBaselineSubset:
     q2_stop : :func:`~torch.tensor`
     q2_valid : :func:`~torch.tensor`
         Valid parallactic angle values (second half of the pair).
+    el1_start : :func:`~torch.tensor`
+    el1_stop : :func:`~torch.tensor`
+    el1_valid : :func:`~torch.tensor`
+        Valid elevation values (first half of the pair).
+    el2_start : :func:`~torch.tensor`
+    el2_stop : :func:`~torch.tensor`
+    el2_valid : :func:`~torch.tensor`
+        Valid elevation angle values (second half of the pair).
     """
 
     u_start: torch.tensor
@@ -234,6 +261,12 @@ class ValidBaselineSubset:
     q2_start: torch.tensor
     q2_stop: torch.tensor
     q2_valid: torch.tensor
+    el1_start: torch.tensor
+    el1_stop: torch.tensor
+    el1_valid: torch.tensor
+    el2_start: torch.tensor
+    el2_stop: torch.tensor
+    el2_valid: torch.tensor
 
     def __getitem__(self, i):
         """Returns element at index ``i`` for all fields."""
@@ -256,6 +289,12 @@ class ValidBaselineSubset:
                 self.q2_start,
                 self.q2_stop,
                 self.q2_valid,
+                self.el1_start,
+                self.el1_stop,
+                self.el1_valid,
+                self.el2_start,
+                self.el2_stop,
+                self.el2_valid,
             ]
         )
 
@@ -753,6 +792,8 @@ class Observation:
             torch.tensor([]),  # time
             torch.tensor([]),  # q1
             torch.tensor([]),  # q2
+            torch.tensor([]),  # el1
+            torch.tensor([]),  # el2
         )
 
         for scan in tqdm(
@@ -799,6 +840,8 @@ class Observation:
             torch.tensor([]),  # time
             torch.tensor([]),  # q1
             torch.tensor([]),  # q2
+            torch.tensor([]),  # el1
+            torch.tensor([]),  # el2
         )
         q_all = self.calc_feed_rotation(ha_local)
         q_comb = torch.vstack([torch.combinations(qi) for qi in q_all])
@@ -832,8 +875,10 @@ class Observation:
                 w,
                 valid,
                 time_mjd,
-                qc[..., 0].ravel(),
-                qc[..., 1].ravel(),
+                qc[..., 0].ravel(),  # q1
+                qc[..., 1].ravel(),  # q2
+                cur_el_st[..., 0].ravel(),  # el1
+                cur_el_st[..., 1].ravel(),  # el2
             )
             baselines.add_baseline(base)
 
