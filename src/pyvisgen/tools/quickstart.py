@@ -25,7 +25,7 @@ from pyvisgen.utils import setup_logger
 def main(
     config_path: str | Path,
     overwrite: bool = False,
-) -> None:
+) -> None:  # pragma: no cover
     """Quickstart CLI tool for pyvisgen. Creates
     a copy of the default simulation configuration
     file at the specified path.

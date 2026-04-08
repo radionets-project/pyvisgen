@@ -9,6 +9,26 @@ import webdataset as wds
 
 
 @pytest.fixture
+def output_dir(tmp_path: Path) -> Path:
+    output = tmp_path / "output"
+
+    if not output.exists():
+        output.mkdir(parents=True)
+
+    return output
+
+
+@pytest.fixture
+def data_sample() -> tuple[np.ndarray, np.ndarray]:
+    rng = np.random.default_rng()
+
+    x = rng.uniform(size=(10, 2, 32, 32))
+    y = rng.uniform(size=(10, 2, 32, 32))
+
+    return x, y
+
+
+@pytest.fixture
 def sample_data() -> tuple[np.ndarray, np.ndarray]:
     rng = np.random.default_rng(42)
 
@@ -48,11 +68,13 @@ def wds_dataset(tmp_path: Path, sample_data: tuple[np.ndarray, np.ndarray]) -> P
 
         with wds.TarWriter(str(shard_path), compress=True) as tarwriter:
             for i in range(len(x)):
-                tarwriter.write({
-                    "__key__": f"{split}_{i:08d}",
-                    "input.npy": x[i],
-                    "target.npy": y[i],
-                })
+                tarwriter.write(
+                    {
+                        "__key__": f"{split}_{i:08d}",
+                        "input.npy": x[i],
+                        "target.npy": y[i],
+                    }
+                )
 
         metadict = {
             "total_samples_in_dataset": [len(x)],
@@ -62,9 +84,7 @@ def wds_dataset(tmp_path: Path, sample_data: tuple[np.ndarray, np.ndarray]) -> P
             "data_type": ["amp_phase"],
         }
         metadata = pa.Table.from_pydict(metadict)
-        metadata_path = (
-            str(shard_path).replace(".tar.gz", ".parquet")
-        )
+        metadata_path = str(shard_path).replace(".tar.gz", ".parquet")
         pa.parquet.write_table(metadata, metadata_path)
 
         return tmp_path
@@ -93,7 +113,6 @@ def pt_dataset(tmp_path: Path, sample_data: tuple[np.ndarray, np.ndarray]) -> Pa
 
 
 class TestImage:
-
     @staticmethod
     def get_h5(file: Path) -> tuple[np.ndarray, np.ndarray]:
         with h5py.File(file) as f:
@@ -133,6 +152,7 @@ class TestImage:
         y = np.stack((y.real, y.imag), axis=0)
 
         return x, y, data_type
+
 
 @pytest.fixture
 def test_image():
