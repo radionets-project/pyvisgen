@@ -2,10 +2,16 @@ from pathlib import Path
 
 import h5py
 import numpy as np
-import pyarrow as pa
 import pytest
 import torch
-import webdataset as wds
+
+try:
+    import pyarrow as pa
+    import webdataset as wds
+
+    _WDS_AVAIL = True
+except ImportError:
+    _WDS_AVAIL = False
 
 
 @pytest.fixture
