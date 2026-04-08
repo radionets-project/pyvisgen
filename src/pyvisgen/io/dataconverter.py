@@ -14,9 +14,9 @@ try:
     import pyarrow as pa
     import webdataset as wds
 
-    __WDS_AVAIL = True
+    _WDS_AVAIL = True
 except ImportError:
-    __WDS_AVAIL = False
+    _WDS_AVAIL = False
 
 
 __all__ = ["DataConverter"]
@@ -97,7 +97,7 @@ class DataConverter:
         ImportError
             If webdataset package is not installed.
         """
-        if not __WDS_AVAIL:
+        if not _WDS_AVAIL:
             raise ImportError(
                 "Could not import webdataset. Please make sure you install "
                 "pyvisgen with the webdataset extra: "
