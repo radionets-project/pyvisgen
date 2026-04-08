@@ -4,7 +4,6 @@ from typing import Self
 
 import h5py
 import numpy as np
-import pyarrow as pa
 import torch
 from natsort import natsorted
 from rich.progress import track
@@ -15,9 +14,9 @@ try:
     import pyarrow as pa
     import webdataset as wds
 
-    _WDS_AVAIL = True
+    __WDS_AVAIL = True
 except ImportError:
-    _WDS_AVAIL = False
+    __WDS_AVAIL = False
 
 
 __all__ = ["DataConverter"]
@@ -98,7 +97,7 @@ class DataConverter:
         ImportError
             If webdataset package is not installed.
         """
-        if not _WDS_AVAIL:
+        if not __WDS_AVAIL:
             raise ImportError(
                 "Could not import webdataset. Please make sure you install "
                 "pyvisgen with the webdataset extra: "
