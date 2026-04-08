@@ -66,7 +66,7 @@ jobs:
 
       - name: mamba setup
         if: matrix.install-method == 'mamba' && contains(github.event.pull_request.labels.*.name, 'documentation-only') == false
-        uses: mamba-org/setup-micromamba@v2
+        uses: mamba-org/setup-micromamba@v3
         with:
           environment-file: environment.yml
           cache-downloads: true
@@ -94,14 +94,14 @@ jobs:
 
       - name: Upload coverage to Codecov
         if: contains(matrix.extra-args, 'codecov') && contains(github.event.pull_request.labels.*.name, 'documentation-only') == false
-        uses: codecov/codecov-action@v5
+        uses: codecov/codecov-action@v6
         with:
           token: ${{ secrets.CODECOV_TOKEN }}
           report_type: coverage
 
       - name: Report Test Results
         if: contains(matrix.extra-args, 'codecov') && contains(github.event.pull_request.labels.*.name, 'documentation-only') == false
-        uses: codecov/codecov-action@v5
+        uses: codecov/codecov-action@v6
         with:
           token: ${{ secrets.CODECOV_TOKEN }}
           report_type: test_results
