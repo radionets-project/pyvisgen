@@ -13,9 +13,10 @@ from pyvisgen.simulation.scan import (
 )
 
 try:
-    from radioft.finufft import CupyFinufft
+    import cufinufft  # noqa: F401
 
     _FINUFFT_AVAIL = True
+    _FINUFFT_ERROR = ""
 
 except ImportError as e:
     _FINUFFT_AVAIL = False
