@@ -4,7 +4,6 @@ from typing import Self
 
 import h5py
 import numpy as np
-import pyarrow as pa
 import torch
 from natsort import natsorted
 from rich.progress import track
