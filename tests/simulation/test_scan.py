@@ -12,6 +12,15 @@ from pyvisgen.simulation.scan import (
     rime,
 )
 
+try:
+    from radioft.finufft import CupyFinufft
+
+    _FINUFFT_AVAIL = True
+
+except ImportError as e:
+    _FINUFFT_AVAIL = False
+    _FINUFFT_ERROR = str(e)
+
 
 @pytest.fixture
 def setup_test_data(device):
@@ -83,6 +92,14 @@ def setup_test_data(device):
 
 class TestScan:
     """Unit tests for pyvisgen.simulation.scan module."""
+
+    @pytest.fixture
+    def rime_test_data(self, setup_test_data):
+        data = setup_test_data.copy()
+        data.pop("device")
+        data.pop("polarization")
+
+        return data
 
     def test_jinc(self, device):
         """Test the jinc function."""
@@ -268,67 +285,20 @@ class TestScan:
             ),
         )
 
-    def test_rime(self, setup_test_data):
+    def test_rime_grid_reversed(self, rime_test_data):
         """Test the complete RIME function."""
-        # Extract all needed parameters
-        img = setup_test_data["img"]
-        bas = setup_test_data["bas"]
-        lm = setup_test_data["lm"]
-        rd = setup_test_data["rd"]
-        ra = setup_test_data["ra"]
-        dec = setup_test_data["dec"]
-        ant_diam = setup_test_data["ant_diam"]
-        spw_low = setup_test_data["spw_low"]
-        spw_high = setup_test_data["spw_high"]
-        polarization = setup_test_data["polarization"]
-
         # Test with mode = "grid" (default case)
         vis_grid = rime(
-            img,
-            bas,
-            lm,
-            rd,
-            ra,
-            dec,
-            ant_diam,
-            spw_low,
-            spw_high,
-            polarization,
+            **rime_test_data,
+            polarization=None,
             mode="grid",
-            corrupted=True,
         )
 
         # Test with mode = "grid" (reversed jones ordering)
         vis_grid_reversed = rime(
-            img,
-            bas,
-            lm,
-            rd,
-            ra,
-            dec,
-            ant_diam,
-            spw_low,
-            spw_high,
-            polarization,
-            mode="grid",
-            corrupted=True,
-            ft="reversed",
-        )
-
-        # Test with mode = "grid" (reversed jones ordering, no polarization)
-        vis_grid_reversed_nopol = rime(
-            img,
-            bas,
-            lm,
-            rd,
-            ra,
-            dec,
-            ant_diam,
-            spw_low,
-            spw_high,
+            **rime_test_data,
             polarization=None,
             mode="grid",
-            corrupted=True,
             ft="reversed",
         )
 
@@ -336,33 +306,29 @@ class TestScan:
         assert vis_grid_reversed.dtype == vis_grid.dtype
         assert vis_grid_reversed.shape == vis_grid.shape
 
-        # Only test finufft when CUDA is available
-        if torch.cuda.is_available():
-            # Test with mode = "grid" (use radioft finufft)
-            vis_grid_finufft = rime(
-                img,
-                bas,
-                lm,
-                rd,
-                ra,
-                dec,
-                ant_diam,
-                spw_low,
-                spw_high,
-                polarization,
-                mode="grid",
-                corrupted=True,
-                ft="finufft",
-            )
-
-            assert torch.isclose(
-                vis_grid_reversed_nopol, vis_grid_finufft, rtol=1e-6
-            ).all()
-
-        # Test with mode = "grid" with polarization
-        vis_grid_pol = rime(
-            img, bas, lm, rd, ra, dec, ant_diam, spw_low, spw_high, polarization, "grid"
+    @pytest.mark.skipif(not _FINUFFT_AVAIL, reason=_FINUFFT_ERROR)
+    def test_rime_finufft(self, rime_test_data):
+        # Test with mode = "grid" (use radioft finufft)
+        vis_grid_finufft = rime(
+            **rime_test_data,
+            polarization=None,
+            mode="grid",
+            ft="finufft",
         )
+
+        vis_grid_reversed = rime(
+            **rime_test_data,
+            polarization=None,
+            mode="grid",
+            ft="reversed",
+        )
+
+        assert torch.isclose(vis_grid_reversed, vis_grid_finufft, rtol=1e-6).all()
+
+    @pytest.mark.parametrize("polarization", ["linear", "circular"])
+    def test_rime_grid_polarisation(self, polarization, rime_test_data):
+        # Test with mode = "grid" with polarization
+        vis_grid_pol = rime(**rime_test_data, polarization=polarization, mode="grid")
 
         # Check output shape, should be (baseline, 2, 2)
         expected_shape = (3, 2, 2)
@@ -371,22 +337,23 @@ class TestScan:
         # Check type
         assert vis_grid_pol.dtype == torch.complex128
 
+    def test_rime_grid_corrupted(self, rime_test_data):
         # Test with corrupted=True
-        vis_corrupted_pol = rime(
-            img,
-            bas,
-            lm,
-            rd,
-            ra,
-            dec,
-            ant_diam,
-            spw_low,
-            spw_high,
-            polarization,
-            "grid",
+        vis_corrupted = rime(
+            **rime_test_data,
+            polarization=None,
+            mode="grid",
             corrupted=True,
         )
 
+        vis_grid = rime(
+            **rime_test_data,
+            polarization=None,
+            mode="grid",
+        )
+
+        expected_shape = (3, 2, 2)
+
         # Shape should be the same, but values should differ
-        assert vis_corrupted_pol.shape == expected_shape
-        assert not torch.allclose(vis_corrupted_pol, vis_grid_pol)
+        assert vis_corrupted.shape == expected_shape
+        assert not torch.allclose(vis_corrupted, vis_grid)
