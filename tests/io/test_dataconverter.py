@@ -1,3 +1,4 @@
+from importlib.util import find_spec
 from pathlib import Path
 from unittest.mock import patch
 
@@ -7,12 +8,7 @@ import torch
 
 from pyvisgen.io.dataconverter import DataConverter, DataTypeConverter, _batch_array
 
-try:
-    import webdataset as wds
-
-    _WDS_AVAIL = True
-except ImportError:
-    _WDS_AVAIL = False
+_WDS_AVAIL = bool(find_spec("webdataset"))
 
 
 class TestBatchArray:
