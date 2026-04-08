@@ -38,14 +38,16 @@ class Manager:
             try:
                 plugin_class = entry_point.load()
                 self.plugins[entry_point.name] = plugin_class
-            except ImportError as e:  # pragma: no cover
-                LOGGER.warn(f"Failed to load plugin {entry_point.name} in {group}: {e}")
+            except ImportError as e:
+                LOGGER.warning(
+                    f"Failed to load plugin {entry_point.name} in {group}: {e}"
+                )
 
         return self.plugins
 
     def _get_plugin(self, name, group):
-        plugins = self._get_avail_plugins(group=group)
-        if not list(plugins.keys()):  # pragma: no cover
+        plugins: dict[str, Callable] = self._get_avail_plugins(group=group)
+        if not list(plugins.keys()):
             raise ValueError(
                 f"No plugins available in entry point group '{group}'! "
                 "Make sure you have installed a package providing plugins compatible "

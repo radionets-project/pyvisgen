@@ -27,28 +27,9 @@ class Array:
         self.array_layout = array_layout
 
     @lazyproperty
-    def calc_relative_pos(self) -> tuple[torch.tensor, torch.tensor, torch.tensor]:
-        """Calculates the relative positions of the antennas
+    def relative_pos(self) -> tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
+        """Get the relative positions of the antennas
         from geocentric coordinates.
-
-        Returns
-        -------
-        delta_x : :func:`~torch.tensor`
-            Relative x positions.
-        delta_y : :func:`~torch.tensor`
-            Relative y positions.
-        delta_z : :func:`~torch.tensor`
-            Relative z positions.
-        """
-        # from geocentric coordinates to relative coordinates inside array
-        delta_x, delta_y, delta_z = self.get_pairs
-
-        return delta_x, delta_y, delta_z
-
-    @lazyproperty
-    def get_pairs(self) -> tuple[torch.tensor, torch.tensor, torch.tensor]:
-        """Computes antenna pair combinations and calculates
-        the relative positions of the antennas.
 
         Returns
         -------
@@ -71,7 +52,7 @@ class Array:
         return delta_x, delta_y, delta_z
 
     @lazyproperty
-    def calc_ant_pair_vals(self) -> tuple[torch.tensor, torch.tensor, torch.tensor]:
+    def antenna_pairs(self) -> tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
         """Calculates station number, low elevation, and high
         elevation pairs.
 
