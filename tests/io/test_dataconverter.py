@@ -7,6 +7,13 @@ import torch
 
 from pyvisgen.io.dataconverter import DataConverter, DataTypeConverter, _batch_array
 
+try:
+    import webdataset as wds
+
+    _WDS_AVAIL = True
+except ImportError:
+    _WDS_AVAIL = False
+
 
 class TestBatchArray:
     def test_split_even(self) -> None:
@@ -48,6 +55,7 @@ class TestDataConverterFromDataset:
         assert set(converter.datasets) == {"train"}
         assert len(list(converter.datasets["train"])) == 1  # expect 1 file
 
+    @pytest.mark.skipif(not _WDS_AVAIL, reason="WebDataset is not installed")
     def test_from_wds(self, wds_dataset: Path) -> None:
         converter = DataConverter.from_wds(wds_dataset, dataset_split="train")
 
@@ -113,6 +121,7 @@ class TestDataConverterToDataset:
 
         assert output_dir.is_dir()
 
+    @pytest.mark.skipif(not _WDS_AVAIL, reason="WebDataset is not installed")
     @pytest.mark.parametrize("convert", [True, False])
     def test_h5_to_wds(
         self,
@@ -165,6 +174,7 @@ class TestDataConverterToDataset:
 
             assert data_type == "amp_phase"
 
+    @pytest.mark.skipif(not _WDS_AVAIL, reason="WebDataset is not installed")
     @pytest.mark.parametrize("convert", [True, False])
     def test_wds_to_h5(
         self,
@@ -188,6 +198,7 @@ class TestDataConverterToDataset:
             np.testing.assert_array_equal(x, x_h5)
             np.testing.assert_array_equal(y, y_h5)
 
+    @pytest.mark.skipif(not _WDS_AVAIL, reason="WebDataset is not installed")
     @pytest.mark.parametrize("convert", [True, False])
     def test_wds_to_pt(
         self,
@@ -236,6 +247,7 @@ class TestDataConverterToDataset:
             np.testing.assert_array_equal(x, x_h5)
             np.testing.assert_array_equal(y, y_h5)
 
+    @pytest.mark.skipif(not _WDS_AVAIL, reason="WebDataset is not installed")
     @pytest.mark.parametrize("convert", [True, False])
     def test_pt_to_wds(
         self,
@@ -272,6 +284,7 @@ class TestDataConverterToDataset:
         h5_files = list(output_dir.glob("*.h5"))
         assert len(h5_files) == 1
 
+    @pytest.mark.skipif(not _WDS_AVAIL, reason="WebDataset is not installed")
     def test_repr_self_convert_wds(self, tmp_path: Path, wds_dataset: Path):
         output_dir = tmp_path / "output/"
 
