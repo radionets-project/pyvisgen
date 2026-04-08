@@ -55,7 +55,7 @@ class SimulateDataSet:
     @classmethod
     def from_config(
         cls,
-        config: str | Path | dict,
+        config: str | Path | dict | Config,
         /,
         image_key: str = "y",
         *,
@@ -153,12 +153,12 @@ class SimulateDataSet:
                     "", total=len(cls.data_paths)
                 )
 
-                num_images = []
+                num_images_list = []
                 for bundle_id in range(len(cls.data_paths)):
-                    num_images.append(len(cls.get_images(bundle_id)))
+                    num_images_list.append(len(cls.get_images(bundle_id)))
                     counting_progress.update(counting_task_id, advance=1)
 
-                cls.num_images = int(np.sum(num_images))
+                cls.num_images = int(np.sum(num_images_list))
                 overall_progress.update(cls.overall_task_id, advance=1)
 
             if cls.num_images == 0:
@@ -222,6 +222,8 @@ class SimulateDataSet:
                     ).grid()
 
                     sim_data.append(np.array(grid_data.get_mask_real_imag()))
+                else:
+                    sim_data.append(vis)
 
                 current_bundle_progress.update(current_bundle_task_id, advance=1)
 
@@ -296,11 +298,11 @@ class SimulateDataSet:
             LOGGER.warning(e)
             LOGGER.warning("Falling back to default gridder!")
 
-            gridder = Gridder
+            self.gridder = Gridder
 
-        return gridder
+        return self.gridder
 
-    def get_images(self, i: int) -> torch.tensor:
+    def get_images(self, i: int) -> torch.Tensor:
         """Opens bundle with index i and returns :func:`~torch.tensor`
         of images.
 
@@ -489,12 +491,12 @@ class SimulateDataSet:
         delta, amp_ratio, field_order, field_scale = np.full((4, size), np.nan)
 
         if self.conf.polarization.mode:
-            if self.conf.polarization.delta:
+            if self.conf.polarization.delta is not None:
                 delta = np.repeat(self.conf.polarization.delta, size)
             else:
                 delta = self.rng.uniform(0, 180, size)
 
-            if self.conf.polarization.amp_ratio:
+            if self.conf.polarization.amp_ratio is not None:
                 amp_ratio = np.repeat(self.conf.polarization.amp_ratio, size)
             else:
                 amp_ratio = self.rng.uniform(0, 1, size)
@@ -513,7 +515,7 @@ class SimulateDataSet:
                 )
             else:
                 a = self.rng.uniform(0, 1 - 1e-6, size)
-                b = np.repeat(1, size, dtype=float)
+                b = np.repeat(1, size)
                 field_scale = np.stack((a, b), axis=1)
 
         samp_opts = dict(
@@ -631,8 +633,8 @@ class SimulateDataSet:
         return Time(time_steps)
 
     def _geocentric_to_spherical(
-        self, x: torch.tensor, y: torch.tensor, z: torch.tensor
-    ) -> torch.tensor:
+        self, x: torch.Tensor, y: torch.Tensor, z: torch.Tensor
+    ) -> tuple[torch.Tensor, torch.Tensor]:
         """Convert geocentric coordinates to lon/lat.
 
         Parameters
@@ -654,8 +656,8 @@ class SimulateDataSet:
         return lat, lon
 
     def _compute_altitude(
-        self, ra: torch.tensor, dec: torch.tensor, lst: torch.tensor
-    ) -> torch.tensor:
+        self, ra: torch.Tensor, dec: torch.Tensor, lst: torch.Tensor
+    ) -> torch.Tensor:
         """Computes altitude for a given RA/DEC, and local sidereal time (LST).
 
         Parameters
@@ -686,62 +688,5 @@ class SimulateDataSet:
         # in the arcsin below
         sin_alt = torch.clamp(sin_alt, -1, 1)
         alt_rad = torch.arcsin(sin_alt)
+
         return torch.rad2deg(alt_rad)
-
-    @classmethod
-    def _get_obs_test(
-        cls,
-        config: str | Path,
-        /,
-        image_key: str = "y",
-        *,
-        date_fmt: str = DATEFMT,
-    ) -> tuple:  # pragma: no cover
-        """Creates an :class:`~pyvisgen.simulation.Observation` class
-        object for tests.
-
-        Parameters
-        ----------
-        config : str or Path
-            Path to the config file.
-        image_key : str, optional
-            Key under which the true sky distributions are saved
-            in the HDF5 file. Default: ``'y'``
-        date_fmt : str, optional
-            Format string for datetime objects.
-            Default: ``'%d-%m-%Y %H:%M:%S'``
-
-        Returns
-        -------
-        self : SimulateDataSet
-            Class object.
-        obs : :class:`~pyvisgen.simulation.Observation`
-            :class:`~pyvisgen.simulation.Observation` class object.
-        """
-        cls = cls()
-        cls.key = image_key
-        cls.date_fmt = date_fmt
-        cls.multiprocess = 1
-
-        if isinstance(config, (str, Path)):
-            cls.conf = Config.from_toml(config)
-        elif isinstance(config, Config):
-            cls.conf = config
-        elif isinstance(config, dict):
-            cls.conf = Config.model_validate(config)
-        else:
-            raise ValueError(
-                "Expected config to be one of str, Path, dict, or pyvisgen.io.Config!"
-            )
-
-        cls.device = cls.conf.sampling.device
-
-        cls.overall_task_id = overall_progress.add_task(
-            f"Simulating {cls.conf.bundle.dataset_type} dataset", total=3
-        )
-
-        cls.data_paths = load_bundles(cls.conf.bundle.in_path)[0]
-        cls.create_sampling_rc(1)
-        obs = cls.create_observation(0)
-
-        return cls, obs
