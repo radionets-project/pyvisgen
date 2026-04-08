@@ -113,7 +113,6 @@ def rime(
 
             if corrupted:
                 X1, X2 = calc_beam(X1, X2, rd, ra, dec, ant_diam, spw_low, spw_high)
-
             vis = apply_finufft(X1, X2, bas, lm, spw_low, spw_high)
     return vis
 
@@ -149,8 +148,8 @@ def apply_finufft(
     vis = torch.empty([n_baselines, 2, 2], dtype=torch.complex128, device=X1.device)
 
     # Reshape input
-    X1_flat = X1.reshape(4, -1)
-    X2_flat = X2.reshape(4, -1)
+    X1_flat = X1.permute(1, 2, 0).reshape(4, -1)
+    X2_flat = X2.permute(1, 2, 0).reshape(4, -1)
 
     # Create CUDA streams for parallel execution of the 4 Stokes params
     streams = [torch.cuda.Stream() for _ in range(4)]
