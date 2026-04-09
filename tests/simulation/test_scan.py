@@ -327,7 +327,7 @@ class TestRIME:
 
     def test_rime_grid_reversed(self, rime_test_data):
         """Test the complete RIME function."""
-        rime_data, obs = rime_test_data
+        *rime_data, obs = rime_test_data
         obs.polarization = None
 
         # Test with mode = "grid" (default case)
@@ -348,7 +348,7 @@ class TestRIME:
 
     @pytest.mark.skipif(not _FINUFFT_AVAIL, reason=_FINUFFT_ERROR)
     def test_rime_finufft(self, rime_test_data):
-        rime_data, obs = rime_test_data
+        *rime_data, obs = rime_test_data
         obs.polarization = None
 
         # Test with mode = "grid" (use radioft finufft)
@@ -366,7 +366,7 @@ class TestRIME:
 
     @pytest.mark.parametrize("polarization", ["linear", "circular"])
     def test_rime_grid_polarisation(self, polarization, rime_test_data):
-        rime_data, obs = rime_test_data
+        *rime_data, obs = rime_test_data
         obs.polarization = polarization
 
         # Test with mode = "grid" with polarization
@@ -381,18 +381,18 @@ class TestRIME:
         assert vis_grid_pol.dtype == torch.complex128
 
     def test_rime_grid_corrupted(self, rime_test_data):
-        rime_data, obs = rime_test_data
+        *rime_data, obs = rime_test_data
         obs.polarization = None
-        obs.corrupted = True
 
         rime = RIMEScan("default", mode="grid", obs=obs, lm=obs.lm, rd=obs.rd)
-
-        # Test with corrupted=True
-        vis_corrupted = rime(
+        vis_grid = rime(
             *rime_data,
         )
 
-        vis_grid = rime(
+        obs.corrupted = True
+        rime = RIMEScan("default", mode="grid", obs=obs, lm=obs.lm, rd=obs.rd)
+        # Test with corrupted=True
+        vis_corrupted = rime(
             *rime_data,
         )
 
