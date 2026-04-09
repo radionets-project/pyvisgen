@@ -284,14 +284,19 @@ class TestRIME:
     def rime_test_data(self, setup_test_data):
         from dataclasses import dataclass
 
-        data = setup_test_data()
+        data = setup_test_data
         img = data["img"]
         bas = data["bas"]
         spw_low = data["spw_low"]
         spw_high = data["spw_high"]
+        ant_diam = data["ant_diam"]
 
-        for key in ["img", "bas", "spw_low", "spw_hight"]:
+        for key in ["img", "bas", "spw_low", "spw_high", "ant_diam"]:
             data.pop(key)
+
+        @dataclass
+        class MockArray:
+            diam: torch.Tensor
 
         @dataclass
         class MockObs:
@@ -299,12 +304,26 @@ class TestRIME:
             rd: torch.Tensor
             ra: torch.Tensor
             dec: torch.Tensor
-            ant_diam: torch.Tensor
+            array: MockArray
             polarization: str
             device: str
             corrupted: bool
+            img_size: int
+            fov: float
 
-        return img, bas, spw_low, spw_high, MockObs(**setup_test_data, corrupted=False)
+        return (
+            img,
+            bas,
+            spw_low,
+            spw_high,
+            MockObs(
+                **setup_test_data,
+                corrupted=False,
+                img_size=img.shape[-1],
+                fov=0.24,
+                array=MockArray(diam=ant_diam),
+            ),
+        )
 
     def test_rime_grid_reversed(self, rime_test_data):
         """Test the complete RIME function."""
