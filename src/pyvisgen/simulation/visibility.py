@@ -7,7 +7,7 @@ import scipy.ndimage
 import torch
 from tqdm.auto import tqdm
 
-import pyvisgen.simulation.scan as scan
+from pyvisgen.simulation.scan import RIMEScan
 from pyvisgen.utils.batch_size import adaptive_batch_size
 from pyvisgen.utils.logging import setup_logger
 
@@ -613,25 +613,18 @@ def _batch_loop(
         postfix=f"Batch size: {batch_size}",
     )
 
+    rime = RIMEScan(ft=ft, mode=mode, obs=obs, lm=lm, rd=rd)
+
     for p in batches:
         bas_p = bas[p]
 
         int_values = torch.cat(
             [
-                scan.rime(
+                rime(
                     B,
                     bas_p,
-                    lm,
-                    rd,
-                    obs.ra,
-                    obs.dec,
-                    torch.unique(obs.array.diam),
-                    wave_low,
-                    wave_high,
-                    obs.polarization,
-                    mode=mode,
-                    corrupted=obs.corrupted,
-                    ft=ft,
+                    spw_low=wave_low,
+                    spw_high=wave_high,
                 )[None]
                 for wave_low, wave_high in zip(obs.waves_low, obs.waves_high)
             ]
