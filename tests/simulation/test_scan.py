@@ -3,13 +3,13 @@ import torch
 
 from pyvisgen.simulation.observation import ValidBaselineSubset
 from pyvisgen.simulation.scan import (
+    RIMEScan,
     angular_distance,
     calc_beam,
     calc_feed_rotation,
     calc_fourier,
     integrate,
     jinc,
-    rime,
 )
 
 try:
@@ -278,21 +278,49 @@ class TestJonesMatrices:
             ),
         )
 
+
+class TestRIME:
+    @pytest.fixture
+    def rime_test_data(self, setup_test_data):
+        from dataclasses import dataclass
+
+        data = setup_test_data()
+        img = data["img"]
+        bas = data["bas"]
+        spw_low = data["spw_low"]
+        spw_high = data["spw_high"]
+
+        for key in ["img", "bas", "spw_low", "spw_hight"]:
+            data.pop(key)
+
+        @dataclass
+        class MockObs:
+            lm: torch.Tensor
+            rd: torch.Tensor
+            ra: torch.Tensor
+            dec: torch.Tensor
+            ant_diam: torch.Tensor
+            polarization: str
+            device: str
+            corrupted: bool
+
+        return img, bas, spw_low, spw_high, MockObs(**setup_test_data, corrupted=False)
+
     def test_rime_grid_reversed(self, rime_test_data):
         """Test the complete RIME function."""
+        rime_data, obs = rime_test_data
+        obs.polarization = None
+
         # Test with mode = "grid" (default case)
+        rime = RIMEScan("default", mode="grid", obs=obs, lm=obs.lm, rd=obs.rd)
         vis_grid = rime(
-            **rime_test_data,
-            polarization=None,
-            mode="grid",
+            *rime_data,
         )
 
         # Test with mode = "grid" (reversed jones ordering)
+        rime = RIMEScan("reversed", mode="grid", obs=obs, lm=obs.lm, rd=obs.rd)
         vis_grid_reversed = rime(
-            **rime_test_data,
-            polarization=None,
-            mode="grid",
-            ft="reversed",
+            *rime_data,
         )
 
         assert torch.isclose(vis_grid_reversed, vis_grid, rtol=1e-8).all()
@@ -301,27 +329,30 @@ class TestJonesMatrices:
 
     @pytest.mark.skipif(not _FINUFFT_AVAIL, reason=_FINUFFT_ERROR)
     def test_rime_finufft(self, rime_test_data):
+        rime_data, obs = rime_test_data
+        obs.polarization = None
+
         # Test with mode = "grid" (use radioft finufft)
+        rime = RIMEScan("finufft", mode="grid", obs=obs, lm=obs.lm, rd=obs.rd)
         vis_grid_finufft = rime(
-            **rime_test_data,
-            polarization=None,
-            mode="grid",
-            ft="finufft",
+            *rime_data,
         )
 
+        rime = RIMEScan("reversed", mode="grid", obs=obs, lm=obs.lm, rd=obs.rd)
         vis_grid_reversed = rime(
-            **rime_test_data,
-            polarization=None,
-            mode="grid",
-            ft="reversed",
+            *rime_data,
         )
 
         assert torch.isclose(vis_grid_reversed, vis_grid_finufft, rtol=1e-6).all()
 
     @pytest.mark.parametrize("polarization", ["linear", "circular"])
     def test_rime_grid_polarisation(self, polarization, rime_test_data):
+        rime_data, obs = rime_test_data
+        obs.polarization = polarization
+
         # Test with mode = "grid" with polarization
-        vis_grid_pol = rime(**rime_test_data, polarization=polarization, mode="grid")
+        rime = RIMEScan("default", mode="grid", obs=obs, lm=obs.lm, rd=obs.rd)
+        vis_grid_pol = rime(*rime_data)
 
         # Check output shape, should be (baseline, 2, 2)
         expected_shape = (3, 2, 2)
@@ -331,18 +362,19 @@ class TestJonesMatrices:
         assert vis_grid_pol.dtype == torch.complex128
 
     def test_rime_grid_corrupted(self, rime_test_data):
+        rime_data, obs = rime_test_data
+        obs.polarization = None
+        obs.corrupted = True
+
+        rime = RIMEScan("default", mode="grid", obs=obs, lm=obs.lm, rd=obs.rd)
+
         # Test with corrupted=True
         vis_corrupted = rime(
-            **rime_test_data,
-            polarization=None,
-            mode="grid",
-            corrupted=True,
+            *rime_data,
         )
 
         vis_grid = rime(
-            **rime_test_data,
-            polarization=None,
-            mode="grid",
+            *rime_data,
         )
 
         expected_shape = (3, 2, 2)
