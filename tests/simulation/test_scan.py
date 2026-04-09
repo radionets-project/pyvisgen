@@ -91,16 +91,8 @@ def setup_test_data(device):
     }
 
 
-class TestScan:
+class TestJonesMatrices:
     """Unit tests for pyvisgen.simulation.scan module."""
-
-    @pytest.fixture
-    def rime_test_data(self, setup_test_data):
-        data = setup_test_data.copy()
-        data.pop("device")
-        data.pop("polarization")
-
-        return data
 
     def test_jinc(self, device):
         """Test the jinc function."""
