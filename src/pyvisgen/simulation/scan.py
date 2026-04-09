@@ -28,18 +28,6 @@ __all__ = [
 ]
 
 
-# class JonesMatrix(ABC):
-#     @abstractmethod
-#     def __call__(
-#         self, X1: torch.Tensor, X2, torch: torch.Tensor, **ctx
-#     ) -> tuple[torch.Tensor, torch.Tensor]:
-#         """Apply the effect."""
-#
-#
-# class FTKernel(JonesMatrix):
-#     def __call__(self, X1, X2, bas=None, lm)
-
-
 class RIMEScan:
     def __init__(self, ft, mode, obs, lm, rd, eps=1e-8):
         if _FINUFFT_AVAIL:
