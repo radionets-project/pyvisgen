@@ -164,7 +164,7 @@ def apply_finufft(
     lm: torch.Tensor,
     spw_low: float | torch.Tensor,
     spw_high: float | torch.Tensor,
-    finufft: CupyFinufft,
+    finufft,
 ) -> torch.Tensor:  # pragma: no cover
     if not torch.cuda.is_available():
         raise RuntimeError(
