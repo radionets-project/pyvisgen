@@ -552,7 +552,8 @@ class TestBatchLoop:
     @pytest.fixture
     def mock_scan(self, mocker, int_values: torch.Tensor):
         return mocker.patch(
-            "pyvisgen.simulation.visibility.scan.rime", return_value=int_values
+            "pyvisgen.simulation.visibility.RIMEScan.default",
+            return_value=int_values,
         )
 
     def test_loop(
@@ -578,7 +579,7 @@ class TestBatchLoop:
         self, mocker, batch_loop_args: dict, empty_vis: Visibilities
     ) -> None:
         mocker.patch(
-            "pyvisgen.simulation.visibility.scan.rime",
+            "pyvisgen.simulation.visibility.RIMEScan.default",
             return_value=torch.rand([0, 2, 2]),
         )
 
