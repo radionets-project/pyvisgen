@@ -619,7 +619,7 @@ def _batch_loop(
         bas_p = bas[p]
 
         int_values = torch.cat(
-            [
+            tensors=[
                 rime(
                     B,
                     bas_p,
@@ -629,10 +629,15 @@ def _batch_loop(
                 for wave_low, wave_high in zip(obs.waves_low, obs.waves_high)
             ]
         )
+
         if int_values.numel() == 0:
             continue
 
         int_values = torch.swapaxes(int_values, 0, 1)
+
+        # In case any row contains NaN
+        int_values_nans = torch.isnan(int_values).any(dim=(1, 2, 3))
+        int_values = int_values[~int_values_nans]
 
         if noisy != 0:
             noise = generate_noise(int_values.shape, obs, noisy)
@@ -641,18 +646,18 @@ def _batch_loop(
         vis_num = torch.arange(int_values.shape[0]) + 1 + vis_num.max()
 
         vis = Visibilities(
-            int_values[..., 0, 0].cpu(),  # V_11
-            int_values[..., 1, 1].cpu(),  # V_22
-            int_values[..., 0, 1].cpu(),  # V_12
-            int_values[..., 1, 0].cpu(),  # V_21
-            vis_num,
-            bas_p.baseline_nums.cpu(),
-            bas_p.u_valid.cpu(),
-            bas_p.v_valid.cpu(),
-            bas_p.w_valid.cpu(),
-            bas_p.date.cpu(),
-            torch.tensor([]),
-            torch.tensor([]),
+            V_11=int_values[..., 0, 0].cpu(),
+            V_22=int_values[..., 1, 1].cpu(),
+            V_12=int_values[..., 0, 1].cpu(),
+            V_21=int_values[..., 1, 0].cpu(),
+            num=vis_num,
+            base_num=bas_p.baseline_nums[~int_values_nans].cpu(),
+            u=bas_p.u_valid[~int_values_nans].cpu(),
+            v=bas_p.v_valid[~int_values_nans].cpu(),
+            w=bas_p.w_valid[~int_values_nans].cpu(),
+            date=bas_p.date[~int_values_nans].cpu(),
+            linear_dop=torch.tensor([]),
+            circular_dop=torch.tensor([]),
         )
 
         visibilities.add(vis)
