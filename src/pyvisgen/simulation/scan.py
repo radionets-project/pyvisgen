@@ -183,52 +183,41 @@ def apply_finufft(
     v_coords_high = bas.v_valid / c * spw_high
     w_coords_high = bas.w_valid / c * spw_high
 
-    n_baselines = len(bas.u_valid)
-
-    # Pre-allocate output
-    vis = torch.empty([n_baselines, 2, 2], dtype=torch.complex128, device=X1.device)
-
     # Reshape input
-    X1_flat = X1.reshape(4, -1)
-    X2_flat = X2.reshape(4, -1)
-
-    # Create CUDA streams for parallel execution of the 4 Stokes params
-    streams = [torch.cuda.Stream() for _ in range(4)]
+    X1_flat = X1.permute(1, 2, 0).reshape(4, -1)
+    X2_flat = X2.permute(1, 2, 0).reshape(4, -1)
 
     results_low = []
     results_high = []
 
     for i in range(4):
-        with torch.cuda.stream(streams[i]):
-            vis_low = finufft.nufft(
-                X1_flat[i],
-                l_coords,
-                m_coords,
-                n_coords,
-                u_coords_low,
-                v_coords_low,
-                w_coords_low,
-            )
-            vis_high = finufft.nufft(
-                X2_flat[i],
-                l_coords,
-                m_coords,
-                n_coords,
-                u_coords_high,
-                v_coords_high,
-                w_coords_high,
-            )
-            results_low.append(vis_low)
-            results_high.append(vis_high)
-
-    # Synchronize all streams
-    torch.cuda.synchronize()
+        vis_low = finufft.nufft(
+            X1_flat[i],
+            l_coords,
+            m_coords,
+            n_coords,
+            u_coords_low,
+            v_coords_low,
+            w_coords_low,
+        )
+        vis_high = finufft.nufft(
+            X2_flat[i],
+            l_coords,
+            m_coords,
+            n_coords,
+            u_coords_high,
+            v_coords_high,
+            w_coords_high,
+        )
+        results_low.append(vis_low)
+        results_high.append(vis_high)
 
     # Stack and reshape
     vis_low_all = torch.stack(results_low)
     vis_high_all = torch.stack(results_high)
+
     vis_avg = (vis_low_all + vis_high_all) / 2
-    vis = vis_avg.T.reshape(n_baselines, 2, 2)
+    vis = vis_avg.mT.reshape(-1, 2, 2)
 
     return vis
 
