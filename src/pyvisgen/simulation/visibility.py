@@ -552,7 +552,7 @@ def vis_loop(
 def _batch_loop(
     batch_size: int,
     visibilities,
-    vis_num: int,
+    vis_num: torch.Tensor,
     obs,
     B: torch.Tensor,
     bas,
@@ -572,7 +572,7 @@ def _batch_loop(
         Batch size for loop over Baselines dataclass object.
     visibilities : Visibilities
         Visibilities dataclass object.
-    vis_num : int
+    vis_num : torch.Tensor
         Number of visibilities.
     obs : Observation
         Observation class object.
