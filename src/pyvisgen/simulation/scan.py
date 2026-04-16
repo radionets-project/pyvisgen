@@ -4,7 +4,6 @@ from math import pi
 from typing import TYPE_CHECKING
 
 import torch
-from radioft.finufft import CupyFinufft
 from scipy.constants import c
 from torch.special import bessel_j1
 
@@ -15,8 +14,21 @@ if TYPE_CHECKING:
 
 torch.set_default_dtype(torch.float64)
 
+try:
+    from radioft.finufft import CupyFinufft
 
-finufft = CupyFinufft(image_size=512, fov_arcsec=1024, eps=1e-8)
+    finufft = CupyFinufft(image_size=512, fov_arcsec=1024, eps=1e-8)
+    _FINUFFT_AVAIL = True
+
+except ImportError as e:
+    from pyvisgen.utils import setup_logger
+
+    logger = setup_logger(__name__)
+    logger.warning(e)
+
+    _FINUFFT_AVAIL = False
+    _FINUFFT_ERROR = str(e)
+
 
 __all__ = [
     "rime",
@@ -106,6 +118,9 @@ def rime(
             X1, X2 = calc_fourier(X1, X2, bas, lm, spw_low, spw_high)
             vis = integrate(X1, X2)
     if ft == "finufft":
+        if not _FINUFFT_AVAIL:
+            raise RuntimeError(_FINUFFT_ERROR)
+
         with torch.no_grad():
             X1 = img.clone()
             X2 = img.clone()
