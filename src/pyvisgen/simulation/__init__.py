@@ -1,6 +1,6 @@
 from .array import Array
 from .observation import Baselines, Observation, ValidBaselineSubset
-from .scan import angular_distance, calc_beam, calc_fourier, integrate, jinc, rime
+from .scan import RIMEScan, angular_distance, calc_beam, calc_fourier, integrate, jinc
 from .visibility import Polarization, Visibilities, generate_noise, vis_loop
 
 __all__ = [
@@ -16,6 +16,6 @@ __all__ = [
     "generate_noise",
     "integrate",
     "jinc",
-    "rime",
+    "RIMEScan",
     "vis_loop",
 ]
