@@ -2,10 +2,8 @@ from pathlib import Path
 
 import h5py
 import numpy as np
-import pyarrow as pa
 import pytest
 import torch
-import webdataset as wds
 from natsort import natsorted
 
 from pyvisgen.io.datawriters import (
@@ -15,6 +13,14 @@ from pyvisgen.io.datawriters import (
     PTWriter,
     WDSShardWriter,
 )
+
+try:
+    import pyarrow as pa
+    import webdataset as wds
+
+    _WDS_AVAIL = True
+except ImportError:
+    _WDS_AVAIL = False
 
 
 class TestH5Writer:
@@ -72,6 +78,7 @@ class TestH5Writer:
             np.testing.assert_array_equal(f["y"], y[..., :half_image, :])
 
 
+@pytest.mark.skipif(not _WDS_AVAIL, reason="WebDataset is not installed")
 class TestWDSShardWriter:
     @pytest.mark.parametrize("amp_phase", [True, False])
     def test_write(

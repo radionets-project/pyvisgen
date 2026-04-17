@@ -1,25 +1,23 @@
-from __future__ import annotations
-
 from math import pi
-from typing import TYPE_CHECKING
 
 import torch
-from radioft.finufft import CupyFinufft
 from scipy.constants import c
 from torch.special import bessel_j1
 
-if TYPE_CHECKING:
-    from typing import Literal
-
-    from numpy.typing import ArrayLike
-
 torch.set_default_dtype(torch.float64)
 
+try:
+    from radioft.finufft import CupyFinufft
 
-finufft = CupyFinufft(image_size=512, fov_arcsec=1024, eps=1e-8)
+    _FINUFFT_AVAIL = True
+
+except ImportError as e:
+    _FINUFFT_AVAIL = False
+    _FINUFFT_ERROR = str(e)
+
 
 __all__ = [
-    "rime",
+    "RIMEScan",
     "apply_finufft",
     "calc_fourier",
     "calc_feed_rotation",
@@ -30,91 +28,133 @@ __all__ = [
 ]
 
 
-def rime(
-    img: ArrayLike,
-    bas: ArrayLike,
-    lm: ArrayLike,
-    rd: ArrayLike,
-    ra: ArrayLike,
-    dec: ArrayLike,
-    ant_diam: ArrayLike,
-    spw_low: ArrayLike,
-    spw_high: ArrayLike,
-    polarization: str | None,
-    mode: str,
-    corrupted: bool = False,
-    ft: Literal["default", "finufft", "reversed"] = "default",
-):
-    """Calculates visibilities using RIME
+class RIMEScan:
+    def __init__(self, ft, mode, obs, lm, rd, eps=1e-8):
+        if _FINUFFT_AVAIL:
+            self.cupy_finufft = CupyFinufft(
+                image_size=obs.img_size, fov_arcsec=obs.fov, eps=eps
+            )
 
-    Parameters
-    ----------
-    img: torch.tensor
-        sky distribution
-    bas : dataclass object
-        baselines dataclass
-    lm : 2d array
-        lm grid for FOV
-    spw_low : float
-        lower wavelength
-    spw_high : float
-        higher wavelength
-    polarization : str
-        Type of polarization.
-    mode : str
-        Select one of `'full'`, `'grid'`, or `'dense'` to get
-        all valid baselines, a grid of unique baselines, or
-        dense baselines.
-    corrupted : bool, optional
-        If ``True``, apply beam smearing to the simulated data.
-        Default: ``False``
-    ft : str, optional
-        Sets the type of fourier transform used in the RIME.
-        Choose one of ``'default'``, ``'finufft'`` (Flatiron Institute
-        Nonuniform Fast Fourier Transform) or `'reversed'`.
-        Default: ``'default'``
+        self.mode = mode
+        self.ft = ft
+        self.ft_func = getattr(self, ft)
+        self.polarization = obs.polarization
+        self.corrupted = obs.corrupted
+        self.ra = obs.ra
+        self.dec = obs.dec
+        self.ant_diam = torch.unique(obs.array.diam)
+        self.lm = lm
+        self.rd = rd
 
-    Returns
-    -------
-    2d tensor
-        Returns visibility for every baseline
-    """
-    if ft == "default":
+    def __call__(
+        self,
+        img: torch.Tensor,
+        bas,
+        spw_low: torch.Tensor,
+        spw_high: torch.Tensor,
+    ) -> torch.Tensor:
         with torch.no_grad():
-            X1 = img.clone()
-            X2 = img.clone()
-            X1, X2 = calc_fourier(X1, X2, bas, lm, spw_low, spw_high)
+            if self.ft == "reversed":
+                img = torch.repeat_interleave(
+                    img.clone()[None], len(bas.u_valid), dim=0
+                )
 
-            if polarization and mode != "dense":
-                X1, X2 = calc_feed_rotation(X1, X2, bas, polarization)
-
-            if corrupted:
-                X1, X2 = calc_beam(X1, X2, rd, ra, dec, ant_diam, spw_low, spw_high)
-
-            vis = integrate(X1, X2)
-    if ft == "reversed":
-        with torch.no_grad():
-            img = torch.repeat_interleave(img.clone()[None], len(bas.u_valid), dim=0)
-            X1 = img.clone()
-            X2 = img.clone()
-            if polarization and mode != "dense":
-                X1, X2 = calc_feed_rotation(X1, X2, bas, polarization)
-
-            if corrupted:
-                X1, X2 = calc_beam(X1, X2, rd, ra, dec, ant_diam, spw_low, spw_high)
-
-            X1, X2 = calc_fourier(X1, X2, bas, lm, spw_low, spw_high)
-            vis = integrate(X1, X2)
-    if ft == "finufft":
-        with torch.no_grad():
             X1 = img.clone()
             X2 = img.clone()
 
-            if corrupted:
-                X1, X2 = calc_beam(X1, X2, rd, ra, dec, ant_diam, spw_low, spw_high)
+            return self.ft_func(
+                X1,
+                X2,
+                bas,
+                spw_low,
+                spw_high,
+            )
 
-            vis = apply_finufft(X1, X2, bas, lm, spw_low, spw_high)
-    return vis
+    def default(
+        self,
+        X1: torch.Tensor,
+        X2: torch.Tensor,
+        bas: torch.Tensor,
+        spw_low: torch.Tensor,
+        spw_high: torch.Tensor,
+    ) -> torch.Tensor:
+        X1, X2 = calc_fourier(X1, X2, bas, self.lm, spw_low, spw_high)
+
+        if self.polarization and self.mode != "dense":
+            X1, X2 = calc_feed_rotation(X1, X2, bas, self.polarization)
+
+        if self.corrupted:
+            X1, X2 = calc_beam(
+                X1,
+                X2,
+                self.rd,
+                self.ra,
+                self.dec,
+                self.ant_diam,
+                spw_low,
+                spw_high,
+            )
+
+        vis = integrate(X1, X2)
+
+        return vis
+
+    def reversed(
+        self,
+        X1: torch.Tensor,
+        X2: torch.Tensor,
+        bas: torch.Tensor,
+        spw_low: torch.Tensor,
+        spw_high: torch.Tensor,
+    ) -> torch.Tensor:
+        if self.polarization and self.mode != "dense":
+            X1, X2 = calc_feed_rotation(X1, X2, bas, self.polarization)
+
+        if self.corrupted:
+            X1, X2 = calc_beam(
+                X1,
+                X2,
+                self.rd,
+                self.ra,
+                self.dec,
+                self.ant_diam,
+                spw_low,
+                spw_high,
+            )
+
+        X1, X2 = calc_fourier(X1, X2, bas, self.lm, spw_low, spw_high)
+        vis = integrate(X1, X2)
+
+        return vis
+
+    def finufft(
+        self,
+        X1: torch.Tensor,
+        X2: torch.Tensor,
+        bas: torch.Tensor,
+        spw_low: torch.Tensor,
+        spw_high: torch.Tensor,
+    ) -> torch.Tensor:
+        if not _FINUFFT_AVAIL:
+            raise RuntimeError(_FINUFFT_ERROR)
+
+        if self.corrupted:
+            X1, X2 = calc_beam(
+                X1,
+                X2,
+                self.rd,
+                self.ra,
+                self.dec,
+                self.ant_diam,
+                spw_low,
+                spw_high,
+            )
+
+        vis = apply_finufft(
+            X1, X2, bas, self.lm, spw_low, spw_high, finufft=self.cupy_finufft
+        )
+
+        return vis
 
 
 def apply_finufft(
@@ -122,9 +162,10 @@ def apply_finufft(
     X2: torch.Tensor,
     bas,
     lm: torch.Tensor,
-    spw_low: float,
-    spw_high: float,
-) -> tuple[torch.Tensor, torch.Tensor]:  # pragma: no cover
+    spw_low: float | torch.Tensor,
+    spw_high: float | torch.Tensor,
+    finufft,
+) -> torch.Tensor:  # pragma: no cover
     if not torch.cuda.is_available():
         raise RuntimeError(
             "CUDA is not available. Finufft backend requires a CUDA-enabled GPU to run."
@@ -142,52 +183,41 @@ def apply_finufft(
     v_coords_high = bas.v_valid / c * spw_high
     w_coords_high = bas.w_valid / c * spw_high
 
-    n_baselines = len(bas.u_valid)
-
-    # Pre-allocate output
-    vis = torch.empty([n_baselines, 2, 2], dtype=torch.complex128, device=X1.device)
-
     # Reshape input
-    X1_flat = X1.reshape(4, -1)
-    X2_flat = X2.reshape(4, -1)
-
-    # Create CUDA streams for parallel execution of the 4 Stokes params
-    streams = [torch.cuda.Stream() for _ in range(4)]
+    X1_flat = X1.permute(1, 2, 0).reshape(4, -1)
+    X2_flat = X2.permute(1, 2, 0).reshape(4, -1)
 
     results_low = []
     results_high = []
 
     for i in range(4):
-        with torch.cuda.stream(streams[i]):
-            vis_low = finufft.nufft(
-                X1_flat[i],
-                l_coords,
-                m_coords,
-                n_coords,
-                u_coords_low,
-                v_coords_low,
-                w_coords_low,
-            )
-            vis_high = finufft.nufft(
-                X2_flat[i],
-                l_coords,
-                m_coords,
-                n_coords,
-                u_coords_high,
-                v_coords_high,
-                w_coords_high,
-            )
-            results_low.append(vis_low)
-            results_high.append(vis_high)
-
-    # Synchronize all streams
-    torch.cuda.synchronize()
+        vis_low = finufft.nufft(
+            X1_flat[i],
+            l_coords,
+            m_coords,
+            n_coords,
+            u_coords_low,
+            v_coords_low,
+            w_coords_low,
+        )
+        vis_high = finufft.nufft(
+            X2_flat[i],
+            l_coords,
+            m_coords,
+            n_coords,
+            u_coords_high,
+            v_coords_high,
+            w_coords_high,
+        )
+        results_low.append(vis_low)
+        results_high.append(vis_high)
 
     # Stack and reshape
     vis_low_all = torch.stack(results_low)
     vis_high_all = torch.stack(results_high)
+
     vis_avg = (vis_low_all + vis_high_all) / 2
-    vis = vis_avg.T.reshape(n_baselines, 2, 2)
+    vis = vis_avg.mT.reshape(-1, 2, 2)
 
     return vis
 
@@ -197,8 +227,8 @@ def calc_fourier(
     X2: torch.Tensor,
     bas,
     lm: torch.Tensor,
-    spw_low: float,
-    spw_high: float,
+    spw_low: float | torch.Tensor,
+    spw_high: float | torch.Tensor,
 ) -> tuple[torch.Tensor, torch.Tensor]:
     """Calculates Fourier transformation kernel for
     every baseline and pixel in the lm grid.
@@ -248,11 +278,11 @@ def calc_fourier(
 
 
 def calc_feed_rotation(
-    X1: torch.tensor,
-    X2: torch.tensor,
+    X1: torch.Tensor,
+    X2: torch.Tensor,
     bas,
     polarization: str,
-) -> tuple[torch.tensor, torch.tensor]:
+) -> tuple[torch.Tensor, torch.Tensor]:
     """Calculates the feed rotation due to the parallactic
     angle rotation of the source over time.
 
@@ -317,11 +347,11 @@ def calc_beam(
     X1: torch.Tensor,
     X2: torch.Tensor,
     rd: torch.Tensor,
-    ra: float,
-    dec: float,
+    ra: float | torch.Tensor,
+    dec: float | torch.Tensor,
     ant_diam: torch.Tensor,
-    spw_low: float,
-    spw_high: float,
+    spw_low: float | torch.Tensor,
+    spw_high: float | torch.Tensor,
 ) -> tuple[torch.Tensor, torch.Tensor]:
     """Computes the beam influence on the image.
 
@@ -357,7 +387,7 @@ def calc_beam(
 
 
 @torch.compile
-def angular_distance(rd, ra, dec):
+def angular_distance(rd: torch.Tensor, ra: torch.Tensor, dec: torch.Tensor):
     """Calculates angular distance from source position
 
     Parameters

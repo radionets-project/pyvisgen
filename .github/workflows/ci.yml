@@ -90,7 +90,7 @@ jobs:
       - name: Tests
         if: contains(github.event.pull_request.labels.*.name, 'documentation-only') == false
         run: |
-          pytest -vv --cov --cov-report=xml --junitxml=junit.xml -o junit_family=legacy -n auto
+          pytest -vv -rfEs --cov --cov-report=xml --junitxml=junit.xml -o junit_family=legacy -n auto
 
       - name: Upload coverage to Codecov
         if: contains(matrix.extra-args, 'codecov') && contains(github.event.pull_request.labels.*.name, 'documentation-only') == false
