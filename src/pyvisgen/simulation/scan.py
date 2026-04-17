@@ -29,6 +29,31 @@ __all__ = [
 
 
 class RIMEScan:
+    """Apply the Radio Interferometry Measurement Equation (RIME) to sky images.
+
+    This class handles the calculation of visibilities from sky images using
+    either direct Fourier transforms or Non-Uniform Fast Fourier Transforms
+    (FINUFFT). Depending on the observation settings it also applies
+    telescope beam effects or feed rotation.
+
+    Parameters
+    ----------
+    ft : str
+        Fourier transform method to use ('default', 'reversed', or 'finufft').
+    mode : str
+        Observation mode, can be 'full', 'grid' or 'dense'. Dense is only suitable
+        for debugging and disables feed rotation calculation.
+    obs : :class:`~pyvisgen.simulation.Observation`
+        Observation class object containing observation parameters such as
+        the source position.
+    lm : :class:`~torch.Tensor`
+        Direction cosines (l, m) grid for the field of view.
+    rd : :class:`~torch.Tensor`
+        Right ascension and declination grid corresponding to the field of view.
+    eps : float, optional
+        Tolerance for the cuFINUFFT. Default: 1e-8.
+    """
+
     def __init__(self, ft, mode, obs, lm, rd, eps=1e-8):
         if _FINUFFT_AVAIL:
             self.cupy_finufft = CupyFinufft(
@@ -53,6 +78,24 @@ class RIMEScan:
         spw_low: torch.Tensor,
         spw_high: torch.Tensor,
     ) -> torch.Tensor:
+        """Process the input sky image to produce visibilities.
+
+        Parameters
+        ----------
+        img : :class:`~torch.Tensor`
+            Input sky image tensor.
+        bas : :class:`~pyvisgen.simulation.ValidBaselineSubset`
+            Subset of valid baselines containing uvw coordinates.
+        spw_low : :class:`~torch.Tensor`
+            Lower spectral window frequencies/wavelengths.
+        spw_high : :class:`~torch.Tensor`
+            Higher spectral window frequencies/wavelengths.
+
+        Returns
+        -------
+        :class:`~torch.Tensor`
+            Calculated complex visibilities for the given baselines.
+        """
         with torch.no_grad():
             if self.ft == "reversed":
                 img = torch.repeat_interleave(
@@ -78,6 +121,29 @@ class RIMEScan:
         spw_low: torch.Tensor,
         spw_high: torch.Tensor,
     ) -> torch.Tensor:
+        """Evaluate default the RIME Jones chain.
+
+        Calculates direct Fourier kernels, applies feed rotation and
+        beam effects, and integrates over the image.
+
+        Parameters
+        ----------
+        X1 : :class:`~torch.Tensor`
+            Sky tensor for the lower spectral window.
+        X2 : :class:`~torch.Tensor`
+            Sky tensor for the higher spectral window.
+        bas : :class:`~pyvisgen.simulation.ValidBaselineSubset`
+            Subset of valid baselines containing uvw coordinates.
+        spw_low : :class:`~torch.Tensor`
+            Lower spectral window frequencies/wavelengths.
+        spw_high : :class:`~torch.Tensor`
+            Higher spectral window frequencies/wavelengths.
+
+        Returns
+        -------
+        :class:`~torch.Tensor`
+            Visibilities calculated with the default RIME Jones chain.
+        """
         X1, X2 = calc_fourier(X1, X2, bas, self.lm, spw_low, spw_high)
 
         if self.polarization and self.mode != "dense":
@@ -107,6 +173,29 @@ class RIMEScan:
         spw_low: torch.Tensor,
         spw_high: torch.Tensor,
     ) -> torch.Tensor:
+        """Compute the default RIME Jones chain in reversed order.
+
+        Applies feed rotation and primary beam effects before calculating
+        Fourier kernels and integrating.
+
+        Parameters
+        ----------
+        X1 : :class:`~torch.Tensor`
+            Sky tensor for the lower spectral window.
+        X2 : :class:`~torch.Tensor`
+            Sky tensor for the higher spectral window.
+        bas : :class:`~pyvisgen.simulation.ValidBaselineSubset`
+            Subset of valid baselines containing uvw coordinates.
+        spw_low : :class:`~torch.Tensor`
+            Lower spectral window frequencies/wavelengths.
+        spw_high : :class:`~torch.Tensor`
+            Higher spectral window frequencies/wavelengths.
+
+        Returns
+        -------
+        :class:`~torch.Tensor`
+            Visibilities calculated with the reversed RIME Jones chain.
+        """
         if self.polarization and self.mode != "dense":
             X1, X2 = calc_feed_rotation(X1, X2, bas, self.polarization)
 
@@ -135,6 +224,34 @@ class RIMEScan:
         spw_low: torch.Tensor,
         spw_high: torch.Tensor,
     ) -> torch.Tensor:
+        """Evaluate RIME using cuFINUFFT.
+
+        Utilizes GPU-accelerated non-uniform FFTs for
+        faster visibility computation.
+
+        Parameters
+        ----------
+        X1 : :class:`~torch.Tensor`
+            Sky tensor for the lower spectral window.
+        X2 : :class:`~torch.Tensor`
+            Sky tensor for the higher spectral window.
+        bas : :class:`~pyvisgen.simulation.ValidBaselineSubset`
+            Subset of valid baselines containing uvw coordinates.
+        spw_low : :class:`~torch.Tensor`
+            Lower spectral window frequencies/wavelengths.
+        spw_high : :class:`~torch.Tensor`
+            Higher spectral window frequencies/wavelengths.
+
+        Returns
+        -------
+        :class:`~torch.Tensor`
+            Visibilities computed with cuFINUFFT.
+
+        Raises
+        ------
+        RuntimeError
+            If cuFINUFFT package is not successfully loaded or available.
+        """
         if not _FINUFFT_AVAIL:
             raise RuntimeError(_FINUFFT_ERROR)
 
@@ -166,6 +283,34 @@ def apply_finufft(
     spw_high: float | torch.Tensor,
     finufft,
 ) -> torch.Tensor:  # pragma: no cover
+    """Apply cuFINUFFT to input images to compute visibilities.
+
+    Parameters
+    ----------
+    X1 : :class:`~torch.Tensor`
+        Sky tensor for the lower spectral window.
+    X2 : :class:`~torch.Tensor`
+        Sky tensor for the higher spectral window.
+    bas : :class:`~pyvisgen.simulation.ValidBaselineSubset`
+        Subset of valid baselines containing uvw coordinates.
+    spw_low : :class:`~torch.Tensor`
+        Lower spectral window frequencies/wavelengths.
+    spw_high : :class:`~torch.Tensor`
+        Higher spectral window frequencies/wavelengths.
+    finufft : :class:`~radioft.finufft.finufft.CupyFinufft`
+        Initialized :class:`~radioft.finufft.finufft.CupyFinufft` object
+        to be used to compute the visibilities.
+
+    Returns
+    -------
+    :class:`~torch.Tensor`
+        Visibilities computed with cuFINUFFT.
+
+    Raises
+    ------
+    RuntimeError
+        If CUDA is not available.
+    """
     if not torch.cuda.is_available():
         raise RuntimeError(
             "CUDA is not available. Finufft backend requires a CUDA-enabled GPU to run."
