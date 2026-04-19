@@ -7,8 +7,8 @@ import scipy.ndimage
 import torch
 from tqdm.auto import tqdm
 
-import pyvisgen.simulation.scan as scan
 from pyvisgen.simulation.noise import generate_noise
+from pyvisgen.simulation.scan import RIMEScan
 from pyvisgen.utils.batch_size import adaptive_batch_size
 from pyvisgen.utils.logging import setup_logger
 
@@ -557,7 +557,7 @@ def vis_loop(
 def _batch_loop(
     batch_size: int,
     visibilities,
-    vis_num: int,
+    vis_num: torch.Tensor,
     obs,
     B: torch.Tensor,
     bas,
@@ -577,7 +577,7 @@ def _batch_loop(
         Batch size for loop over Baselines dataclass object.
     visibilities : Visibilities
         Visibilities dataclass object.
-    vis_num : int
+    vis_num : torch.Tensor
         Number of visibilities.
     obs : Observation
         Observation class object.
@@ -618,33 +618,32 @@ def _batch_loop(
         postfix=f"Batch size: {batch_size}",
     )
 
+    rime = RIMEScan(ft=ft, mode=mode, obs=obs, lm=lm, rd=rd)
+
     for p in batches:
         bas_p = bas[p]
 
         int_values = torch.cat(
-            [
-                scan.rime(
+            tensors=[
+                rime(
                     B,
                     bas_p,
-                    lm,
-                    rd,
-                    obs.ra,
-                    obs.dec,
-                    torch.unique(obs.array.diam),
-                    wave_low,
-                    wave_high,
-                    obs.polarization,
-                    mode=mode,
-                    corrupted=obs.corrupted,
-                    ft=ft,
+                    spw_low=wave_low,
+                    spw_high=wave_high,
                 )[None]
                 for wave_low, wave_high in zip(obs.waves_low, obs.waves_high)
             ]
         )
+
         if int_values.numel() == 0:
             continue
 
         int_values = torch.swapaxes(int_values, 0, 1)
+
+        # In case any row contains NaN
+        int_values_nans = torch.isnan(int_values).any(dim=(1, 2, 3))
+        int_values = int_values[~int_values_nans]
+
         if system_temp != 0:
             noise, weights = generate_noise(
                 int_values.shape, obs, bas_p[-4], bas_p[-1], system_temp
@@ -656,19 +655,19 @@ def _batch_loop(
         vis_num = torch.arange(int_values.shape[0]) + 1 + vis_num.max()
 
         vis = Visibilities(
-            int_values[..., 0, 0].cpu(),  # V_11
-            int_values[..., 1, 1].cpu(),  # V_22
-            int_values[..., 0, 1].cpu(),  # V_12
-            int_values[..., 1, 0].cpu(),  # V_21
-            weights.cpu(),  # visibility weights
-            vis_num,
-            bas_p.baseline_nums.cpu(),
-            bas_p.u_valid.cpu(),
-            bas_p.v_valid.cpu(),
-            bas_p.w_valid.cpu(),
-            bas_p.date.cpu(),
-            torch.tensor([]),
-            torch.tensor([]),
+            V_11=int_values[..., 0, 0].cpu(),
+            V_22=int_values[..., 1, 1].cpu(),
+            V_12=int_values[..., 0, 1].cpu(),
+            V_21=int_values[..., 1, 0].cpu(),
+            weights=weights.cpu(),
+            num=vis_num,
+            base_num=bas_p.baseline_nums[~int_values_nans].cpu(),
+            u=bas_p.u_valid[~int_values_nans].cpu(),
+            v=bas_p.v_valid[~int_values_nans].cpu(),
+            w=bas_p.w_valid[~int_values_nans].cpu(),
+            date=bas_p.date[~int_values_nans].cpu(),
+            linear_dop=torch.tensor([]),
+            circular_dop=torch.tensor([]),
         )
 
         visibilities.add(vis)
