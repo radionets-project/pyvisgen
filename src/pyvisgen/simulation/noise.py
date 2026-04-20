@@ -22,6 +22,45 @@ _TELESCOPES = {
             [2.60, 2.54, 2.50, 2.47, 2.45, 2.44, 2.46, 2.55, 2.70, 2.92, 3.18]
         ),
     },
+    # VLBA at 15 GHz (2 cm / X-band, 15.363 GHz)
+    # Reference: VLBA Observational Status Summary 2026B,
+    #   https://science.nrao.edu/facilities/vlba/docs/manuals/oss/bands-perf
+    #   Typical zenith SEFD = 543 Jy, Peak Gain = 0.111 K/Jy
+    #   → geometric aperture efficiency η ≈ 0.62, Tsys(zenith) ≈ 60 K
+    # T_atm: computed from the airmass model
+    #   T_atm(el) = T_phys * (1 - exp(-τ_z / sin(el)))
+    #   with T_phys = 265 K and τ_z = 0.05 (representative zenith opacity
+    #   at 15 GHz under median conditions).
+    # T_spill: approximate values for a 25 m alt-az cassegrain at 15 GHz;
+    #   no published H/V separation available, so t_spill_h == t_spill_v.
+    # For noise_mode='tsys', set noise_level ≈ Tsys(55°)/η ≈ 100 K.
+    "vlba": {
+        "dish_diameter": 25.0,  # metres
+        "el_knots": torch.tensor(
+            [15.0, 20.0, 25.0, 30.0, 35.0, 40.0, 50.0, 60.0, 70.0, 80.0, 90.0]
+        ),
+        "t_atm": torch.tensor(
+            [
+                46.55,
+                36.06,
+                29.56,
+                25.22,
+                22.12,
+                19.83,
+                16.74,
+                14.87,
+                13.73,
+                13.12,
+                12.92,
+            ]
+        ),
+        "t_spill_h": torch.tensor(
+            [3.50, 3.20, 3.00, 2.90, 2.80, 2.70, 2.70, 2.75, 2.85, 2.95, 3.05]
+        ),
+        "t_spill_v": torch.tensor(
+            [3.50, 3.20, 3.00, 2.90, 2.80, 2.70, 2.70, 2.75, 2.85, 2.95, 3.05]
+        ),
+    },
 }
 
 
