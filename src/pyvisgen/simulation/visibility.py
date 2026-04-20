@@ -413,7 +413,9 @@ def vis_loop(
     obs,
     SI: torch.Tensor,
     num_threads: int = 10,
-    system_temp: int = 0,
+    noise_level: float = 0,
+    noise_mode: str = "sefd",
+    telescope: str = "meerkat",
     mode: str = "full",
     batch_size: int | Literal["auto"] = "auto",
     show_progress: bool = False,
@@ -432,10 +434,17 @@ def vis_loop(
     num_threads : int, optional
         Number of threads used for intraoperative parallelism
         on the CPU. See `~torch.set_num_threads`. Default: 10
-    system_temp : int/float, optional
-        If `True`, generate and add additional noise to
-        the simulated visibilities based on system temperature.
+    noise_level : float, optional
+        Noise amplitude: SEFD in Jy when ``noise_mode='sefd'``,
+        or T_sys/η in K when ``noise_mode='tsys'``. Set to 0 to disable noise.
         Default: 0
+    noise_mode : str, optional
+        ``'sefd'``: uniform SEFD noise (backward compatible, no elevation dependence).
+        ``'tsys'``: elevation-dependent noise from system temperature.
+        Default: ``'sefd'``
+    telescope : str, optional
+        Telescope name for elevation-dependent Tsys corrections.
+        Only used when ``noise_mode='tsys'``. Default: ``'meerkat'``
     mode : str, optional
         Select one of `'full'`, `'grid'`, or `'dense'` to get
         all valid baselines, a grid of unique baselines, or
@@ -542,7 +551,9 @@ def vis_loop(
         bas=bas,
         lm=lm,
         rd=rd,
-        system_temp=system_temp,
+        noise_level=noise_level,
+        noise_mode=noise_mode,
+        telescope=telescope,
         show_progress=show_progress,
         mode=mode,
         ft=ft,
@@ -563,7 +574,9 @@ def _batch_loop(
     bas,
     lm: torch.Tensor,
     rd: torch.Tensor,
-    system_temp: bool | float,
+    noise_level: float,
+    noise_mode: str,
+    telescope: str,
     show_progress: bool,
     mode: str,
     ft: Literal["default", "finufft", "reversed"] = "default",
@@ -644,9 +657,15 @@ def _batch_loop(
         int_values_nans = torch.isnan(int_values).any(dim=(1, 2, 3))
         int_values = int_values[~int_values_nans]
 
-        if system_temp != 0:
+        if noise_level != 0:
             noise, weights = generate_noise(
-                int_values.shape, obs, bas_p[-4], bas_p[-1], system_temp
+                int_values.shape,
+                obs,
+                noise_level,
+                mode=noise_mode,
+                el1_deg=bas_p.el1_valid,
+                el2_deg=bas_p.el2_valid,
+                telescope=telescope,
             )
             int_values += noise
         else:
