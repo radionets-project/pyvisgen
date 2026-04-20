@@ -215,7 +215,7 @@ class TestSamplingConfig:
             "ref_frequency",
             "frequency_offsets",
             "bandwidths",
-            "noisy",
+            "noise_level",
             "corrupted",
             "sensitivity_cut",
         }
@@ -242,7 +242,7 @@ class TestSamplingConfig:
                 ("corr_int_time", [0, -1, -100]),
                 ("scan_separation", [-1e-5, -10, -1000]),
                 ("ref_frequency", [0, -1, -1e8]),
-                ("noisy", [-1e-5, -1, -10]),
+                ("noise_level", [-1e-5, -1, -10]),
                 ("sensitivity_cut", [-1e-5, -1e8, -1e12]),
             ]
             for value in values

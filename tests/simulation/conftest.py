@@ -48,6 +48,9 @@ def subset_data(device) -> dict[str, torch.Tensor]:
     time = Time(torch.linspace(0, 1000, size) / (60 * 60 * 24), format="mjd").jd
     date = (torch.from_numpy(time) / 2).to(device)
 
+    # Elevations in degrees, realistic range for a ground-based array
+    el = torch.linspace(20.0, 80.0, size, device=dev)
+
     return {
         "u_start": torch.rand(size, device=dev),
         "u_stop": torch.rand(size, device=dev),
@@ -66,6 +69,12 @@ def subset_data(device) -> dict[str, torch.Tensor]:
         "q2_start": torch.rand(size, device=dev),
         "q2_stop": torch.rand(size, device=dev),
         "q2_valid": torch.rand(size, device=dev),
+        "el1_start": el,
+        "el1_stop": el,
+        "el1_valid": el,
+        "el2_start": el,
+        "el2_stop": el,
+        "el2_valid": el,
     }
 
 
@@ -127,6 +136,7 @@ def visibilities_data(device: str) -> dict:
         "V_22": torch.rand(size=(size, 1), device=dev),
         "V_12": torch.rand(size=(size, 1), device=dev),
         "V_21": torch.rand(size=(size, 1), device=dev),
+        "weights": torch.rand(size=(size, 1), device=dev),
         "num": torch.rand(size, device=dev),
         "base_num": torch.rand(size, device=dev),
         "u": torch.rand(size, device=dev),
@@ -197,7 +207,9 @@ def batch_loop_args(
         "bas": subset,
         "lm": obs.lm,
         "rd": obs.rd,
-        "noisy": False,
+        "noise_level": 0,
+        "noise_mode": "sefd",
+        "telescope": "meerkat",
         "show_progress": False,
         "mode": "full",
         "ft": "default",
@@ -211,6 +223,7 @@ def empty_vis(obs):
         torch.empty(size=[0] + [len(obs.waves_low)]),
         torch.empty(size=[0] + [len(obs.waves_low)]),
         torch.empty(size=[0] + [len(obs.waves_low)]),
+        torch.tensor([]),
         torch.tensor([]),
         torch.tensor([]),
         torch.tensor([]),
