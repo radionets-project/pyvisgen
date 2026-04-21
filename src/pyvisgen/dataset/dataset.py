@@ -190,6 +190,16 @@ class SimulateDataSet:
         """Runs the simulation and saves visibility data using the
         data writer specified in the configuration.
         """
+        fits_writer = None
+        if self.conf.bundle.fits_out_path is not None:
+            from pyvisgen.io.datawriters import FITSWriter
+
+            self.conf.bundle.fits_out_path.mkdir(parents=True, exist_ok=True)
+            fits_writer = FITSWriter(
+                output_path=self.conf.bundle.fits_out_path,
+                dataset_type=self.conf.bundle.dataset_type,
+            )
+
         bundles_task_id = bundles_progress.add_task("", total=len(self.data_paths))
         for i in range(len(self.data_paths)):
             SIs = self.get_images(i)
@@ -206,9 +216,12 @@ class SimulateDataSet:
                 vis = vis_loop(
                     obs,
                     SI,
-                    noisy=self.conf.sampling.noisy,
+                    system_temp=self.conf.sampling.noise_level,
+                    noise_mode=self.conf.sampling.noise_mode,
+                    telescope=self.conf.sampling.telescope,
                     mode=self.conf.sampling.mode,
                     ft=self.conf.fft.ft,
+                    normalize=self.conf.sampling.normalize,
                 )
 
                 if self.grid:
@@ -227,9 +240,8 @@ class SimulateDataSet:
 
                 current_bundle_progress.update(current_bundle_task_id, advance=1)
 
-            sim_data = np.array(sim_data)
-
             if self.grid:
+                sim_data = np.array(sim_data)
                 if self.conf.bundle.amp_phase:
                     sim_data = convert_amp_phase(sim_data, sky_sim=False)
                     truth_fft = convert_amp_phase(truth_fft, sky_sim=True)
@@ -253,8 +265,13 @@ class SimulateDataSet:
                 )
 
             else:
-                for i, vis_data in enumerate(sim_data):
-                    self.writer.write(vis_data, obs, index=i, overwrite=True)
+                for j, vis_data in enumerate(sim_data):
+                    self.writer.write(
+                        vis_data, obs, index=i, sky=SIs[j], overwrite=True
+                    )
+
+                    if fits_writer is not None:
+                        fits_writer.write(vis_data, obs, index=i, overwrite=True)
 
                 path_msg = self.conf.bundle.out_path / Path(
                     f"samp_{self.conf.bundle.dataset_type}_<id>.fits"
@@ -284,10 +301,10 @@ class SimulateDataSet:
         self.create_sampling_rc(1)
         obs = self.create_observation(0)
         vis_data = vis_loop(
-            obs, SI, noisy=self.conf.sampling.noisy, mode=self.conf.sampling.mode
+            obs, SI, noisy=self.conf.sampling.noise_level, mode=self.conf.sampling.mode
         )
 
-        self.writer.write(vis_data, obs, index=job_id, overwrite=True)
+        self.writer.write(vis_data, obs, index=job_id, sky=SI, overwrite=True)
 
     def _get_gridder(self):
         try:
