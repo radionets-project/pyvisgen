@@ -237,7 +237,7 @@ class ValidBaselineSubset:
     q2_start: torch.Tensor
     q2_stop: torch.Tensor
     q2_valid: torch.Tensor
-    st_id_pairs: torch.Tensor[tuple]
+    st_id_pairs: torch.Tensor
 
     def __getitem__(self, i):
         """Returns element at index ``i`` for all fields."""
