@@ -261,9 +261,9 @@ class ValidBaselineSubset:
             object containing all attributes that fall in the time
             range between ``t_start`` and ``t_stop``.
         """
-        return ValidBaselineSubset(
-            *[getattr(self, f.name).ravel() for f in fields(self)]
-        )[(self.date >= t_start) & (self.date <= t_stop)]
+        return ValidBaselineSubset(*[getattr(self, f.name) for f in fields(self)])[
+            (self.date >= t_start) & (self.date <= t_stop)
+        ]
 
     def get_unique_grid(
         self,
