@@ -68,7 +68,8 @@ def _interp1d(x: torch.Tensor, xp: torch.Tensor, fp: torch.Tensor) -> torch.Tens
     """Linear interpolation, equivalent to np.interp, works on batched x."""
     xp = xp.to(x.device)
     fp = fp.to(x.device)
-    idx = torch.searchsorted(xp, x.clamp(xp[0], xp[-1])) - 1
+    x = x.clamp(xp[0], xp[-1])
+    idx = torch.searchsorted(xp, x) - 1
     idx = idx.clamp(0, len(xp) - 2)
     t = (x - xp[idx]) / (xp[idx + 1] - xp[idx])
     return fp[idx] + t * (fp[idx + 1] - fp[idx])

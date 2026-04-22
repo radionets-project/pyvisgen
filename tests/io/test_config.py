@@ -23,6 +23,7 @@ class TestBundleConfig:
             "dataset_type",
             "in_path",
             "out_path",
+            "fits_out_path",
             "overlap",
             "grid_size",
             "grid_fov",
@@ -216,6 +217,9 @@ class TestSamplingConfig:
             "frequency_offsets",
             "bandwidths",
             "noise_level",
+            "noise_mode",
+            "telescope",
+            "normalize",
             "corrupted",
             "sensitivity_cut",
         }

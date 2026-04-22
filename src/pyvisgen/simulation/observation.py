@@ -761,6 +761,12 @@ class Observation:
             q2_start=torch.zeros(u.shape, device=self.device),
             q2_stop=torch.zeros(u.shape, device=self.device),
             q2_valid=torch.zeros(u.shape, device=self.device),
+            el1_start=torch.zeros(u.shape, device=self.device),
+            el1_stop=torch.zeros(u.shape, device=self.device),
+            el1_valid=torch.zeros(u.shape, device=self.device),
+            el2_start=torch.zeros(u.shape, device=self.device),
+            el2_stop=torch.zeros(u.shape, device=self.device),
+            el2_valid=torch.zeros(u.shape, device=self.device),
         )
 
     def calc_baselines(self):
