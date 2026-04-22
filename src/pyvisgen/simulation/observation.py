@@ -121,11 +121,12 @@ class Baselines:
         )
 
         mask = (bas_reshaped.valid[:-1].bool()) & (bas_reshaped.valid[1:].bool())
-        baseline_nums = (
-            256 * (bas_reshaped.st1[:-1][mask].ravel() + 1)
-            + bas_reshaped.st2[:-1][mask].ravel()
-            + 1
-        ).to(device)
+
+        stations_1 = bas_reshaped.st1[:-1][mask].ravel()
+        stations_2 = bas_reshaped.st2[:-1][mask].ravel()
+        baseline_nums = (256 * (stations_1 + 1) + stations_2 + 1).to(device)
+
+        st_id_pairs = torch.stack([stations_1, stations_2], dim=1)
 
         u_start = bas_reshaped.u[:-1][mask].to(device)
         v_start = bas_reshaped.v[:-1][mask].to(device)
@@ -169,6 +170,7 @@ class Baselines:
             q2_start,
             q2_stop,
             q2_valid,
+            st_id_pairs,
         )
 
 
@@ -183,38 +185,39 @@ class ValidBaselineSubset:
 
     Attributes
     ----------
-    u_start : :func:`~torch.tensor`
+    u_start : :class:`~torch.Tensor`
         Start value for u coverage integration.
-    u_stop : :func:`~torch.tensor`
+    u_stop : :class:`~torch.Tensor`
         Stop value for u coverage integration.
-    u_valid : :func:`~torch.tensor`
+    u_valid : :class:`~torch.Tensor`
         Valid u values.
-    v_start : :func:`~torch.tensor`
+    v_start : :class:`~torch.Tensor`
         Start value for v coverage integration.
-    v_stop : :func:`~torch.tensor`
+    v_stop : :class:`~torch.Tensor`
         Start value for v coverage integration.
-    v_valid : :func:`~torch.tensor`
+    v_valid : :class:`~torch.Tensor`
         Valid v values.
-    w_start : :func:`~torch.tensor`
+    w_start : :class:`~torch.Tensor`
         Start value for w coverage integration.
-    w_stop : :func:`~torch.tensor`
+    w_stop : :class:`~torch.Tensor`
         Start value for w coverage integration.
-    w_valid : :func:`~torch.tensor`
+    w_valid : :class:`~torch.Tensor`
         Valid w values.
-    baseline_nums : :func:`~torch.tensor`
+    baseline_nums : :class:`~torch.Tensor`
         Numbers of baselines per time step.
-    date : :func:`~torch.tensor`
+    date : :class:`~torch.Tensor`
         Time steps of the measurement during which
         at least one baseline pair contributed to the
         measurement.
-    q1_start : :func:`~torch.tensor`
-    q1_stop : :func:`~torch.tensor`
-    q1_valid : :func:`~torch.tensor`
+    q1_start : :class:`~torch.Tensor`
+    q1_stop : :class:`~torch.Tensor`
+    q1_valid : :class:`~torch.Tensor`
         Valid parallactic angle values (first half of the pair).
-    q2_start : :func:`~torch.tensor`
-    q2_stop : :func:`~torch.tensor`
-    q2_valid : :func:`~torch.tensor`
+    q2_start : :class:`~torch.Tensor`
+    q2_stop : :class:`~torch.Tensor`
+    q2_valid : :class:`~torch.Tensor`
         Valid parallactic angle values (second half of the pair).
+    st_id_pairs : :class:`~torch.Tensor`
     """
 
     u_start: torch.Tensor
@@ -234,6 +237,7 @@ class ValidBaselineSubset:
     q2_start: torch.Tensor
     q2_stop: torch.Tensor
     q2_valid: torch.Tensor
+    st_id_pairs: torch.Tensor[tuple]
 
     def __getitem__(self, i):
         """Returns element at index ``i`` for all fields."""
