@@ -57,6 +57,7 @@ def setup_test_data(device):
         q2_start=torch.Tensor([]),
         q2_stop=torch.Tensor([]),
         q2_valid=torch.tensor([0.15], device=device),  # q2
+        st_id_pairs=torch.zeros(1, device=device),
     )
 
     # Sky position
