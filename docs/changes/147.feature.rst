@@ -1,0 +1,5 @@
+Added elevation-dependent noise simulation via ``noise_mode='tsys'``, where the system temperature T_sys/η and a telescope-specific lookup table determine the per-baseline SEFD as a function of elevation.
+
+Added a telescope registry (``_TELESCOPES``) containing MeerKAT (1284 MHz) and VLBA (15 GHz) parameters, making it straightforward to extend support for additional arrays.
+
+Added natural visibility weights (1/σ²) to the :class:`~pyvisgen.simulation.Visibilities` dataclass and propagated them into the FITS writer output.

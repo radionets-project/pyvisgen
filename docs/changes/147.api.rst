@@ -1,0 +1,3 @@
+Renamed the ``noisy`` configuration key to ``noise_level`` to reflect that the value can represent either an SEFD (Jy) or T_sys/η (K) depending on the chosen mode.
+
+Added ``noise_mode`` (``'sefd'`` or ``'tsys'``) and ``telescope`` configuration keys to :class:`~pyvisgen.io.config.SamplingConfig`.
