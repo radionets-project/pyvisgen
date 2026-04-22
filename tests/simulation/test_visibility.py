@@ -597,7 +597,7 @@ class TestBatchLoop:
         # as expected. Normally vis.V_ij should *not* contain any NaNs.
         mock_generate_noise = mocker.patch(
             "pyvisgen.simulation.visibility.generate_noise",
-            return_value=torch.nan,
+            return_value=(torch.nan, torch.ones(1)),
         )
 
         args = batch_loop_args.copy()

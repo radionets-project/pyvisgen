@@ -63,6 +63,8 @@ class TestBaselines:
             time=torch.tensor([]),
             q1=torch.tensor([]),
             q2=torch.tensor([]),
+            el1=torch.tensor([]),
+            el2=torch.tensor([]),
         )
 
         empty.add_baseline(baselines)

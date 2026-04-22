@@ -36,6 +36,8 @@ def baselines_data() -> dict[str, torch.Tensor]:
         "time": torch.linspace(0, 1000, size),
         "q1": torch.rand(size),
         "q2": torch.rand(size),
+        "el1": torch.linspace(20.0, 80.0, size),
+        "el2": torch.linspace(20.0, 80.0, size),
     }
 
 
