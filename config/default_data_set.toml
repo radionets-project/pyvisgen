@@ -15,9 +15,6 @@ scan_separation = 360
 ref_frequency = 15.17600e9
 frequency_offsets = [0e8, 1.28e8, 2.56e8, 3.84e8]
 bandwidths = [1.28e8, 1.28e8, 1.28e8, 1.28e8]
-noise_level = 0
-noise_mode = "sefd"  # "sefd": uniform SEFD noise (Jy); "tsys": elevation-dependent system temperature noise (K)
-telescope = "meerkat"  # telescope for elevation-dependent Tsys corrections; only used when noise_mode = "tsys"
 corrupted = false
 sensitivity_cut = 1e-6
 
@@ -50,3 +47,8 @@ gridder = "default"
 
 [fft]
 ft = "default"
+
+[noise]
+noise_level = 0
+noise_mode = "sefd"  # "sefd": uniform SEFD noise (Jy); "tsys": elevation-dependent system temperature (K)
+telescope = "meerkat"  # telescope for elevation-dependent Tsys corrections; only used when noise_mode = "tsys"

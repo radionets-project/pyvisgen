@@ -12,6 +12,7 @@ from pyvisgen.layouts import get_array_names
 
 __all__ = [
     "Config",
+    "NoiseConfig",
     "SamplingConfig",
     "PolarizationConfig",
     "BundleConfig",
@@ -37,9 +38,6 @@ class SamplingConfig(BaseModel, validate_assignment=True):
     ref_frequency: float = Field(default=15.17600e9, gt=0)
     frequency_offsets: list[float] = [0e8, 1.28e8, 2.56e8, 3.84e8]
     bandwidths: list[float] = [1.28e8, 1.28e8, 1.28e8, 1.28e8]
-    noise_level: float = Field(default=0, ge=0)
-    noise_mode: Literal["sefd", "tsys"] = "sefd"
-    telescope: str = "meerkat"
     normalize: bool = True
     corrupted: bool = False
     sensitivity_cut: float = Field(default=1e-6, ge=0)
@@ -70,6 +68,14 @@ class SamplingConfig(BaseModel, validate_assignment=True):
             v = None
 
         return v
+
+
+class NoiseConfig(BaseModel, validate_assignment=True):
+    """Noise simulation config BaseModel"""
+
+    noise_level: float = Field(default=0, ge=0)
+    noise_mode: Literal["sefd", "tsys"] = "sefd"
+    telescope: str = "meerkat"
 
 
 class PolarizationConfig(BaseModel, validate_assignment=True):
@@ -192,6 +198,7 @@ class Config(BaseModel):
     """Main training configuration."""
 
     sampling: SamplingConfig = Field(default_factory=SamplingConfig)
+    noise: NoiseConfig = Field(default_factory=NoiseConfig)
     polarization: PolarizationConfig = Field(default_factory=PolarizationConfig)
     bundle: BundleConfig = Field(default_factory=BundleConfig)
     datawriter: DataWriterConfig = Field(default_factory=DataWriterConfig)

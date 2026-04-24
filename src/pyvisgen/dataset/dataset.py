@@ -216,9 +216,9 @@ class SimulateDataSet:
                 vis = vis_loop(
                     obs,
                     SI,
-                    system_temp=self.conf.sampling.noise_level,
-                    noise_mode=self.conf.sampling.noise_mode,
-                    telescope=self.conf.sampling.telescope,
+                    noise_level=self.conf.noise.noise_level,
+                    noise_mode=self.conf.noise.noise_mode,
+                    telescope=self.conf.noise.telescope,
                     mode=self.conf.sampling.mode,
                     ft=self.conf.fft.ft,
                     normalize=self.conf.sampling.normalize,
@@ -301,7 +301,12 @@ class SimulateDataSet:
         self.create_sampling_rc(1)
         obs = self.create_observation(0)
         vis_data = vis_loop(
-            obs, SI, noisy=self.conf.sampling.noise_level, mode=self.conf.sampling.mode
+            obs,
+            SI,
+            noise_level=self.conf.noise.noise_level,
+            noise_mode=self.conf.noise.noise_mode,
+            telescope=self.conf.noise.telescope,
+            mode=self.conf.sampling.mode,
         )
 
         self.writer.write(vis_data, obs, index=job_id, sky=SI, overwrite=True)
