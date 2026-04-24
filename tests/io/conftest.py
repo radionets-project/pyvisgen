@@ -1,4 +1,5 @@
 from pathlib import Path
+from types import SimpleNamespace
 
 import h5py
 import numpy as np
@@ -163,3 +164,35 @@ class TestImage:
 @pytest.fixture
 def test_image():
     return TestImage
+
+
+@pytest.fixture
+def uvh5_vis_data() -> SimpleNamespace:
+    n_baselines = 8
+    n_chans = 2
+
+    return SimpleNamespace(
+        V_11=torch.randn(n_baselines, n_chans, dtype=torch.complex128),
+        V_22=torch.randn(n_baselines, n_chans, dtype=torch.complex128),
+        V_12=torch.randn(n_baselines, n_chans, dtype=torch.complex128),
+        V_21=torch.randn(n_baselines, n_chans, dtype=torch.complex128),
+        weights=torch.rand(n_baselines, n_chans, dtype=torch.float64),
+        u=torch.randn(n_baselines, dtype=torch.float64),
+        v=torch.randn(n_baselines, dtype=torch.float64),
+        w=torch.randn(n_baselines, dtype=torch.float64),
+    )
+
+
+@pytest.fixture
+def uvh5_obs() -> SimpleNamespace:
+    lm = torch.rand(16, 16, 2) * 0.01  # small values so n stays real
+    return SimpleNamespace(
+        lm=lm,
+        ref_frequency=torch.tensor(15.7e9),
+        frequency_offsets=torch.tensor([0.0, 1.0e6]),
+    )
+
+
+@pytest.fixture
+def uvh5_sky() -> torch.Tensor:
+    return torch.rand(1, 16, 16)
