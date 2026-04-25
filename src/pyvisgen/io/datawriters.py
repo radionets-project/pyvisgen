@@ -497,39 +497,41 @@ class UVH5Writer(DataWriter):
         """
         output_file = self.output_path / Path(f"{self.dataset_type}_{index}.uvh5")
 
-        def to_numpy(t):
-            if hasattr(t, "numpy"):
-                return t.detach().cpu().numpy()
-            return np.asarray(t)
-
-        lm = to_numpy(obs.lm)  # shape (H, W, 2)
+        lm = self.__to_numpy(obs.lm)  # shape (H, W, 2)
         n = np.sqrt(np.maximum(1.0 - lm[..., 0] ** 2 - lm[..., 1] ** 2, 0.0))
 
         with File(output_file, "w") as f:
             vis_grp = f.create_group("visibilities")
-            vis_grp.create_dataset("V_11", data=to_numpy(vis_data.V_11))
-            vis_grp.create_dataset("V_22", data=to_numpy(vis_data.V_22))
-            vis_grp.create_dataset("V_12", data=to_numpy(vis_data.V_12))
-            vis_grp.create_dataset("V_21", data=to_numpy(vis_data.V_21))
-            vis_grp.create_dataset("weights", data=to_numpy(vis_data.weights))
+            vis_grp.create_dataset("V_11", data=self.__to_numpy(vis_data.V_11))
+            vis_grp.create_dataset("V_22", data=self.__to_numpy(vis_data.V_22))
+            vis_grp.create_dataset("V_12", data=self.__to_numpy(vis_data.V_12))
+            vis_grp.create_dataset("V_21", data=self.__to_numpy(vis_data.V_21))
+            vis_grp.create_dataset("weights", data=self.__to_numpy(vis_data.weights))
 
             uvw_grp = f.create_group("uvw")
-            uvw_grp.create_dataset("u", data=to_numpy(vis_data.u))
-            uvw_grp.create_dataset("v", data=to_numpy(vis_data.v))
-            uvw_grp.create_dataset("w", data=to_numpy(vis_data.w))
-            uvw_grp.create_dataset("st_id_pairs", data=to_numpy(vis_data.st_id_pairs))
+            uvw_grp.create_dataset("u", data=self.__to_numpy(vis_data.u))
+            uvw_grp.create_dataset("v", data=self.__to_numpy(vis_data.v))
+            uvw_grp.create_dataset("w", data=self.__to_numpy(vis_data.w))
+            uvw_grp.create_dataset(
+                "st_id_pairs", data=self.__to_numpy(vis_data.st_id_pairs)
+            )
 
             lmn_grp = f.create_group("lmn")
             lmn_grp.create_dataset("l", data=lm[..., 0])
             lmn_grp.create_dataset("m", data=lm[..., 1])
             lmn_grp.create_dataset("n", data=n)
 
-            freq_bands = to_numpy(obs.ref_frequency + obs.frequency_offsets)
+            freq_bands = self.__to_numpy(obs.ref_frequency + obs.frequency_offsets)
             f.create_dataset("frequency_bands", data=freq_bands)
 
             if sky is not None:
                 sky_grp = f.create_group("sky")
-                sky_grp.create_dataset("SI", data=to_numpy(sky))
+                sky_grp.create_dataset("SI", data=self.__to_numpy(sky))
+
+    def __to_numpy(self, t: torch.Tensor) -> torch.Tensor:
+        if isinstance(t, torch.Tensor):
+            return t.detach().cpu().numpy()
+        return np.asarray(t)
 
 
 class WDSShardWriter(DataWriter):
