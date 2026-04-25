@@ -3,8 +3,9 @@ import pytest
 import torch
 
 from pyvisgen.simulation.noise import (
-    _TELESCOPES,
+    _get_band_spec,
     _interp1d,
+    available_telescopes,
     compute_noise_std,
     elevation_tsys_contribution,
     generate_noise,
@@ -103,10 +104,10 @@ class TestElevationTsysContribution:
         )
 
     def test_unknown_telescope_raises(self, el_deg: torch.Tensor) -> None:
-        with pytest.raises(KeyError):
+        with pytest.raises(ValueError, match="Unknown telescope"):
             elevation_tsys_contribution(el_deg, telescope="unknown_telescope")
 
-    @pytest.mark.parametrize("telescope", list(_TELESCOPES.keys()))
+    @pytest.mark.parametrize("telescope", available_telescopes())
     def test_registered_telescopes(self, el_deg: torch.Tensor, telescope: str) -> None:
         result = elevation_tsys_contribution(el_deg, telescope=telescope)
         assert result.shape == el_deg.shape
@@ -139,7 +140,7 @@ class TestSefdFromElevation:
         so SEFD equals direct calculation.
         """
         k_B = 1.38e-23
-        d = _TELESCOPES["meerkat"]["dish_diameter"]
+        d = _get_band_spec("meerkat")["dish_diameter"]
         A_geom = torch.pi * (d / 2) ** 2
         expected = 2 * k_B * tsys_over_eta / A_geom * 1e26
 
@@ -150,7 +151,7 @@ class TestSefdFromElevation:
     def test_geometric_mean_of_two_antennas(self, tsys_over_eta: float) -> None:
         """Baseline SEFD is the geometric mean of both antenna SEFDs."""
         k_B = 1.38e-23
-        d = _TELESCOPES["meerkat"]["dish_diameter"]
+        d = _get_band_spec("meerkat")["dish_diameter"]
         A_geom = torch.pi * (d / 2) ** 2
 
         el1 = torch.tensor([30.0])
@@ -167,7 +168,7 @@ class TestSefdFromElevation:
         sefd = sefd_from_elevation(el1, el2, tsys_over_eta)
         np.testing.assert_allclose(sefd.numpy(), expected.numpy(), rtol=1e-6)
 
-    @pytest.mark.parametrize("telescope", list(_TELESCOPES.keys()))
+    @pytest.mark.parametrize("telescope", available_telescopes())
     def test_registered_telescopes(
         self, el_deg: torch.Tensor, tsys_over_eta: float, telescope: str
     ) -> None:

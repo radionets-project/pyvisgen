@@ -417,6 +417,7 @@ def vis_loop(
     noise_level: float = 0,
     noise_mode: str = "sefd",
     telescope: str = "meerkat",
+    band: str | None = None,
     mode: str = "full",
     batch_size: int | Literal["auto"] = "auto",
     show_progress: bool = False,
@@ -556,6 +557,7 @@ def vis_loop(
         noise_level=noise_level,
         noise_mode=noise_mode,
         telescope=telescope,
+        band=band,
         show_progress=show_progress,
         mode=mode,
         ft=ft,
@@ -579,6 +581,7 @@ def _batch_loop(
     noise_level: float,
     noise_mode: str,
     telescope: str,
+    band: str | None,
     show_progress: bool,
     mode: str,
     ft: Literal["default", "finufft", "reversed"] = "default",
@@ -668,6 +671,7 @@ def _batch_loop(
                 el1_deg=bas_p.el1_valid,
                 el2_deg=bas_p.el2_valid,
                 telescope=telescope,
+                band=band,
             )
             int_values += noise
         else:

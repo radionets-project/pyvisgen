@@ -219,6 +219,7 @@ class SimulateDataSet:
                     noise_level=self.conf.noise.noise_level,
                     noise_mode=self.conf.noise.noise_mode,
                     telescope=self.conf.noise.telescope,
+                    band=self.conf.noise.band,
                     mode=self.conf.sampling.mode,
                     ft=self.conf.fft.ft,
                     normalize=self.conf.sampling.normalize,
@@ -306,6 +307,7 @@ class SimulateDataSet:
             noise_level=self.conf.noise.noise_level,
             noise_mode=self.conf.noise.noise_mode,
             telescope=self.conf.noise.telescope,
+            band=self.conf.noise.band,
             mode=self.conf.sampling.mode,
         )
 

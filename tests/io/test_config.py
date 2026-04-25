@@ -289,7 +289,7 @@ class TestSamplingConfig:
 class TestNoiseConfig:
     def test_keys(self) -> None:
         cfg = NoiseConfig()
-        expected_keys = {"noise_level", "noise_mode", "telescope"}
+        expected_keys = {"noise_level", "noise_mode", "telescope", "band"}
 
         assert set(cfg.model_dump()) == expected_keys
 

@@ -217,6 +217,7 @@ def batch_loop_args(
         "noise_level": 0,
         "noise_mode": "sefd",
         "telescope": "meerkat",
+        "band": None,
         "show_progress": False,
         "mode": "full",
         "ft": "default",

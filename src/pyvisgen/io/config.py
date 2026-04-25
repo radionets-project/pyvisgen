@@ -76,6 +76,7 @@ class NoiseConfig(BaseModel, validate_assignment=True):
     noise_level: float = Field(default=0, ge=0)
     noise_mode: Literal["sefd", "tsys"] = "sefd"
     telescope: str = "meerkat"
+    band: str | None = None  # None → first band defined in the telescope config
 
 
 class PolarizationConfig(BaseModel, validate_assignment=True):

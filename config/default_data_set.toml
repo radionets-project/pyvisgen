@@ -50,5 +50,6 @@ ft = "finufft"
 
 [noise]
 noise_level = 0
-noise_mode = "sefd"  # "sefd": uniform SEFD noise (Jy); "tsys": elevation-dependent system temperature (K)
+noise_mode = "sefd"    # "sefd": uniform SEFD noise (Jy); "tsys": elevation-dependent system temperature (K)
 telescope = "meerkat"  # telescope for elevation-dependent Tsys corrections; only used when noise_mode = "tsys"
+band = "L"             # frequency band defined in the telescope config; omit to use the first defined band
