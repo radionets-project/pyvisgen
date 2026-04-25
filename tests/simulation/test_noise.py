@@ -107,6 +107,18 @@ class TestElevationTsysContribution:
         with pytest.raises(ValueError, match="Unknown telescope"):
             elevation_tsys_contribution(el_deg, telescope="unknown_telescope")
 
+    def test_unknown_band_raises(self, el_deg: torch.Tensor) -> None:
+        with pytest.raises(ValueError, match="Band 'Q' not found"):
+            elevation_tsys_contribution(el_deg, telescope="meerkat", band="Q")
+
+    def test_no_bands_raises(self, mocker) -> None:
+        mocker.patch(
+            "pyvisgen.simulation.noise._load_telescope_toml",
+            return_value={"dish_diameter": 13.5, "bands": {}},
+        )
+        with pytest.raises(ValueError, match="defines no bands"):
+            _get_band_spec("meerkat")
+
     @pytest.mark.parametrize("telescope", available_telescopes())
     def test_registered_telescopes(self, el_deg: torch.Tensor, telescope: str) -> None:
         result = elevation_tsys_contribution(el_deg, telescope=telescope)
