@@ -63,6 +63,7 @@ def setup_test_data(device):
         el2_start=torch.Tensor([]),
         el2_stop=torch.Tensor([]),
         el2_valid=torch.tensor([55.0], device=device),
+        st_id_pairs=torch.zeros(1, device=device),
     )
 
     # Sky position

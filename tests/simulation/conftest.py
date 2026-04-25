@@ -53,6 +53,9 @@ def subset_data(device) -> dict[str, torch.Tensor]:
     # Elevations in degrees, realistic range for a ground-based array
     el = torch.linspace(20.0, 80.0, size, device=dev)
 
+    baseline_nums = torch.arange(size, device=dev)
+    st_id_pairs = torch.stack([baseline_nums, baseline_nums], dim=1)
+
     return {
         "u_start": torch.rand(size, device=dev),
         "u_stop": torch.rand(size, device=dev),
@@ -63,7 +66,7 @@ def subset_data(device) -> dict[str, torch.Tensor]:
         "w_start": torch.rand(size, device=dev),
         "w_stop": torch.rand(size, device=dev),
         "w_valid": torch.rand(size, device=dev),
-        "baseline_nums": torch.arange(size, device=dev),
+        "baseline_nums": baseline_nums,
         "date": date,
         "q1_start": torch.rand(size, device=dev),
         "q1_stop": torch.rand(size, device=dev),
@@ -77,6 +80,7 @@ def subset_data(device) -> dict[str, torch.Tensor]:
         "el2_start": el,
         "el2_stop": el,
         "el2_valid": el,
+        "st_id_pairs": st_id_pairs,
     }
 
 

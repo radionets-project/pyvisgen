@@ -46,7 +46,7 @@ overlap = 5
 gridder = "default"
 
 [fft]
-ft = "default"
+ft = "finufft"
 
 [noise]
 noise_level = 0
