@@ -130,6 +130,8 @@ class TestDataWriterConfig:
             ("webdataset", "WDSShardWriter"),
             ("pt", "PTWriter"),
             ("PT", "PTWriter"),
+            ("uvh5", "UVH5Writer"),
+            ("UVH5", "UVH5Writer"),
         ],
     )
     def test_setup_writer_shorthands(self, shorthand, writer_name, dw):
@@ -315,6 +317,19 @@ class TestNoiseConfig:
 
 
 class TestConfig:
+    def test_fits_out_path_with_fits_writer_raises(self, tmp_path) -> None:
+        with pytest.raises(
+            ValueError, match="fits_out_path.*must not be used together"
+        ):
+            Config(
+                bundle={
+                    "in_path": str(tmp_path),
+                    "out_path": str(tmp_path),
+                    "fits_out_path": str(tmp_path),
+                },
+                datawriter={"writer": "FITSWriter"},
+            )
+
     def test_keys(self) -> None:
         cfg = Config()
         expected_keys = {

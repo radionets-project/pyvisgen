@@ -357,6 +357,18 @@ class TestUVH5Writer:
 
         assert (output_dir / "valid_5.uvh5").exists()
 
+    def test_to_numpy_fallback_non_tensor(
+        self, output_dir, uvh5_vis_data, uvh5_obs
+    ) -> None:
+        import numpy as np
+
+        writer = UVH5Writer(output_path=output_dir, dataset_type="train")
+        arr = np.array([1.0, 2.0, 3.0])
+        result = writer._UVH5Writer__to_numpy(arr)
+
+        np.testing.assert_array_equal(result, arr)
+        assert isinstance(result, np.ndarray)
+
 
 class TestFITSWriter:
     def test_write(self, output_dir: Path, mocker) -> None:
