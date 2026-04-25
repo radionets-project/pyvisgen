@@ -7,6 +7,7 @@ import scipy.ndimage
 import torch
 from tqdm.auto import tqdm
 
+from pyvisgen.simulation.noise import generate_noise
 from pyvisgen.simulation.scan import RIMEScan
 from pyvisgen.utils.batch_size import adaptive_batch_size
 from pyvisgen.utils.logging import setup_logger
@@ -35,6 +36,7 @@ class Visibilities:
     V_22 : :func:`~torch.tensor`
     V_12 : :func:`~torch.tensor`
     V_21 : :func:`~torch.tensor`
+    weights : :func:`~torch.tensor`
     num : :func:`~torch.tensor`
     base_num : :func:`~torch.tensor`
     u : :func:`~torch.tensor`
@@ -49,12 +51,14 @@ class Visibilities:
     V_22: torch.Tensor
     V_12: torch.Tensor
     V_21: torch.Tensor
+    weights: torch.Tensor
     num: torch.Tensor
     base_num: torch.Tensor
     u: torch.Tensor
     v: torch.Tensor
     w: torch.Tensor
     date: torch.Tensor
+    st_id_pairs: torch.Tensor
     linear_dop: torch.Tensor
     circular_dop: torch.Tensor
 
@@ -410,7 +414,10 @@ def vis_loop(
     obs,
     SI: torch.Tensor,
     num_threads: int = 10,
-    noisy: bool = True,
+    noise_level: float = 0,
+    noise_mode: str = "sefd",
+    telescope: str = "meerkat",
+    band: str | None = None,
     mode: str = "full",
     batch_size: int | Literal["auto"] = "auto",
     show_progress: bool = False,
@@ -429,9 +436,17 @@ def vis_loop(
     num_threads : int, optional
         Number of threads used for intraoperative parallelism
         on the CPU. See `~torch.set_num_threads`. Default: 10
-    noisy : bool, optional
-        If `True`, generate and add additional noise to
-        the simulated measurements. Default: True
+    noise_level : float, optional
+        Noise amplitude: SEFD in Jy when ``noise_mode='sefd'``,
+        or T_sys/η in K when ``noise_mode='tsys'``. Set to 0 to disable noise.
+        Default: 0
+    noise_mode : str, optional
+        ``'sefd'``: uniform SEFD noise (backward compatible, no elevation dependence).
+        ``'tsys'``: elevation-dependent noise from system temperature.
+        Default: ``'sefd'``
+    telescope : str, optional
+        Telescope name for elevation-dependent Tsys corrections.
+        Only used when ``noise_mode='tsys'``. Default: ``'meerkat'``
     mode : str, optional
         Select one of `'full'`, `'grid'`, or `'dense'` to get
         all valid baselines, a grid of unique baselines, or
@@ -503,6 +518,8 @@ def vis_loop(
         torch.tensor([]),
         torch.tensor([]),
         torch.tensor([]),
+        torch.empty(0, 2),
+        torch.tensor([]),
         torch.tensor([]),
     )
 
@@ -537,7 +554,10 @@ def vis_loop(
         bas=bas,
         lm=lm,
         rd=rd,
-        noisy=noisy,
+        noise_level=noise_level,
+        noise_mode=noise_mode,
+        telescope=telescope,
+        band=band,
         show_progress=show_progress,
         mode=mode,
         ft=ft,
@@ -558,7 +578,10 @@ def _batch_loop(
     bas,
     lm: torch.Tensor,
     rd: torch.Tensor,
-    noisy: bool | float,
+    noise_level: float,
+    noise_mode: str,
+    telescope: str,
+    band: str | None,
     show_progress: bool,
     mode: str,
     ft: Literal["default", "finufft", "reversed"] = "default",
@@ -584,8 +607,8 @@ def _batch_loop(
         lm grid.
     rd : torch.tensor
         rd grid.
-    noisy : float or bool
-        Simulate noise as SEFD with given value. If set to False,
+    system_temp : float or bool
+        Simulate noise based on system temperature with given value. If set to False,
         no noise is simulated.
     show_progress : bool
         If True, show a progress bar tracking the loop.
@@ -639,9 +662,20 @@ def _batch_loop(
         int_values_nans = torch.isnan(int_values).any(dim=(1, 2, 3))
         int_values = int_values[~int_values_nans]
 
-        if noisy != 0:
-            noise = generate_noise(int_values.shape, obs, noisy)
+        if noise_level != 0:
+            noise, weights = generate_noise(
+                int_values.shape,
+                obs,
+                noise_level,
+                mode=noise_mode,
+                el1_deg=bas_p.el1_valid,
+                el2_deg=bas_p.el2_valid,
+                telescope=telescope,
+                band=band,
+            )
             int_values += noise
+        else:
+            weights = torch.ones(int_values.shape[0], int_values.shape[1])
 
         vis_num = torch.arange(int_values.shape[0]) + 1 + vis_num.max()
 
@@ -650,12 +684,14 @@ def _batch_loop(
             V_22=int_values[..., 1, 1].cpu(),
             V_12=int_values[..., 0, 1].cpu(),
             V_21=int_values[..., 1, 0].cpu(),
+            weights=weights.cpu(),
             num=vis_num,
             base_num=bas_p.baseline_nums[~int_values_nans].cpu(),
             u=bas_p.u_valid[~int_values_nans].cpu(),
             v=bas_p.v_valid[~int_values_nans].cpu(),
             w=bas_p.w_valid[~int_values_nans].cpu(),
             date=bas_p.date[~int_values_nans].cpu(),
+            st_id_pairs=bas_p.st_id_pairs[~int_values_nans].cpu(),
             linear_dop=torch.tensor([]),
             circular_dop=torch.tensor([]),
         )
@@ -664,27 +700,3 @@ def _batch_loop(
         del int_values
 
     return visibilities
-
-
-def generate_noise(shape, obs, SEFD):
-    # scaling factor for the noise
-    factor = 1
-
-    # system efficency factor, near 1
-    eta = 0.93
-
-    # taken from simulations
-    chan_width = obs.bandwidths[0] * len(obs.bandwidths)
-
-    # corr_int_time
-    exposure = obs.int_time
-
-    # taken from:
-    # https://science.nrao.edu/facilities/vla/docs/manuals/oss/performance/sensitivity
-
-    std = factor * 1 / eta * SEFD
-    std /= torch.sqrt(2 * exposure * chan_width)
-    noise = torch.normal(mean=0, std=std, size=shape, device=obs.device)
-    noise = noise + 1.0j * torch.normal(mean=0, std=std, size=shape, device=obs.device)
-
-    return noise

@@ -54,6 +54,9 @@ class Manager:
                 f"with pyvisgen {__version__}, e.g. pyvisgrid.gridder from pyvisgrid "
                 "(uv pip install pyvisgrid)!"
             )
+        if name == "default":
+            return plugins["pyvisgrid.gridder"]
+
         if name not in plugins:
             raise ValueError(
                 f"Plugin '{name}' not found. Available: {list(plugins.keys())}"

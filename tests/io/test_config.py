@@ -11,6 +11,7 @@ from pyvisgen.io.config import (
     DataWriterConfig,
     FFTConfig,
     GriddingConfig,
+    NoiseConfig,
     PolarizationConfig,
     SamplingConfig,
 )
@@ -23,6 +24,7 @@ class TestBundleConfig:
             "dataset_type",
             "in_path",
             "out_path",
+            "fits_out_path",
             "overlap",
             "grid_size",
             "grid_fov",
@@ -128,6 +130,8 @@ class TestDataWriterConfig:
             ("webdataset", "WDSShardWriter"),
             ("pt", "PTWriter"),
             ("PT", "PTWriter"),
+            ("uvh5", "UVH5Writer"),
+            ("UVH5", "UVH5Writer"),
         ],
     )
     def test_setup_writer_shorthands(self, shorthand, writer_name, dw):
@@ -215,7 +219,7 @@ class TestSamplingConfig:
             "ref_frequency",
             "frequency_offsets",
             "bandwidths",
-            "noisy",
+            "normalize",
             "corrupted",
             "sensitivity_cut",
         }
@@ -242,7 +246,6 @@ class TestSamplingConfig:
                 ("corr_int_time", [0, -1, -100]),
                 ("scan_separation", [-1e-5, -10, -1000]),
                 ("ref_frequency", [0, -1, -1e8]),
-                ("noisy", [-1e-5, -1, -10]),
                 ("sensitivity_cut", [-1e-5, -1e8, -1e12]),
             ]
             for value in values
@@ -285,11 +288,53 @@ class TestSamplingConfig:
         assert cfg.seed == expected
 
 
+class TestNoiseConfig:
+    def test_keys(self) -> None:
+        cfg = NoiseConfig()
+        expected_keys = {"noise_level", "noise_mode", "telescope", "band"}
+
+        assert set(cfg.model_dump()) == expected_keys
+
+    @pytest.mark.parametrize("noise_mode", ["sefd", "tsys"])
+    def test_valid_noise_mode(self, noise_mode: str) -> None:
+        cfg = NoiseConfig(noise_mode=noise_mode)
+
+        assert cfg.noise_mode == noise_mode
+
+    def test_invalid_noise_mode(self) -> None:
+        with pytest.raises(ValidationError):
+            NoiseConfig(noise_mode="invalid")
+
+    @pytest.mark.parametrize("noise_level", [-1e-5, -1, -10])
+    def test_invalid_noise_level(self, noise_level: float) -> None:
+        with pytest.raises(ValidationError):
+            NoiseConfig(noise_level=noise_level)
+
+    def test_telescope_default(self) -> None:
+        cfg = NoiseConfig()
+
+        assert cfg.telescope == "meerkat"
+
+
 class TestConfig:
+    def test_fits_out_path_with_fits_writer_raises(self, tmp_path) -> None:
+        with pytest.raises(
+            ValueError, match="fits_out_path.*must not be used together"
+        ):
+            Config(
+                bundle={
+                    "in_path": str(tmp_path),
+                    "out_path": str(tmp_path),
+                    "fits_out_path": str(tmp_path),
+                },
+                datawriter={"writer": "FITSWriter"},
+            )
+
     def test_keys(self) -> None:
         cfg = Config()
         expected_keys = {
             "sampling",
+            "noise",
             "polarization",
             "bundle",
             "datawriter",
@@ -304,6 +349,7 @@ class TestConfig:
         cfg = Config()
 
         assert isinstance(cfg.sampling, SamplingConfig)
+        assert isinstance(cfg.noise, NoiseConfig)
         assert isinstance(cfg.polarization, PolarizationConfig)
         assert isinstance(cfg.bundle, BundleConfig)
         assert isinstance(cfg.datawriter, DataWriterConfig)
@@ -337,3 +383,5 @@ class TestConfig:
         assert cfg.polarization.delta == 45
         assert cfg.bundle.dataset_type == ""
         assert cfg.bundle.out_path == Path("./tests/build/gridded").resolve()
+        assert cfg.noise.noise_level == 380
+        assert cfg.noise.noise_mode == "sefd"

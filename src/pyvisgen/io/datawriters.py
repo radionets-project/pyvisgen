@@ -20,7 +20,14 @@ except ImportError:
     _WDS_AVAIL = False
 
 
-__all__ = ["DataWriter", "FITSWriter", "H5Writer", "PTWriter", "WDSShardWriter"]
+__all__ = [
+    "DataWriter",
+    "FITSWriter",
+    "H5Writer",
+    "PTWriter",
+    "UVH5Writer",
+    "WDSShardWriter",
+]
 
 
 class DataWriter(ABC):
@@ -389,6 +396,142 @@ class FITSWriter(DataWriter):
         )
         hdu_list = create_hdu_list(vis_data, obs)
         hdu_list.writeto(output_file, overwrite=overwrite)
+
+
+class UVH5Writer(DataWriter):
+    """HDF5 file writer for UV-plane simulation data.
+
+    This writer saves visibilities, UVW coordinates, LMN coordinates,
+    and the simulated sky to a single HDF5 file per sample. The file
+    layout is::
+
+        {dataset_type}_{index}.uvh5
+        ├── visibilities/
+        │   ├── V_11     (complex128)
+        │   ├── V_22     (complex128)
+        │   ├── V_12     (complex128)
+        │   ├── V_21     (complex128)
+        │   └── weights  (float64)
+        ├── uvw/
+        │   ├── u
+        │   ├── v
+        │   ├── w
+        │   └── st_id_pairs  (int64, shape n_baselines x 2)
+        ├── lmn/
+        │   ├── l
+        │   ├── m
+        │   └── n
+        ├── frequency_bands
+        └── sky/
+            └── SI
+
+    Parameters
+    ----------
+    output_path : str or Path
+        Directory path where HDF5 files will be written.
+    dataset_type : str
+        Type of dataset being written (e.g., 'train', 'test',
+        'validation'). Used in the output filename pattern.
+
+    Examples
+    --------
+    >>> writer = UVH5Writer(output_path="./data", dataset_type="train")
+    >>> writer.write(vis_data, obs, index=0, sky=SI)
+
+    Or as a context manager:
+
+    >>> with UVH5Writer(output_path="./data", dataset_type="train") as writer:
+    ...     writer.write(vis_data, obs, index=0, sky=SI)
+    """
+
+    def __init__(self, output_path: Path, dataset_type: str, **kwargs) -> None:
+        """Initialize the UVH5 writer.
+
+        Parameters
+        ----------
+        output_path : str or Path
+            Directory path where HDF5 files will be written.
+        dataset_type : str
+            Type of dataset being written (e.g., 'train', 'test',
+            'validation').
+        """
+        self.output_path = output_path
+        self.dataset_type = dataset_type
+
+        os.environ["HDF5_USE_FILE_LOCKING"] = "FALSE"
+
+    def write(
+        self,
+        vis_data,
+        obs,
+        index: int,
+        sky=None,
+        **kwargs,
+    ) -> None:
+        """Write simulation data to an HDF5 file.
+
+        Creates a new HDF5 file for each sample with pattern
+        ``uvh5_{dataset_type}_{index}.uvh5``.
+
+        Parameters
+        ----------
+        vis_data : Visibilities
+            Visibilities dataclass object from
+            :func:`~pyvisgen.simulation.visibility.vis_loop`, containing
+            V_11, V_22, V_12, V_21, u, v, w, and related tensors.
+        obs : Observation
+            Observation object from
+            :class:`~pyvisgen.simulation.Observation`. Used to retrieve
+            the LMN coordinate grid via ``obs.lm``.
+        index : int
+            Sample index used in the output filename.
+        sky : torch.Tensor or np.ndarray, optional
+            Sky intensity distribution (SI) passed to the visibility
+            simulation, with shape ``(C, H, W)``. If ``None``, the
+            ``sky/`` group is omitted from the output file.
+
+        Examples
+        --------
+        >>> writer = UVH5Writer(output_path="./data", dataset_type="train")
+        >>> writer.write(vis_data, obs, index=0, sky=SI)
+        """
+        output_file = self.output_path / Path(f"{self.dataset_type}_{index}.uvh5")
+
+        lm = self.__to_numpy(obs.lm)  # shape (H, W, 2)
+        n = np.sqrt(np.maximum(1.0 - lm[..., 0] ** 2 - lm[..., 1] ** 2, 0.0))
+
+        with File(output_file, "w") as f:
+            vis_grp = f.create_group("visibilities")
+            vis_grp.create_dataset("V_11", data=self.__to_numpy(vis_data.V_11))
+            vis_grp.create_dataset("V_22", data=self.__to_numpy(vis_data.V_22))
+            vis_grp.create_dataset("V_12", data=self.__to_numpy(vis_data.V_12))
+            vis_grp.create_dataset("V_21", data=self.__to_numpy(vis_data.V_21))
+            vis_grp.create_dataset("weights", data=self.__to_numpy(vis_data.weights))
+
+            uvw_grp = f.create_group("uvw")
+            uvw_grp.create_dataset("u", data=self.__to_numpy(vis_data.u))
+            uvw_grp.create_dataset("v", data=self.__to_numpy(vis_data.v))
+            uvw_grp.create_dataset("w", data=self.__to_numpy(vis_data.w))
+            uvw_grp.create_dataset(
+                "st_id_pairs", data=self.__to_numpy(vis_data.st_id_pairs)
+            )
+
+            lmn_grp = f.create_group("lmn")
+            lmn_grp.create_dataset("l", data=lm[..., 0])
+            lmn_grp.create_dataset("m", data=lm[..., 1])
+            lmn_grp.create_dataset("n", data=n)
+
+            freq_bands = self.__to_numpy(obs.ref_frequency + obs.frequency_offsets)
+            f.create_dataset("frequency_bands", data=freq_bands)
+
+            if sky is not None:
+                sky_grp = f.create_group("sky")
+                sky_grp.create_dataset("SI", data=self.__to_numpy(sky))
+
+    def __to_numpy(self, t: torch.Tensor) -> torch.Tensor:
+        if isinstance(t, torch.Tensor):
+            return t.detach().cpu().numpy()
+        return np.asarray(t)
 
 
 class WDSShardWriter(DataWriter):

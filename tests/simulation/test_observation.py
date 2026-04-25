@@ -63,6 +63,8 @@ class TestBaselines:
             time=torch.tensor([]),
             q1=torch.tensor([]),
             q2=torch.tensor([]),
+            el1=torch.tensor([]),
+            el2=torch.tensor([]),
         )
 
         empty.add_baseline(baselines)
@@ -79,7 +81,7 @@ class TestValidBaselineSubset:
         assert isinstance(subset_item, ValidBaselineSubset)
 
         for f in fields(ValidBaselineSubset):
-            assert getattr(subset_item, f.name) == getattr(subset, f.name)[idx]
+            assert (getattr(subset_item, f.name) == getattr(subset, f.name)[idx]).all()
 
     def test_get_slice(self, subset: ValidBaselineSubset) -> None:
         subset_items = subset[2:-2]
