@@ -61,6 +61,7 @@ class TestVisibilities:
             v=torch.tensor([], device=dev),
             w=torch.tensor([], device=dev),
             date=torch.tensor([], device=dev),
+            st_id_pairs=torch.empty(0, 2, device=dev),
             linear_dop=torch.tensor([], device=dev),
             circular_dop=torch.tensor([], device=dev),
         )

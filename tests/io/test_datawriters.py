@@ -266,7 +266,16 @@ class TestUVH5Writer:
             writer.write(uvh5_vis_data, uvh5_obs, index=0)
 
         with h5py.File(output_dir / "train_0.uvh5", "r") as f:
-            assert {"u", "v", "w"} == set(f["uvw"])
+            assert {"u", "v", "w", "st_id_pairs"} == set(f["uvw"])
+
+    def test_st_id_pairs(self, output_dir, uvh5_vis_data, uvh5_obs) -> None:
+        with UVH5Writer(output_path=output_dir, dataset_type="train") as writer:
+            writer.write(uvh5_vis_data, uvh5_obs, index=0)
+
+        with h5py.File(output_dir / "train_0.uvh5", "r") as f:
+            pairs = f["uvw/st_id_pairs"][...]
+            assert pairs.shape == uvh5_vis_data.st_id_pairs.numpy().shape
+            np.testing.assert_array_equal(pairs, uvh5_vis_data.st_id_pairs.numpy())
 
     def test_lmn_datasets(self, output_dir, uvh5_vis_data, uvh5_obs) -> None:
         with UVH5Writer(output_path=output_dir, dataset_type="train") as writer:

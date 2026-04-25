@@ -58,6 +58,7 @@ class Visibilities:
     v: torch.Tensor
     w: torch.Tensor
     date: torch.Tensor
+    st_id_pairs: torch.Tensor
     linear_dop: torch.Tensor
     circular_dop: torch.Tensor
 
@@ -516,6 +517,7 @@ def vis_loop(
         torch.tensor([]),
         torch.tensor([]),
         torch.tensor([]),
+        torch.empty(0, 2),
         torch.tensor([]),
         torch.tensor([]),
     )
@@ -685,6 +687,7 @@ def _batch_loop(
             v=bas_p.v_valid[~int_values_nans].cpu(),
             w=bas_p.w_valid[~int_values_nans].cpu(),
             date=bas_p.date[~int_values_nans].cpu(),
+            st_id_pairs=bas_p.st_id_pairs[~int_values_nans].cpu(),
             linear_dop=torch.tensor([]),
             circular_dop=torch.tensor([]),
         )

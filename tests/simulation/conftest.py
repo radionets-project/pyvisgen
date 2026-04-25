@@ -149,6 +149,7 @@ def visibilities_data(device: str) -> dict:
         "v": torch.rand(size, device=dev),
         "w": torch.rand(size, device=dev),
         "date": date,
+        "st_id_pairs": torch.zeros(size, 2, dtype=torch.int64, device=dev),
         "linear_dop": torch.rand((img_size, img_size), device=dev),
         "circular_dop": torch.rand((img_size, img_size), device=dev),
     }
@@ -236,6 +237,7 @@ def empty_vis(obs):
         torch.tensor([]),
         torch.tensor([]),
         torch.tensor([]),
+        torch.empty(0, 2),
         torch.tensor([]),
         torch.tensor([]),
     )

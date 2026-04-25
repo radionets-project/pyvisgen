@@ -415,7 +415,8 @@ class UVH5Writer(DataWriter):
         ├── uvw/
         │   ├── u
         │   ├── v
-        │   └── w
+        │   ├── w
+        │   └── st_id_pairs  (int64, shape n_baselines x 2)
         ├── lmn/
         │   ├── l
         │   ├── m
@@ -516,6 +517,7 @@ class UVH5Writer(DataWriter):
             uvw_grp.create_dataset("u", data=to_numpy(vis_data.u))
             uvw_grp.create_dataset("v", data=to_numpy(vis_data.v))
             uvw_grp.create_dataset("w", data=to_numpy(vis_data.w))
+            uvw_grp.create_dataset("st_id_pairs", data=to_numpy(vis_data.st_id_pairs))
 
             lmn_grp = f.create_group("lmn")
             lmn_grp.create_dataset("l", data=lm[..., 0])

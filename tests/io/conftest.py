@@ -180,6 +180,7 @@ def uvh5_vis_data() -> SimpleNamespace:
         u=torch.randn(n_baselines, dtype=torch.float64),
         v=torch.randn(n_baselines, dtype=torch.float64),
         w=torch.randn(n_baselines, dtype=torch.float64),
+        st_id_pairs=torch.arange(n_baselines * 2).reshape(n_baselines, 2),
     )
 
 
