@@ -132,7 +132,7 @@ class Baselines:
         stations_2 = bas_reshaped.st2[:-1][mask].ravel()
         baseline_nums = (256 * (stations_1 + 1) + stations_2 + 1).to(device)
 
-        st_id_pairs = torch.stack([stations_1, stations_2], dim=1)
+        st_id_pairs = torch.stack([stations_1, stations_2], dim=1).to(device)
 
         u_start = bas_reshaped.u[:-1][mask].to(device)
         v_start = bas_reshaped.v[:-1][mask].to(device)
