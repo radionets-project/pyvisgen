@@ -5,13 +5,14 @@ from collections.abc import Callable
 from pathlib import Path
 from typing import Annotated, Literal
 
-from pydantic import BaseModel, Field, ValidationInfo, field_validator
+from pydantic import BaseModel, Field, ValidationInfo, field_validator, model_validator
 
 from pyvisgen.io import datawriters
 from pyvisgen.layouts import get_array_names
 
 __all__ = [
     "Config",
+    "NoiseConfig",
     "SamplingConfig",
     "PolarizationConfig",
     "BundleConfig",
@@ -26,8 +27,8 @@ class SamplingConfig(BaseModel, validate_assignment=True):
     seed: str | bool | int | None = 1337
     layout: str = "vlba"
     img_size: int = Field(default=1024, gt=0)
-    fov_center_ra: list[int] = [100, 110]
-    fov_center_dec: list[int] = [30, 40]
+    fov_center_ra: list[float] = [100, 110]
+    fov_center_dec: list[float] = [30, 40]
     fov_size: float = Field(default=0.24, gt=0)
     corr_int_time: float = Field(default=30.0, gt=0)
     scan_start: list[str] = ["01-01-1995 00:00:01", "01-01-2025 23:59:59"]
@@ -37,7 +38,7 @@ class SamplingConfig(BaseModel, validate_assignment=True):
     ref_frequency: float = Field(default=15.17600e9, gt=0)
     frequency_offsets: list[float] = [0e8, 1.28e8, 2.56e8, 3.84e8]
     bandwidths: list[float] = [1.28e8, 1.28e8, 1.28e8, 1.28e8]
-    noisy: int = Field(default=0, ge=0)
+    normalize: bool = True
     corrupted: bool = False
     sensitivity_cut: float = Field(default=1e-6, ge=0)
 
@@ -67,6 +68,15 @@ class SamplingConfig(BaseModel, validate_assignment=True):
             v = None
 
         return v
+
+
+class NoiseConfig(BaseModel, validate_assignment=True):
+    """Noise simulation config BaseModel"""
+
+    noise_level: float = Field(default=0, ge=0)
+    noise_mode: Literal["sefd", "tsys"] = "sefd"
+    telescope: str = "meerkat"
+    band: str | None = None  # None → first band defined in the telescope config
 
 
 class PolarizationConfig(BaseModel, validate_assignment=True):
@@ -104,6 +114,13 @@ class BundleConfig(BaseModel, validate_assignment=True):
     dataset_type: Literal["train", "test", "valid", "none", ""] = "train"
     in_path: str | Path = "./path/to/input/data/"
     out_path: str | Path = "./output/path/"
+    fits_out_path: str | Path | None = None
+    """Optional secondary UVFITS output directory for the test WSClean pipeline.
+
+    When set, a UVFITS file is written alongside each UVH5 file during
+    simulation. Only valid when ``writer = "UVH5Writer"`` in ``[datawriter]``;
+    using it together with ``writer = "FITSWriter"`` raises a ``ValueError``.
+    """
     overlap: int = 5
     grid_size: int = Field(default=1024, gt=0)
     grid_fov: float = Field(default=0.24, gt=0)
@@ -120,6 +137,13 @@ class BundleConfig(BaseModel, validate_assignment=True):
         v = Path(v).expanduser().resolve()
 
         return v
+
+    @field_validator("fits_out_path", mode="before")
+    @classmethod
+    def parse_fits_out_path(cls, v: str | Path | None) -> Path | None:
+        if v in {"none", "", None}:
+            return None
+        return Path(v).expanduser().resolve()
 
 
 class DataWriterConfig(BaseModel, validate_assignment=True):
@@ -143,6 +167,8 @@ class DataWriterConfig(BaseModel, validate_assignment=True):
         # handle shorthands for full data writer names
         if writer.lower() in ["h5", "hdf5"]:
             output_writer = _avail_writers["H5Writer"]
+        elif writer.lower() in ["uvh5"]:
+            output_writer = _avail_writers["UVH5Writer"]
         elif writer.lower() in ["wds", "webdataset"]:
             output_writer = _avail_writers["WDSShardWriter"]
         elif writer.lower() in ["pt"]:
@@ -173,6 +199,7 @@ class Config(BaseModel):
     """Main training configuration."""
 
     sampling: SamplingConfig = Field(default_factory=SamplingConfig)
+    noise: NoiseConfig = Field(default_factory=NoiseConfig)
     polarization: PolarizationConfig = Field(default_factory=PolarizationConfig)
     bundle: BundleConfig = Field(default_factory=BundleConfig)
     datawriter: DataWriterConfig = Field(default_factory=DataWriterConfig)
@@ -187,6 +214,19 @@ class Config(BaseModel):
             data = tomllib.load(f)
 
         return cls(**data)
+
+    @model_validator(mode="after")
+    def check_fits_out_path_writer(self) -> "Config":
+        if self.bundle.fits_out_path is not None and issubclass(
+            self.datawriter.writer, datawriters.FITSWriter
+        ):
+            raise ValueError(
+                "'fits_out_path' in [bundle] must not be used together with "
+                "writer='FITSWriter' in [datawriter] — the FITSWriter already "
+                "writes FITS files as its primary output. "
+                "Set writer='UVH5Writer' to enable secondary FITS output."
+            )
+        return self
 
     @field_validator("codecarbon", mode="before")
     @classmethod

@@ -36,6 +36,8 @@ def baselines_data() -> dict[str, torch.Tensor]:
         "time": torch.linspace(0, 1000, size),
         "q1": torch.rand(size),
         "q2": torch.rand(size),
+        "el1": torch.linspace(20.0, 80.0, size),
+        "el2": torch.linspace(20.0, 80.0, size),
     }
 
 
@@ -47,6 +49,9 @@ def subset_data(device) -> dict[str, torch.Tensor]:
 
     time = Time(torch.linspace(0, 1000, size) / (60 * 60 * 24), format="mjd").jd
     date = (torch.from_numpy(time) / 2).to(device)
+
+    # Elevations in degrees, realistic range for a ground-based array
+    el = torch.linspace(20.0, 80.0, size, device=dev)
 
     baseline_nums = torch.arange(size, device=dev)
     st_id_pairs = torch.stack([baseline_nums, baseline_nums], dim=1)
@@ -69,6 +74,12 @@ def subset_data(device) -> dict[str, torch.Tensor]:
         "q2_start": torch.rand(size, device=dev),
         "q2_stop": torch.rand(size, device=dev),
         "q2_valid": torch.rand(size, device=dev),
+        "el1_start": el,
+        "el1_stop": el,
+        "el1_valid": el,
+        "el2_start": el,
+        "el2_stop": el,
+        "el2_valid": el,
         "st_id_pairs": st_id_pairs,
     }
 
@@ -131,12 +142,14 @@ def visibilities_data(device: str) -> dict:
         "V_22": torch.rand(size=(size, 1), device=dev),
         "V_12": torch.rand(size=(size, 1), device=dev),
         "V_21": torch.rand(size=(size, 1), device=dev),
+        "weights": torch.rand(size=(size, 1), device=dev),
         "num": torch.rand(size, device=dev),
         "base_num": torch.rand(size, device=dev),
         "u": torch.rand(size, device=dev),
         "v": torch.rand(size, device=dev),
         "w": torch.rand(size, device=dev),
         "date": date,
+        "st_id_pairs": torch.zeros(size, 2, dtype=torch.int64, device=dev),
         "linear_dop": torch.rand((img_size, img_size), device=dev),
         "circular_dop": torch.rand((img_size, img_size), device=dev),
     }
@@ -201,7 +214,10 @@ def batch_loop_args(
         "bas": subset,
         "lm": obs.lm,
         "rd": obs.rd,
-        "noisy": False,
+        "noise_level": 0,
+        "noise_mode": "sefd",
+        "telescope": "meerkat",
+        "band": None,
         "show_progress": False,
         "mode": "full",
         "ft": "default",
@@ -221,6 +237,8 @@ def empty_vis(obs):
         torch.tensor([]),
         torch.tensor([]),
         torch.tensor([]),
+        torch.tensor([]),
+        torch.empty(0, 2),
         torch.tensor([]),
         torch.tensor([]),
     )

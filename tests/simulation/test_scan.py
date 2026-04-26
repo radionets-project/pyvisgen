@@ -57,6 +57,12 @@ def setup_test_data(device):
         q2_start=torch.Tensor([]),
         q2_stop=torch.Tensor([]),
         q2_valid=torch.tensor([0.15], device=device),  # q2
+        el1_start=torch.Tensor([]),
+        el1_stop=torch.Tensor([]),
+        el1_valid=torch.tensor([55.0], device=device),
+        el2_start=torch.Tensor([]),
+        el2_stop=torch.Tensor([]),
+        el2_valid=torch.tensor([55.0], device=device),
         st_id_pairs=torch.zeros(1, device=device),
     )
 

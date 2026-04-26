@@ -51,6 +51,7 @@ def mock_vis(mocker):
     vals = rng.standard_normal((size, 2, 4)) + 1j * rng.standard_normal((size, 2, 4))
 
     vis.get_values.return_value = torch.from_numpy(vals)
+    vis.weights = torch.ones(size, 1)
 
     return vis
 
