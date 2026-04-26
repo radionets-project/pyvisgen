@@ -60,7 +60,7 @@ Maintenance
 
 - Updated type hints across the codebase
 
-- Added `dataset_type` as an to `FITSWriter` for consistency with other writer classes
+- Added `dataset_type` as an argument/attribute to `FITSWriter` for consistency with other writer classes
 
 - Removed unused submodule `pyvisgen.fits.data`
 
