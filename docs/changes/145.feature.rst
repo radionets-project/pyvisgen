@@ -1,2 +1,0 @@
-Breaking Change: Refactored now removed :func:`pyvisgen.simulation.scan.rime` function as a new class-based API :class:`~pyvisgen.simulation.scan.RIMEScan`
-With this structure, the `CupyFinufft` wrapper can now be initialized correctly with the actual observation parameters instead of hard coded parameters.

@@ -1,3 +1,79 @@
+Pyvisgen 0.8.0 (2026-04-26)
+===========================
+
+
+API Changes
+-----------
+
+- Renamed the ``noisy`` configuration key to ``noise_level`` to reflect that the value can represent either an SEFD (Jy) or T_sys/η (K) depending on the chosen mode.
+
+  Moved ``noise_level``, ``noise_mode``, and ``telescope`` from :class:`~pyvisgen.io.config.SamplingConfig` into a dedicated :class:`~pyvisgen.io.config.NoiseConfig` class, accessible as a new ``[noise]`` section in the TOML configuration. Added a ``band`` key to :class:`~pyvisgen.io.config.NoiseConfig` for selecting a frequency band from the telescope noise config. [`#147 <https://github.com/radionets-project/pyvisgen/pull/147>`__]
+
+
+Bug Fixes
+---------
+
+- Fixed the output file name and included objects of :class:`~pyvisgen.io.PTWriter` [`#132 <https://github.com/radionets-project/pyvisgen/pull/132>`__]
+
+- Fixed reshaping of X1 and X2 in apply_finufft to first permute the axes, ensuring the data is in the correct order for further processing [`#143 <https://github.com/radionets-project/pyvisgen/pull/143>`__]
+
+- Fixed a bug where setting the gridder to default would trigger the fallback instead of using ``pyvisgrid.gridder`` directly [`#146 <https://github.com/radionets-project/pyvisgen/pull/146>`__]
+
+
+New Features
+------------
+
+- Added data format converter (:class:`pyvisgen.io.DataConverter`) that enables fast conversion between HDF5, WebDatset, and PyTorch files
+
+  Added CLI tool (``$ pyvisgen convert``) for the new data format converter [`#132 <https://github.com/radionets-project/pyvisgen/pull/132>`__]
+
+- Breaking Change: Refactored now removed :func:`pyvisgen.simulation.scan.rime` function as a new class-based API :class:`~pyvisgen.simulation.scan.RIMEScan`
+  With this structure, the `CupyFinufft` wrapper can now be initialized correctly with the actual observation parameters instead of hard coded parameters. [`#145 <https://github.com/radionets-project/pyvisgen/pull/145>`__]
+
+- Added station id pairs to ValidBaselineSubset that allow making stations unavailable for observations [`#146 <https://github.com/radionets-project/pyvisgen/pull/146>`__]
+
+- Added elevation-dependent noise simulation via ``noise_mode='tsys'``, where the system temperature T_sys/η and a telescope-specific lookup table determine the per-baseline SEFD as a function of elevation.
+
+  Added per-telescope noise parameters as external TOML files under ``resources/noise_configs/``. Each file supports multiple frequency bands via ``[bands.<name>]`` sections. The active band is selected with a new ``band`` parameter; if omitted, the first defined band is used. ``available_telescopes()`` lists all installed configs. An informative ``UserWarning`` is emitted before the ``ValueError`` when an unknown telescope is requested.
+
+  Added natural visibility weights (1/σ²) to the :class:`~pyvisgen.simulation.Visibilities` dataclass and propagated them into the FITS writer output.
+
+  Added :class:`~pyvisgen.io.datawriters.UVH5Writer` for writing visibilities in the UVH5 format, including UVW coordinates, LMN direction cosines, all four polarisation products, natural weights, frequency bands, station-pair indices, and the sky image.
+
+  Added ``st_id_pairs`` (shape ``n_baselines x 2``) to :class:`~pyvisgen.simulation.Visibilities` and propagated it through the simulation pipeline into the UVH5 output.
+
+  Added ``fits_out_path`` to :class:`~pyvisgen.io.config.BundleConfig` as an optional secondary FITS output directory alongside ``writer = "UVH5Writer"``. [`#147 <https://github.com/radionets-project/pyvisgen/pull/147>`__]
+
+
+Maintenance
+-----------
+
+- Fixed ``astropy>7`` compatibility issues
+
+  Bumped up astropy dependency version to `7.2.0`
+
+  Replaced ``np.chararray`` with ``np.array`` and unicode dtypes to get rid of deprecation warnings [`#134 <https://github.com/radionets-project/pyvisgen/pull/134>`__]
+
+- Updated the entire test framework with unit tests that are more efficient than the old tests. The tests now consist of more unit tests and do not run the entire simulation pipeline every time.
+
+  Removed `tomli` from dependencies and test requirements in `pyproject.toml`, added `pytest-mock` as a new test dependency
+
+  Updated type hints across the codebase
+
+  Added `dataset_type` as an to `FITSWriter` for consistency with other writer classes
+
+  Removed unused submodule `pyvisgen.fits.data`
+
+  Updated `__getitem__` method of `ValidBaselineSubset` dataclass to return `ValidBaselinesSubset` object, similar to `Baselines` dataclass
+
+  `pyvisgen.simulation.array.Array` now has updated property names `relative_pos` and `antenna_pairs`. Removed `calc_relative_pos` method that would just get the `relative_pos` property. [`#136 <https://github.com/radionets-project/pyvisgen/pull/136>`__]
+
+- Set finufft as default in config [`#146 <https://github.com/radionets-project/pyvisgen/pull/146>`__]
+
+
+Refactoring and Optimization
+----------------------------
+
 Pyvisgen 0.7.1 (2025-12-11)
 ===========================
 

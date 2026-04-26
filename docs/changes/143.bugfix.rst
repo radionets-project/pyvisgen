@@ -1,1 +1,0 @@
-Fixed reshaping of X1 and X2 in apply_finufft to first permute the axes, ensuring the data is in the correct order for further processing
