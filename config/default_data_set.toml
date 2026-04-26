@@ -47,4 +47,4 @@ overlap = 5
 gridder = "default"
 
 [fft]
-ft = "default"
+ft = "finufft"

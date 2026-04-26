@@ -1,0 +1,1 @@
+Fixed a bug where setting the gridder to default would trigger the fallback instead of using ``pyvisgrid.gridder`` directly

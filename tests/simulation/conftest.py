@@ -48,6 +48,9 @@ def subset_data(device) -> dict[str, torch.Tensor]:
     time = Time(torch.linspace(0, 1000, size) / (60 * 60 * 24), format="mjd").jd
     date = (torch.from_numpy(time) / 2).to(device)
 
+    baseline_nums = torch.arange(size, device=dev)
+    st_id_pairs = torch.stack([baseline_nums, baseline_nums], dim=1)
+
     return {
         "u_start": torch.rand(size, device=dev),
         "u_stop": torch.rand(size, device=dev),
@@ -58,7 +61,7 @@ def subset_data(device) -> dict[str, torch.Tensor]:
         "w_start": torch.rand(size, device=dev),
         "w_stop": torch.rand(size, device=dev),
         "w_valid": torch.rand(size, device=dev),
-        "baseline_nums": torch.arange(size, device=dev),
+        "baseline_nums": baseline_nums,
         "date": date,
         "q1_start": torch.rand(size, device=dev),
         "q1_stop": torch.rand(size, device=dev),
@@ -66,6 +69,7 @@ def subset_data(device) -> dict[str, torch.Tensor]:
         "q2_start": torch.rand(size, device=dev),
         "q2_stop": torch.rand(size, device=dev),
         "q2_valid": torch.rand(size, device=dev),
+        "st_id_pairs": st_id_pairs,
     }
 
 
