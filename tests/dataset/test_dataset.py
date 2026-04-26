@@ -529,3 +529,24 @@ class TestRun:
         assert mock_writer.called
 
         assert "Successfully simulated and saved" in caplog.text
+
+    def test_no_grid_with_fits_out_path(
+        self, mocker, tmp_path, caplog, sd_run: SimulateDataSet
+    ) -> None:
+        sd_run.grid = False
+        sd_run.stokes_comp = "I"
+        fits_out = tmp_path / "fits_out"
+        sd_run.conf.bundle.fits_out_path = fits_out
+
+        mocker.patch.object(sd_run.writer, "write")
+        mock_fits_cls = mocker.patch("pyvisgen.io.datawriters.FITSWriter")
+        mock_fits_instance = mock_fits_cls.return_value
+
+        with caplog.at_level(INFO):
+            sd_run._run()
+
+        mock_fits_cls.assert_called_once_with(
+            output_path=fits_out,
+            dataset_type=sd_run.conf.bundle.dataset_type,
+        )
+        assert mock_fits_instance.write.called

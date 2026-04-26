@@ -11,6 +11,7 @@ from pyvisgen.io.datawriters import (
     FITSWriter,
     H5Writer,
     PTWriter,
+    UVH5Writer,
     WDSShardWriter,
 )
 
@@ -237,6 +238,136 @@ class TestPTWriter:
 
             np.testing.assert_array_equal(pt_x, x[i, :, :half_image, :])
             np.testing.assert_array_equal(pt_y, y[i, :, :half_image, :])
+
+
+class TestUVH5Writer:
+    def test_write(self, output_dir, uvh5_vis_data, uvh5_obs) -> None:
+        with UVH5Writer(output_path=output_dir, dataset_type="train") as writer:
+            writer.write(uvh5_vis_data, uvh5_obs, index=0)
+
+        assert (output_dir / "train_0.uvh5").exists()
+
+    def test_file_groups(self, output_dir, uvh5_vis_data, uvh5_obs) -> None:
+        with UVH5Writer(output_path=output_dir, dataset_type="train") as writer:
+            writer.write(uvh5_vis_data, uvh5_obs, index=0)
+
+        with h5py.File(output_dir / "train_0.uvh5", "r") as f:
+            assert {"visibilities", "uvw", "lmn", "frequency_bands"} <= set(f)
+
+    def test_vis_datasets(self, output_dir, uvh5_vis_data, uvh5_obs) -> None:
+        with UVH5Writer(output_path=output_dir, dataset_type="train") as writer:
+            writer.write(uvh5_vis_data, uvh5_obs, index=0)
+
+        with h5py.File(output_dir / "train_0.uvh5", "r") as f:
+            assert {"V_11", "V_22", "V_12", "V_21", "weights"} == set(f["visibilities"])
+
+    def test_uvw_datasets(self, output_dir, uvh5_vis_data, uvh5_obs) -> None:
+        with UVH5Writer(output_path=output_dir, dataset_type="train") as writer:
+            writer.write(uvh5_vis_data, uvh5_obs, index=0)
+
+        with h5py.File(output_dir / "train_0.uvh5", "r") as f:
+            assert {"u", "v", "w", "st_id_pairs"} == set(f["uvw"])
+
+    def test_st_id_pairs(self, output_dir, uvh5_vis_data, uvh5_obs) -> None:
+        with UVH5Writer(output_path=output_dir, dataset_type="train") as writer:
+            writer.write(uvh5_vis_data, uvh5_obs, index=0)
+
+        with h5py.File(output_dir / "train_0.uvh5", "r") as f:
+            pairs = f["uvw/st_id_pairs"][...]
+            assert pairs.shape == uvh5_vis_data.st_id_pairs.numpy().shape
+            np.testing.assert_array_equal(pairs, uvh5_vis_data.st_id_pairs.numpy())
+
+    def test_lmn_datasets(self, output_dir, uvh5_vis_data, uvh5_obs) -> None:
+        with UVH5Writer(output_path=output_dir, dataset_type="train") as writer:
+            writer.write(uvh5_vis_data, uvh5_obs, index=0)
+
+        with h5py.File(output_dir / "train_0.uvh5", "r") as f:
+            assert {"l", "m", "n"} == set(f["lmn"])
+
+    def test_frequency_bands(self, output_dir, uvh5_vis_data, uvh5_obs) -> None:
+        with UVH5Writer(output_path=output_dir, dataset_type="train") as writer:
+            writer.write(uvh5_vis_data, uvh5_obs, index=0)
+
+        expected = (uvh5_obs.ref_frequency + uvh5_obs.frequency_offsets).numpy()
+
+        with h5py.File(output_dir / "train_0.uvh5", "r") as f:
+            np.testing.assert_array_almost_equal(f["frequency_bands"][...], expected)
+
+    def test_sky_written(self, output_dir, uvh5_vis_data, uvh5_obs, uvh5_sky) -> None:
+        with UVH5Writer(output_path=output_dir, dataset_type="train") as writer:
+            writer.write(uvh5_vis_data, uvh5_obs, index=0, sky=uvh5_sky)
+
+        with h5py.File(output_dir / "train_0.uvh5", "r") as f:
+            assert "sky" in f
+            assert "SI" in f["sky"]
+            np.testing.assert_array_equal(f["sky/SI"][...], uvh5_sky.numpy())
+
+    def test_sky_not_written_when_none(
+        self, output_dir, uvh5_vis_data, uvh5_obs
+    ) -> None:
+        with UVH5Writer(output_path=output_dir, dataset_type="train") as writer:
+            writer.write(uvh5_vis_data, uvh5_obs, index=0, sky=None)
+
+        with h5py.File(output_dir / "train_0.uvh5", "r") as f:
+            assert "sky" not in f
+
+    def test_arrays_equal(self, output_dir, uvh5_vis_data, uvh5_obs) -> None:
+        with UVH5Writer(output_path=output_dir, dataset_type="train") as writer:
+            writer.write(uvh5_vis_data, uvh5_obs, index=0)
+
+        with h5py.File(output_dir / "train_0.uvh5", "r") as f:
+            np.testing.assert_array_equal(
+                f["visibilities/V_11"][...], uvh5_vis_data.V_11.numpy()
+            )
+            np.testing.assert_array_equal(
+                f["visibilities/weights"][...], uvh5_vis_data.weights.numpy()
+            )
+            np.testing.assert_array_equal(f["uvw/u"][...], uvh5_vis_data.u.numpy())
+            np.testing.assert_array_equal(f["uvw/v"][...], uvh5_vis_data.v.numpy())
+            np.testing.assert_array_equal(f["uvw/w"][...], uvh5_vis_data.w.numpy())
+
+    def test_lmn_values(self, output_dir, uvh5_vis_data, uvh5_obs) -> None:
+        with UVH5Writer(output_path=output_dir, dataset_type="train") as writer:
+            writer.write(uvh5_vis_data, uvh5_obs, index=0)
+
+        lm = uvh5_obs.lm.numpy()
+        expected_n = np.sqrt(np.maximum(1.0 - lm[..., 0] ** 2 - lm[..., 1] ** 2, 0.0))
+
+        with h5py.File(output_dir / "train_0.uvh5", "r") as f:
+            np.testing.assert_array_almost_equal(f["lmn/l"][...], lm[..., 0])
+            np.testing.assert_array_almost_equal(f["lmn/m"][...], lm[..., 1])
+            np.testing.assert_array_almost_equal(f["lmn/n"][...], expected_n)
+
+    def test_write_multiple_samples(self, output_dir, uvh5_vis_data, uvh5_obs) -> None:
+        with UVH5Writer(output_path=output_dir, dataset_type="train") as writer:
+            for i in range(3):
+                writer.write(uvh5_vis_data, uvh5_obs, index=i)
+
+        files = list(output_dir.glob("*.uvh5"))
+        assert len(files) == 3
+        assert {f.name for f in files} == {
+            "train_0.uvh5",
+            "train_1.uvh5",
+            "train_2.uvh5",
+        }
+
+    def test_filename_pattern(self, output_dir, uvh5_vis_data, uvh5_obs) -> None:
+        with UVH5Writer(output_path=output_dir, dataset_type="valid") as writer:
+            writer.write(uvh5_vis_data, uvh5_obs, index=5)
+
+        assert (output_dir / "valid_5.uvh5").exists()
+
+    def test_to_numpy_fallback_non_tensor(
+        self, output_dir, uvh5_vis_data, uvh5_obs
+    ) -> None:
+        import numpy as np
+
+        writer = UVH5Writer(output_path=output_dir, dataset_type="train")
+        arr = np.array([1.0, 2.0, 3.0])
+        result = writer._UVH5Writer__to_numpy(arr)
+
+        np.testing.assert_array_equal(result, arr)
+        assert isinstance(result, np.ndarray)
 
 
 class TestFITSWriter:
