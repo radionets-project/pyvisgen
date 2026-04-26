@@ -1,3 +1,3 @@
 Renamed the ``noisy`` configuration key to ``noise_level`` to reflect that the value can represent either an SEFD (Jy) or T_sys/η (K) depending on the chosen mode.
 
-Added ``noise_mode`` (``'sefd'`` or ``'tsys'``) and ``telescope`` configuration keys to :class:`~pyvisgen.io.config.SamplingConfig`.
+Moved ``noise_level``, ``noise_mode``, and ``telescope`` from :class:`~pyvisgen.io.config.SamplingConfig` into a dedicated :class:`~pyvisgen.io.config.NoiseConfig` class, accessible as a new ``[noise]`` section in the TOML configuration. Added a ``band`` key to :class:`~pyvisgen.io.config.NoiseConfig` for selecting a frequency band from the telescope noise config.
