@@ -1,0 +1,1 @@
+add channel bandwidths to UVH5Writer
