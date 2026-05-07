@@ -268,7 +268,12 @@ class SimulateDataSet:
             else:
                 for j, vis_data in enumerate(sim_data):
                     self.writer.write(
-                        vis_data, obs, index=i, sky=SIs[j], overwrite=True
+                        vis_data,
+                        obs,
+                        index=i,
+                        sky=SIs[j],
+                        overwrite=True,
+                        normalize=self.conf.sampling.normalize,
                     )
 
                     if fits_writer is not None:
