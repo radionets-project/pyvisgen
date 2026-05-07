@@ -3,6 +3,7 @@ from datetime import datetime
 
 import astropy.units as un
 import numpy as np
+import numpy.typing
 import torch
 from astropy.constants import c
 from astropy.coordinates import AltAz, EarthLocation, Longitude, SkyCoord
