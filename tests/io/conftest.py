@@ -191,6 +191,7 @@ def uvh5_obs() -> SimpleNamespace:
         lm=lm,
         ref_frequency=torch.tensor(15.7e9),
         frequency_offsets=torch.tensor([0.0, 1.0e6]),
+        bandwidths=torch.tensor([1.0e6, 1.0e6]),
     )
 
 
