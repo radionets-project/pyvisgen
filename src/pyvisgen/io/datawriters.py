@@ -422,6 +422,7 @@ class UVH5Writer(DataWriter):
         │   ├── m
         │   └── n
         ├── frequency_bands
+        ├── times
         └── sky/
             └── SI
 
@@ -523,6 +524,9 @@ class UVH5Writer(DataWriter):
 
             freq_bands = self.__to_numpy(obs.ref_frequency + obs.frequency_offsets)
             f.create_dataset("frequency_bands", data=freq_bands)
+
+            times = self.__to_numpy(obs.baselines.time)
+            f.create_dataset("times", data=times)
 
             if sky is not None:
                 sky_grp = f.create_group("sky")
