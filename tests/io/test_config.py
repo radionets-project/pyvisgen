@@ -273,11 +273,23 @@ class TestSamplingConfig:
 
         assert cfg.scan_start == dates
 
+    def test_validate_dates_single(self) -> None:
+        dates = ["2024-06-15 10:00:00"]
+        cfg = SamplingConfig(scan_start=dates)
+
+        assert cfg.scan_start == dates
+
     def test_validate_dates_invalid(self) -> None:
         with pytest.raises(ValueError) as excinfo:
-            SamplingConfig(scan_start=["2025-01-01 12:00:00"])
+            SamplingConfig(
+                scan_start=[
+                    "2024-01-01 12:00:00",
+                    "2025-01-01 12:00:00",
+                    "2026-01-01 12:00:00",
+                ]
+            )
 
-        assert "expected 'scan_start' to be a list of len 2" in str(excinfo.value)
+        assert "expected 'scan_start' to be a list of len 1 or 2" in str(excinfo.value)
 
     @pytest.mark.parametrize(
         "seed,expected", [(42, 42), (None, None), ("none", None), (False, None)]
