@@ -56,8 +56,8 @@ class SamplingConfig(BaseModel, validate_assignment=True):
     @field_validator("scan_start")
     @classmethod
     def validate_dates(cls, v: list[str]) -> None:
-        if len(v) != 2:
-            raise ValueError("expected 'scan_start' to be a list of len 2")
+        if len(v) not in (1, 2):
+            raise ValueError("expected 'scan_start' to be a list of len 1 or 2")
 
         return v
 

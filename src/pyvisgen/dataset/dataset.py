@@ -473,46 +473,49 @@ class SimulateDataSet:
         samp_opts : dict
             Sampling options/parameters stored inside a dictionary.
         """
-        ra = self.rng.uniform(
-            self.conf.sampling.fov_center_ra[0],
-            self.conf.sampling.fov_center_ra[1],
-            size,
+        ra_cfg = self.conf.sampling.fov_center_ra
+        ra = (
+            np.full(size, ra_cfg[0])
+            if len(ra_cfg) == 1
+            else self.rng.uniform(ra_cfg[0], ra_cfg[1], size)
         )
-        dec = self.rng.uniform(
-            self.conf.sampling.fov_center_dec[0],
-            self.conf.sampling.fov_center_dec[1],
-            size,
+
+        dec_cfg = self.conf.sampling.fov_center_dec
+        dec = (
+            np.full(size, dec_cfg[0])
+            if len(dec_cfg) == 1
+            else self.rng.uniform(dec_cfg[0], dec_cfg[1], size)
         )
 
         start_time_l = datetime.strptime(
             self.conf.sampling.scan_start[0], self.date_fmt
         )
-        start_time_h = datetime.strptime(
-            self.conf.sampling.scan_start[1], self.date_fmt
-        )
-        start_times = np.arange(
-            start_time_l,
-            start_time_h,
-            timedelta(hours=1),
-        ).astype(datetime)
+        if len(self.conf.sampling.scan_start) == 1:
+            scan_start = np.full(size, start_time_l)
+        else:
+            start_time_h = datetime.strptime(
+                self.conf.sampling.scan_start[1], self.date_fmt
+            )
+            start_times = np.arange(
+                start_time_l,
+                start_time_h,
+                timedelta(hours=1),
+            ).astype(datetime)
+            scan_start = self.rng.choice(start_times, size)
 
-        scan_start = self.rng.choice(start_times, size)
-        scan_duration = self.rng.integers(
-            self.conf.sampling.scan_duration[0],
-            self.conf.sampling.scan_duration[1],
-            size,
-        )
-        num_scans = self.rng.integers(
-            self.conf.sampling.num_scans[0],
-            self.conf.sampling.num_scans[1],
-            size,
+        dur_cfg = self.conf.sampling.scan_duration
+        scan_duration = (
+            np.full(size, dur_cfg[0], dtype=int)
+            if len(dur_cfg) == 1
+            else self.rng.integers(dur_cfg[0], dur_cfg[1], size)
         )
 
-        if scan_duration.size == 1:
-            scan_duration = scan_duration.astype(int)
-
-        if num_scans.size == 1:
-            num_scans = num_scans.astype(int)
+        ns_cfg = self.conf.sampling.num_scans
+        num_scans = (
+            np.full(size, ns_cfg[0], dtype=int)
+            if len(ns_cfg) == 1
+            else self.rng.integers(ns_cfg[0], ns_cfg[1], size)
+        )
 
         # if polarization is None, we don't need to enter the
         # conditional below, so we set delta, amp_ratio, field_order,
