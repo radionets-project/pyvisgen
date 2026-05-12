@@ -293,6 +293,15 @@ class TestUVH5Writer:
         with h5py.File(output_dir / "train_0.uvh5", "r") as f:
             np.testing.assert_array_almost_equal(f["frequency_bands"][...], expected)
 
+    def test_times(self, output_dir, uvh5_vis_data, uvh5_obs) -> None:
+        with UVH5Writer(output_path=output_dir, dataset_type="train") as writer:
+            writer.write(uvh5_vis_data, uvh5_obs, index=0)
+
+        expected = uvh5_vis_data.date
+
+        with h5py.File(output_dir / "train_0.uvh5", "r") as f:
+            np.testing.assert_array_almost_equal(f["times"], expected)
+
     def test_sky_written(self, output_dir, uvh5_vis_data, uvh5_obs, uvh5_sky) -> None:
         with UVH5Writer(output_path=output_dir, dataset_type="train") as writer:
             writer.write(uvh5_vis_data, uvh5_obs, index=0, sky=uvh5_sky)
