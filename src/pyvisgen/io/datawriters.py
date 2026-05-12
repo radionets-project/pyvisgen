@@ -423,6 +423,8 @@ class UVH5Writer(DataWriter):
         │   └── n
         ├── frequency_bands
         ├── channel_widths
+        ├── normalize
+        ├── times
         └── sky/
             └── SI
 
@@ -527,6 +529,9 @@ class UVH5Writer(DataWriter):
             f.create_dataset("frequency_bands", data=freq_bands)
             f.create_dataset("channel_widths", data=self.__to_numpy(obs.bandwidths))
             f.create_dataset("normalize", data=np.bool_(normalize))
+
+            times = self.__to_numpy(vis_data.date)
+            f.create_dataset("times", data=times)
 
             if sky is not None:
                 sky_grp = f.create_group("sky")
