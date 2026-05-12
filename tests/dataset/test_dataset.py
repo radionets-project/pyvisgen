@@ -7,6 +7,7 @@ import pytest
 import torch
 
 from pyvisgen.dataset import SimulateDataSet
+from pyvisgen.dataset.dataset import DATEFMT
 from pyvisgen.io import Config
 from pyvisgen.layouts import Stations
 
@@ -237,6 +238,47 @@ class TestDrawSamplingOpts:
         assert samp_opts["amp_ratio"].shape == (size,)
         assert samp_opts["order"].shape == (size, 2)
         assert samp_opts["scale"].shape == (size, 2)
+
+    @pytest.mark.parametrize(
+        "field,value",
+        [
+            ("fov_center_ra", [-173.867]),
+            ("fov_center_dec", [6.474]),
+            ("scan_duration", [272]),
+            ("num_scans", [9]),
+        ],
+    )
+    def test_fixed_scalar_fields(
+        self, field: str, value: list, sd_sampling: SimulateDataSet
+    ) -> None:
+        """Single-value list bypasses random draw and repeats the fixed value."""
+        setattr(sd_sampling.conf.sampling, field, value)
+
+        size = 5
+        samp_opts = sd_sampling.draw_sampling_opts(size)
+
+        key_map = {
+            "fov_center_ra": "src_ra",
+            "fov_center_dec": "src_dec",
+            "scan_duration": "scan_duration",
+            "num_scans": "num_scans",
+        }
+        result = samp_opts[key_map[field]]
+        assert result.shape == (size,)
+        assert (result == value[0]).all()
+
+    def test_fixed_scan_start(self, sd_sampling: SimulateDataSet) -> None:
+        """Single-value scan_start bypasses random draw and
+        repeats the fixed datetime."""
+        date_str = "22-04-2023 17:21:11"
+        sd_sampling.conf.sampling.scan_start = [date_str]
+
+        size = 5
+        samp_opts = sd_sampling.draw_sampling_opts(size)
+
+        expected = datetime.strptime(date_str, DATEFMT)
+        assert samp_opts["start_time"].shape == (size,)
+        assert all(t == expected for t in samp_opts["start_time"])
 
     def test_polarization_kwargs_none(self, sd_sampling: SimulateDataSet) -> None:
         sd_sampling.conf.polarization.mode = "linear"

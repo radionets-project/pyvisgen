@@ -422,6 +422,8 @@ class UVH5Writer(DataWriter):
         │   ├── m
         │   └── n
         ├── frequency_bands
+        ├── channel_widths
+        ├── normalize
         ├── times
         └── sky/
             └── SI
@@ -467,6 +469,7 @@ class UVH5Writer(DataWriter):
         obs,
         index: int,
         sky=None,
+        normalize: bool = True,
         **kwargs,
     ) -> None:
         """Write simulation data to an HDF5 file.
@@ -524,6 +527,8 @@ class UVH5Writer(DataWriter):
 
             freq_bands = self.__to_numpy(obs.ref_frequency + obs.frequency_offsets)
             f.create_dataset("frequency_bands", data=freq_bands)
+            f.create_dataset("channel_widths", data=self.__to_numpy(obs.bandwidths))
+            f.create_dataset("normalize", data=np.bool_(normalize))
 
             times = self.__to_numpy(vis_data.date)
             f.create_dataset("times", data=times)
