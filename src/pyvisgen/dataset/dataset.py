@@ -270,7 +270,7 @@ class SimulateDataSet:
                     self.writer.write(
                         vis_data,
                         obs,
-                        index=i,
+                        index=i * bundle_length + j,
                         sky=SIs[j],
                         overwrite=True,
                         normalize=self.conf.sampling.normalize,
