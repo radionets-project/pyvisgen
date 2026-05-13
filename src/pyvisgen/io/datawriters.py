@@ -533,6 +533,11 @@ class UVH5Writer(DataWriter):
             times = self.__to_numpy(vis_data.date)
             f.create_dataset("times", data=times)
 
+            obs_grp = f.create_group("obs")
+            obs_grp.create_dataset("ra", data=self.__to_numpy(obs.ra))
+            obs_grp.create_dataset("dec", data=self.__to_numpy(obs.dec))
+            obs_grp.create_dataset("layout", data=obs.layout)
+
             if sky is not None:
                 sky_grp = f.create_group("sky")
                 sky_grp.create_dataset("SI", data=self.__to_numpy(sky))
