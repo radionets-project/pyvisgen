@@ -235,42 +235,6 @@ class PhaseCalibration:
 
         return gains
 
-    def apply(
-        self,
-        vis: Visibilities,
-        gains: torch.Tensor | None = None,
-    ) -> Visibilities:
-        """Apply phase corrections to visibilities.
-
-        Parameters
-        ----------
-        vis : Visibilities
-            Visibilities dataclass object to correct.
-        gains : torch.tensor, optional
-            Complex gain solutions. If None, uses self.gains.  Default: None
-
-        Returns
-        -------
-        vis_corrected : Visibilities
-            Corrected visibilities dataclass object.
-
-        Raises
-        ------
-        ValueError
-            If gains have not been computed yet.
-        """
-
-        if gains is None:
-            if self.gains is None:
-                raise ValueError(
-                    "No gains available. Run selfcal() first or provide gains."
-                )
-            gains = self.gains
-
-        LOGGER.info("Applying phase corrections to visibilities")
-
-        return self.apply_phase_corrections(vis=vis, gains=gains)
-
     def apply_phase_corrections(
         self,
         vis: Visibilities,

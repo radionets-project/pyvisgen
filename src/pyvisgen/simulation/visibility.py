@@ -429,7 +429,7 @@ def vis_loop(
     ft: Literal["default", "finufft", "reversed"] = "default",
     atmospheric_effects: Optional["AtmosphericEffects"] = None,
     tec_values: Optional[torch.Tensor] = None,
-    include_faraday: bool = True,
+    include_faraday: bool = False,
     magnetic_field_parallel: float = 0.3e-4,
 ) -> Visibilities:
     """Computes the visibilities of an observation.
@@ -495,16 +495,6 @@ def vis_loop(
     ):
         raise ValueError("Expected batch_size to be 'auto' or type int")
 
-    if atmospheric_effects is not None and tec_values is None:
-        raise ValueError(
-            "tec_values must be provided when atmospheric_effects is not None"
-        )
-    if atmospheric_effects is None and tec_values is not None:
-        LOGGER.warning(
-            "tec_values provided but atmospheric_effects is None. "
-            "No atmospheric effects will be applied."
-        )
-
     pol = Polarization(
         SI,
         sensitivity_cut=obs.sensitivity_cut,
@@ -525,37 +515,41 @@ def vis_loop(
         B *= 0.5
 
     jones_atm = None
-    if atmospheric_effects is not None and tec_values is not None:
-        LOGGER.info("Computing atmospheric Jones matrices...")
-        jones_atm = atmospheric_effects.simulate_ionospheric_delay(
-            tec_values,
-            include_faraday=include_faraday,
-            magnetic_field_parallel=magnetic_field_parallel,
-        )
+    if atmospheric_effects is not None:
+        if tec_values is not None:
+            # LOGGER.info("Computing ionospheric Jones...")
+            jones_atm = atmospheric_effects.simulate_ionospheric_delay(
+                tec_values,
+            )
+            # jones_atm = atmospheric_effects.simulate_faraday_rotation(
+            #    tec_values=tec_values
+            # )
+
+        else:
+            jones_atm = atmospheric_effects.simulate_tropospheric_delay()
+            LOGGER.info("Simulating tropospheric delay")
         LOGGER.info(
-            f"Atmospheric effects enabled:  {len(atmospheric_effects.effect_names)} effects"
+            f"Atmospheric effects:  {len(atmospheric_effects.effect_names)} effects"
         )
 
-        # DEBUG: Check Jones matrices
-        print(f"\n{'=' * 70}")
-        print("DEBUG: Jones Matrix Statistics")
-        print(f"{'=' * 70}")
-        print(f"Jones shape: {jones_atm.shape}")
+        LOGGER.info(f"\n{'-' * 70}")
+        LOGGER.info("Jones Matrix Statistics")
+        LOGGER.info(f"{'=' * 70}")
+        LOGGER.info(f"Jones shape: {jones_atm.shape}")
         for i, name in enumerate(atmospheric_effects.effect_names):
             jones_i = jones_atm[i]
-            print(f"\nEffect {i}: {name}")
-            print(f"  Mean magnitude: {torch.abs(jones_i).mean():.6f}")
-            print(f"  Max magnitude: {torch.abs(jones_i).max():.6f}")
-            print(f"  Min magnitude: {torch.abs(jones_i).min():.6f}")
+            LOGGER.info(f"\nEffect {i}: {name}")
 
-            # Check if it's close to identity
+            # Check if it's too close to identity
             identity_test = jones_i[:, :, 0, :, :] - torch.eye(
                 2, device=jones_i.device, dtype=jones_i.dtype
             )
-            print(f"  Distance from identity: {torch.abs(identity_test).mean():.6e}")
+            LOGGER.info(
+                f"  Distance from identity: {torch.abs(identity_test).mean():.6e}"
+            )
 
             # Sample values
-            print(f"  Sample J[0,0,0,:,:] = \n{jones_i[0, 0, 0, :, :]}")
+            LOGGER.info(f"  Sample J[0,0,0,:,:] = \n{jones_i[0, 0, 0, :, :]}")
 
     # calculate vis
     visibilities = Visibilities(
@@ -676,7 +670,7 @@ def _batch_loop(
 
         if atmospheric_effects is not None and jones_atm is not None:
             try:
-                LOGGER.info("Applying atmospheric effects to visibilities...")
+                # LOGGER.info("Applying atmospheric effects to visibilities...")
                 # Extract antenna indices from baseline numbers
                 base_num = bas_p[9]
                 n_ant = len(obs.array.st_num)
@@ -713,8 +707,6 @@ def _batch_loop(
                     combined_jones = jones_atm[0].clone()
 
                     for effect_idx in range(1, jones_atm.shape[0]):
-                        LOGGER.info(f"Combining with effect {effect_idx}")
-
                         # DEBUG: Check before combination
                         before_magnitude = torch.abs(combined_jones).mean()
 
@@ -724,19 +716,26 @@ def _batch_loop(
 
                         # DEBUG: Check after combination
                         after_magnitude = torch.abs(combined_jones).mean()
-                        LOGGER.info(
-                            f"  Magnitude before: {before_magnitude:.6e}, after: {after_magnitude:.6e}"
-                        )
 
                 # DEBUG: Check combined Jones matrix
-                LOGGER.info(f"Combined Jones shape: {combined_jones.shape}")
+                # LOGGER.info(f"Combined Jones shape: {combined_jones.shape}")
                 identity_test = combined_jones[:, :, 0, :, :] - torch.eye(
                     2, device=combined_jones.device, dtype=combined_jones.dtype
                 )
                 distance_from_identity = torch.abs(identity_test).mean()
-                LOGGER.info(
-                    f"Combined Jones distance from identity: {distance_from_identity:.6e}"
+                # LOGGER.info(
+                #    f"Combined Jones distance from identity: {distance_from_identity:.6e}"
+                # )
+
+                obs_time_jd = bas_p[10].to(obs.device).double()
+                time_axis_jd = atmospheric_effects.time_axis_jd.to(obs.device).double()
+
+                time_idx = torch.argmin(
+                    torch.abs(obs_time_jd[:, None] - time_axis_jd[None, :]), dim=1
                 )
+                # LOGGER.info("bas_p[10][:10] =", bas_p[10][:10])
+                # LOGGER.info("unique time_idx =", torch.unique(time_idx)[:20])
+                # LOGGER.info("n_time =", combined_jones.shape[2])
 
                 if distance_from_identity < 1e-10:
                     LOGGER.warning(
@@ -750,6 +749,7 @@ def _batch_loop(
                     combined_jones,  # [n_ant, n_freq, n_time, 2, 2]
                     st1,
                     st2,
+                    time_idx,
                 )
                 # int_values remains [n_baselines, n_freq, 2, 2]
 
@@ -815,7 +815,7 @@ class AtmosphericEffects:
     This class implements various atmospheric propagation effects including:
     - Ionospheric delay
     (- Faraday rotation)
-    (- Tropospheric delay)
+    - Tropospheric delay
 
     Parameters
     ----------
@@ -912,7 +912,8 @@ class AtmosphericEffects:
         """
         self.jones_effects.append(jones_matrix)
         self.effect_names.append(effect_name)
-        print(f"Added Jones effect: {effect_name}")
+        LOGGER.info(f"Added Jones effect: {effect_name}")
+        return self
 
     def get_all_jones_effects(self) -> torch.Tensor:
         """Get all Jones effects stacked together.
@@ -931,92 +932,470 @@ class AtmosphericEffects:
 
         return torch.stack(self.jones_effects, dim=0)
 
+    # def apply_delay_to_visibilities(
+    #     self,
+    #     int_values: torch.Tensor,
+    #     delay: torch.Tensor,
+    #     st1: torch.Tensor,
+    #     st2: torch.Tensor,
+    #     time_idx: torch.Tensor,
+    #     polarization_dependent: bool = False,
+    #     polarization_offset: float = 0.0,
+    # ) -> torch.Tensor:
+    #     """Apply a scalar atmospheric delay directly to visibility matrices.
+
+    #     This combines:
+    #     1. delay_to_jones_phase(...)
+    #     2. apply_jones_to_visibilities(...)
+
+    #     Parameters
+    #     ----------
+    #     int_values : torch.Tensor
+    #         Input visibilities with shape [n_baselines, n_freq, 2, 2].
+
+    #     delay : torch.Tensor
+    #         Delay in seconds with shape [n_ant, n_time]
+    #         or [n_ant, n_freq, n_time].
+
+    #     st1 : torch.Tensor
+    #         First antenna index for each baseline, shape [n_baselines].
+
+    #     st2 : torch.Tensor
+    #         Second antenna index for each baseline, shape [n_baselines].
+
+    #     time_idx : torch.Tensor
+    #         Time index for each baseline, shape [n_baselines].
+
+    #     polarization_dependent : bool
+    #         If True, V_11 and V_22 get different phase terms.
+
+    #     polarization_offset : float
+    #         Additional phase offset for the second polarization.
+
+    #     Returns
+    #     -------
+    #     torch.Tensor
+    #         Corrupted visibilities with shape [n_baselines, n_freq, 2, 2].
+    #     """
+    #     st1 = st1.long()
+    #     st2 = st2.long()
+    #     time_idx = time_idx.long()
+
+    #     if delay.ndim == 2:
+    #         # [n_ant, n_time] -> [n_ant, 1, n_time]
+    #         delay = delay.unsqueeze(1)
+
+    #     delay = delay.to(self.device).double()
+
+    #     # [1, n_freq, 1]
+    #     freq = self.frequencies.unsqueeze(0).unsqueeze(2)
+
+    #     # [n_ant, n_freq, n_time]
+    #     phase = 2.0 * np.pi * freq * delay
+
+    #     if polarization_dependent:
+    #         phase_11 = phase
+    #         phase_22 = phase + polarization_offset
+    #     else:
+    #         phase_11 = phase
+    #         phase_22 = phase
+
+    #     phase_11_tf = phase_11.permute(0, 2, 1)  # [n_ant, n_time, n_freq]
+    #     phase_22_tf = phase_22.permute(0, 2, 1)  # [n_ant, n_time, n_freq]
+
+    #     ji_11 = torch.exp(1j * phase_11_tf[st1, time_idx])
+    #     ji_22 = torch.exp(1j * phase_22_tf[st1, time_idx])
+
+    #     jj_11 = torch.exp(1j * phase_11_tf[st2, time_idx])
+    #     jj_22 = torch.exp(1j * phase_22_tf[st2, time_idx])
+
+    #     if int_values.dtype != torch.complex128:
+    #         int_values = int_values.to(torch.complex128)
+
+    #     out = torch.empty_like(int_values, dtype=torch.complex128)
+
+    #     out[..., 0, 0] = ji_11 * int_values[..., 0, 0] * torch.conj(jj_11)
+    #     out[..., 0, 1] = ji_11 * int_values[..., 0, 1] * torch.conj(jj_22)
+    #     out[..., 1, 0] = ji_22 * int_values[..., 1, 0] * torch.conj(jj_11)
+    #     out[..., 1, 1] = ji_22 * int_values[..., 1, 1] * torch.conj(jj_22)
+
+    #     return out
+
+    # def simulate_tropospheric_delay(
+    #     self,
+    #     elevation_angle: float = 45.0,
+    #     zenith_delay_wet: float = 0.1,
+    #     zenith_delay_dry: float = 2.3,
+    #     spatial_scale: float = 5000.0,
+    #     temporal_scale: float = 600.0,
+    #     random_state: Optional[int] = None,
+    # ) -> torch.Tensor:
+    #     """Simulate tropospheric time delay.
+
+    #     Parameters
+    #     ----------
+    #     elevation_angle : float, optional
+    #         Source elevation in degrees. Default: 45.0
+    #     zenith_delay_wet : float, optional
+    #         Wet zenith component in meters. Default: 0.1
+    #     zenith_delay_dry :  float, optional
+    #         Dry zenith component in meters. Default: 2.3
+    #     spatial_scale : float, optional
+    #         Spatial correlation length in meters. Default: 5000.0
+    #     temporal_scale :  float, optional
+    #         Temporal correlation timescale in seconds. Default: 600.0
+    #     random_state : int, optional
+    #         Random seed for reproducibility.
+
+    #     Returns
+    #     -------
+    #     torch.Tensor
+    #         Jones matrix with shape [n_ant, n_freq, n_time, 2, 2].
+    #     """
+    #     if random_state is not None:
+    #         torch.manual_seed(random_state)
+
+    #     # Mapping function (simple 1/sin(El) approximation)
+    #     el_rad = torch.deg2rad(torch.tensor(elevation_angle, dtype=torch.float64))
+    #     mapping_factor = 1.0 / torch.sin(el_rad)
+
+    #     # Dry component (constant, spatially homogeneous)
+    #     dry_delay = zenith_delay_dry * mapping_factor / self.c
+
+    #     # Wet component (spatially and temporally variable)
+    #     # Spatial covariance
+    #     ant_pos_2d = self.ant_positions[:, :2]
+    #     baseline_distances = torch.cdist(ant_pos_2d, ant_pos_2d)
+    #     spatial_cov = torch.exp(-baseline_distances / spatial_scale)
+
+    #     # Temporal covariance (exponential)
+    #     time_diff = self.time_axis.unsqueeze(0) - self.time_axis.unsqueeze(1)
+    #     temporal_cov = torch.exp(-torch.abs(time_diff) / temporal_scale)
+
+    #     # Generate correlated noise (separable covariance)
+    #     # Spatial component
+    #     spatial_cov_reg = (
+    #         spatial_cov
+    #         + torch.eye(self.n_ant, device=self.device, dtype=torch.float64) * 1e-6
+    #     )
+    #     spatial_cholesky = torch.linalg.cholesky(spatial_cov_reg)
+    #     spatial_noise = torch.randn(self.n_ant, dtype=torch.float64, device=self.device)
+    #     spatial_component = torch.matmul(spatial_cholesky, spatial_noise)
+
+    #     # Temporal component
+    #     temporal_cov_reg = (
+    #         temporal_cov
+    #         + torch.eye(self.n_time, device=self.device, dtype=torch.float64) * 1e-6
+    #     )
+    #     temporal_cholesky = torch.linalg.cholesky(temporal_cov_reg)
+    #     temporal_noise = torch.randn(
+    #         self.n_time, dtype=torch.float64, device=self.device
+    #     )
+    #     temporal_component = torch.matmul(temporal_cholesky, temporal_noise)
+
+    #     # Combine via outer product
+    #     wet_delay_variation = torch.outer(spatial_component, temporal_component)
+    #     wet_delay_variation *= zenith_delay_wet * mapping_factor / self.c
+
+    #     # Total delay
+    #     total_delay = dry_delay + wet_delay_variation
+
+    #     # Convert to Jones matrix
+    #     jones_matrix = self.delay_to_jones_phase(total_delay)
+
+    #     # Add to collection
+    #     self._add_jones_effect(jones_matrix, "tropospheric_delay")
+    #     LOGGER.info("tropospheric delay simulated.")
+
+    #     return self.get_all_jones_effects()
+
+    def _saastamoinen_zhd(
+        self,
+        pressure_hpa: float,
+        latitude_deg: float,
+        height_m: float,
+        device,
+        dtype=torch.float64,
+    ) -> torch.Tensor:
+        """Zenith hydrostatic delay in meters."""
+        lat = torch.deg2rad(torch.tensor(latitude_deg, device=device, dtype=dtype))
+        h_km = torch.tensor(height_m / 1000.0, device=device, dtype=dtype)
+
+        return (
+            0.0022768
+            * torch.tensor(pressure_hpa, device=device, dtype=dtype)
+            / (1.0 - 0.00266 * torch.cos(2.0 * lat) - 0.00028 * h_km)
+        )
+
+    def _approx_zwd_from_surface_met(
+        self,
+        temperature_K: float,
+        relative_humidity: float,
+        device,
+        dtype=torch.float64,
+    ) -> torch.Tensor:
+        """Approximate zenith wet delay in meters from surface meteo."""
+        T = torch.tensor(temperature_K, device=device, dtype=dtype)
+        RH = torch.tensor(relative_humidity / 100.0, device=device, dtype=dtype)
+
+        # Tetens saturation vapor pressure, hPa
+        T_C = T - 273.15
+        e_s = 6.112 * torch.exp((17.62 * T_C) / (243.12 + T_C))
+        e = RH * e_s
+
+        # Common approximate ZWD formula, meters
+        zwd = 0.002277 * (1255.0 / T + 0.05) * e
+        return zwd
+
+    def _mapping_continued_fraction(self, el_rad, a, b, c):
+        """Generic continued-fraction mapping function."""
+        s = torch.sin(el_rad).clamp_min(1e-3)
+        numerator = 1.0 + a / (1.0 + b / (1.0 + c))
+        denominator = s + a / (s + b / (s + c))
+        return numerator / denominator
+
+    def _simple_niell_like_mapping(
+        self, elevation_angle, latitude_deg, device, dtype=torch.float64
+    ):
+        """Approximate Niell-style hydrostatic/wet mapping functions.
+
+        This omits seasonal and height corrections, but is much better than
+        using the same 1/sin(E) factor for dry and wet components.
+        """
+        el = torch.deg2rad(torch.tensor(elevation_angle, device=device, dtype=dtype))
+
+        # Niell-like coefficient tables versus |latitude|.
+        # Values are for simple interpolation and practical simulation use.
+        lats = [15.0, 30.0, 45.0, 60.0, 75.0]
+
+        ah = [1.2769934e-3, 1.2683230e-3, 1.2465397e-3, 1.2196049e-3, 1.2045996e-3]
+        bh = [2.9153695e-3, 2.9152299e-3, 2.9288445e-3, 2.9022565e-3, 2.9024912e-3]
+        ch = [62.610505e-3, 62.837393e-3, 63.721774e-3, 63.824265e-3, 64.258455e-3]
+
+        aw = [5.8021897e-4, 5.6794847e-4, 5.8118019e-4, 5.9727542e-4, 6.1641693e-4]
+        bw = [1.4275268e-3, 1.5138625e-3, 1.4572752e-3, 1.5007428e-3, 1.7599082e-3]
+        cw = [4.3472961e-2, 4.6729510e-2, 4.3908931e-2, 4.4626982e-2, 5.4736038e-2]
+
+        def interp_lat(table):
+            x = max(15.0, min(75.0, abs(latitude_deg)))
+            for i in range(len(lats) - 1):
+                if lats[i] <= x <= lats[i + 1]:
+                    w = (x - lats[i]) / (lats[i + 1] - lats[i])
+                    return table[i] * (1.0 - w) + table[i + 1] * w
+            return table[-1]
+
+        ah_t = torch.tensor(interp_lat(ah), device=device, dtype=dtype)
+        bh_t = torch.tensor(interp_lat(bh), device=device, dtype=dtype)
+        ch_t = torch.tensor(interp_lat(ch), device=device, dtype=dtype)
+
+        aw_t = torch.tensor(interp_lat(aw), device=device, dtype=dtype)
+        bw_t = torch.tensor(interp_lat(bw), device=device, dtype=dtype)
+        cw_t = torch.tensor(interp_lat(cw), device=device, dtype=dtype)
+
+        m_h = self._mapping_continued_fraction(el, ah_t, bh_t, ch_t)
+        m_w = self._mapping_continued_fraction(el, aw_t, bw_t, cw_t)
+
+        return m_h, m_w
+
+    def _make_von_karman_screen(
+        self,
+        npix: int,
+        pixel_size_m: float,
+        outer_scale_m: float,
+        wet_rms_ref_m: float,
+        reference_baseline_m: float,
+        device,
+        dtype=torch.float64,
+    ) -> torch.Tensor:
+        """Create a 2D von-Karman/Kolmogorov-like zenith wet path screen.
+
+        The screen is scaled so that the RMS path difference over
+        reference_baseline_m is approximately wet_rms_ref_m.
+        """
+        complex_dtype = torch.complex128 if dtype == torch.float64 else torch.complex64
+
+        kx = 2.0 * torch.pi * torch.fft.fftfreq(npix, d=pixel_size_m, device=device)
+        ky = 2.0 * torch.pi * torch.fft.fftfreq(npix, d=pixel_size_m, device=device)
+        kx, ky = torch.meshgrid(kx, ky, indexing="ij")
+
+        k2 = kx**2 + ky**2
+        k0 = 2.0 * torch.pi / outer_scale_m
+
+        # 2D phase/path PSD giving Kolmogorov-like structure function.
+        psd = (k2 + k0**2) ** (-11.0 / 6.0)
+        psd[0, 0] = 0.0
+
+        noise = torch.randn((npix, npix), device=device, dtype=complex_dtype)
+        coeff = noise * torch.sqrt(psd).to(dtype)
+
+        screen = torch.fft.ifft2(coeff).real
+        screen = screen - screen.mean()
+        screen = screen / screen.std().clamp_min(1e-12)
+
+        # Scale by differential RMS at reference baseline.
+        shift_pix = max(1, int(round(reference_baseline_m / pixel_size_m)))
+        diff = screen - torch.roll(screen, shifts=shift_pix, dims=0)
+        current_rms = diff.std().clamp_min(1e-12)
+
+        screen = screen * (wet_rms_ref_m / current_rms)
+        return screen
+
+    def _sample_periodic_bilinear(self, screen, xy_m, pixel_size_m):
+        """Bilinear periodic sampling of screen at xy positions.
+
+        screen: [N, N]
+        xy_m: [..., 2]
+        returns: [...]
+        """
+        n = screen.shape[0]
+
+        x = torch.remainder(xy_m[..., 0] / pixel_size_m, n)
+        y = torch.remainder(xy_m[..., 1] / pixel_size_m, n)
+
+        x0 = torch.floor(x).long()
+        y0 = torch.floor(y).long()
+        x1 = (x0 + 1) % n
+        y1 = (y0 + 1) % n
+
+        wx = x - x0.to(x.dtype)
+        wy = y - y0.to(y.dtype)
+
+        f00 = screen[y0, x0]
+        f10 = screen[y0, x1]
+        f01 = screen[y1, x0]
+        f11 = screen[y1, x1]
+
+        return (
+            (1.0 - wx) * (1.0 - wy) * f00
+            + wx * (1.0 - wy) * f10
+            + (1.0 - wx) * wy * f01
+            + wx * wy * f11
+        )
+
     def simulate_tropospheric_delay(
         self,
         elevation_angle: float = 45.0,
-        zenith_delay_wet: float = 0.1,
-        zenith_delay_dry: float = 2.3,
-        spatial_scale: float = 5000.0,
-        temporal_scale: float = 600.0,
+        azimuth_angle: float = 0.0,
+        # Site meteo / geometry
+        pressure_hpa: float = 1013.25,
+        temperature_K: float = 288.15,
+        relative_humidity: float = 50.0,
+        latitude_deg: float = 45.0,
+        height_m: float = 0.0,
+        # Optional: if you want to force ZWD instead of deriving it
+        zenith_delay_wet: Optional[float] = None,
+        # Turbulence
+        layer_height_m: float = 2000.0,
+        outer_scale_m: float = 5000.0,
+        screen_pixel_size_m: float = 25.0,
+        screen_npix: int = 512,
+        wind_velocity_mps: tuple[float, float] = (10.0, 0.0),
+        # Differential wet path RMS at reference baseline.
+        # This is NOT the mean ZWD. It is the RMS zenith wet path difference.
+        wet_rms_ref_m: float = 1e-3,
+        reference_baseline_m: float = 100.0,
+        remove_common_piston: bool = True,
         random_state: Optional[int] = None,
     ) -> torch.Tensor:
-        """Simulate tropospheric time delay.
-
-        Parameters
-        ----------
-        elevation_angle : float, optional
-            Source elevation in degrees. Default: 45.0
-        zenith_delay_wet : float, optional
-            Wet zenith component in meters. Default: 0.1
-        zenith_delay_dry :  float, optional
-            Dry zenith component in meters. Default: 2.3
-        spatial_scale : float, optional
-            Spatial correlation length in meters. Default: 5000.0
-        temporal_scale :  float, optional
-            Temporal correlation timescale in seconds. Default: 600.0
-        random_state : int, optional
-            Random seed for reproducibility.
+        """Simulate tropospheric delay.
 
         Returns
         -------
         torch.Tensor
             Jones matrix with shape [n_ant, n_freq, n_time, 2, 2].
         """
+        dtype = torch.float64
+
         if random_state is not None:
             torch.manual_seed(random_state)
 
-        # Mapping function (simple 1/sin(El) approximation)
-        el_rad = torch.deg2rad(torch.tensor(elevation_angle, dtype=torch.float64))
-        mapping_factor = 1.0 / torch.sin(el_rad)
-
-        # Dry component (constant, spatially homogeneous)
-        dry_delay = zenith_delay_dry * mapping_factor / self.c
-
-        # Wet component (spatially and temporally variable)
-        # Spatial covariance
-        ant_pos_2d = self.ant_positions[:, :2]
-        baseline_distances = torch.cdist(ant_pos_2d, ant_pos_2d)
-        spatial_cov = torch.exp(-baseline_distances / spatial_scale)
-
-        # Temporal covariance (exponential)
-        time_diff = self.time_axis.unsqueeze(0) - self.time_axis.unsqueeze(1)
-        temporal_cov = torch.exp(-torch.abs(time_diff) / temporal_scale)
-
-        # Generate correlated noise (separable covariance)
-        # Spatial component
-        spatial_cov_reg = (
-            spatial_cov
-            + torch.eye(self.n_ant, device=self.device, dtype=torch.float64) * 1e-6
+        # Hydrostatic zenith delay
+        zhd_m = self._saastamoinen_zhd(
+            pressure_hpa=pressure_hpa,
+            latitude_deg=latitude_deg,
+            height_m=height_m,
+            device=self.device,
+            dtype=dtype,
         )
-        spatial_cholesky = torch.linalg.cholesky(spatial_cov_reg)
-        spatial_noise = torch.randn(self.n_ant, dtype=torch.float64, device=self.device)
-        spatial_component = torch.matmul(spatial_cholesky, spatial_noise)
 
-        # Temporal component
-        temporal_cov_reg = (
-            temporal_cov
-            + torch.eye(self.n_time, device=self.device, dtype=torch.float64) * 1e-6
+        # Mean wet zenith delay
+        if zenith_delay_wet is None:
+            zwd_m = self._approx_zwd_from_surface_met(
+                temperature_K=temperature_K,
+                relative_humidity=relative_humidity,
+                device=self.device,
+                dtype=dtype,
+            )
+        else:
+            zwd_m = torch.tensor(zenith_delay_wet, device=self.device, dtype=dtype)
+
+        # hydrostatic and wet mapping functions.
+        m_h, m_w = self._simple_niell_like_mapping(
+            elevation_angle=elevation_angle,
+            latitude_deg=latitude_deg,
+            device=self.device,
+            dtype=dtype,
         )
-        temporal_cholesky = torch.linalg.cholesky(temporal_cov_reg)
-        temporal_noise = torch.randn(
-            self.n_time, dtype=torch.float64, device=self.device
+
+        # Frozen-flow wet path screen
+        screen = self._make_von_karman_screen(
+            npix=screen_npix,
+            pixel_size_m=screen_pixel_size_m,
+            outer_scale_m=outer_scale_m,
+            wet_rms_ref_m=wet_rms_ref_m,
+            reference_baseline_m=reference_baseline_m,
+            device=self.device,
+            dtype=dtype,
         )
-        temporal_component = torch.matmul(temporal_cholesky, temporal_noise)
 
-        # Combine via outer product
-        wet_delay_variation = torch.outer(spatial_component, temporal_component)
-        wet_delay_variation *= zenith_delay_wet * mapping_factor / self.c
+        ant_xy = self.ant_positions[:, :2].to(device=self.device, dtype=dtype)
+        t = self.time_axis.to(device=self.device, dtype=dtype)
+        t = t - t[0]
 
-        # Total delay
-        total_delay = dry_delay + wet_delay_variation
+        wind = torch.tensor(wind_velocity_mps, device=self.device, dtype=dtype)
 
-        # Convert to Jones matrix
-        jones_matrix = self.delay_to_jones_phase(total_delay)
+        el = torch.deg2rad(
+            torch.tensor(elevation_angle, device=self.device, dtype=dtype)
+        )
+        az = torch.deg2rad(torch.tensor(azimuth_angle, device=self.device, dtype=dtype))
 
-        # Add to collection
+        # Direction of source projection on horizontal layer
+        source_dir = torch.stack([torch.sin(az), torch.cos(az)])
+
+        # Pierce-point offset at turbulent layer
+        # For a plane-parallel layer: horizontal offset = h / tan(E)
+        pierce_offset = layer_height_m / torch.tan(el).clamp_min(1e-3) * source_dir
+
+        # Positions on screen: [n_ant, n_time, 2]
+        xy = (
+            ant_xy[:, None, :]
+            + wind[None, None, :] * t[None, :, None]
+            + pierce_offset[None, None, :]
+        )
+
+        wet_fluct_zenith_m = self._sample_periodic_bilinear(
+            screen=screen,
+            xy_m=xy,
+            pixel_size_m=screen_pixel_size_m,
+        )
+
+        # Remove common atmospheric piston; interferometers only see differential phase
+        if remove_common_piston:
+            wet_fluct_zenith_m = wet_fluct_zenith_m - wet_fluct_zenith_m.mean(
+                dim=0, keepdim=True
+            )
+
+        # Total slant path delay in meters, shape: [n_ant, n_time]
+        path_delay_m = m_h * zhd_m + m_w * zwd_m + m_w * wet_fluct_zenith_m
+
+        total_delay_s = path_delay_m / self.c
+
+        jones_matrix = self.delay_to_jones_phase(total_delay_s)
+
         self._add_jones_effect(jones_matrix, "tropospheric_delay")
+        LOGGER.info("better tropospheric delay simulated.")
 
-        return jones_matrix
+        return self.get_all_jones_effects()
 
     def simulate_ionospheric_delay(
         self,
@@ -1036,14 +1415,11 @@ class AtmosphericEffects:
             Jones matrix with shape [n_ant, n_freq, n_time, 2, 2].
         """
         # Calculate ionospheric constant from fundamental constants
-        K_iono = (
-            const.e**2
-            / (8 * np.pi**2 * const.epsilon_0 * const.m_e)
-            * 1e16  # Convert from TECU to electrons/m^2
-        )
+        K_iono = const.e**2 / (8 * np.pi**2 * const.epsilon_0 * const.m_e)
 
         # Expand dimensions for broadcasting
         tec_expanded = tec_values.unsqueeze(1)  # [n_ant, 1, n_time]
+        tec_expanded *= 1e16  # Convert from TECU to electrons/m^2
         freq_expanded = self.frequencies.unsqueeze(0).unsqueeze(2)  # [1, n_freq, 1]
 
         # Ionospheric delay
@@ -1090,18 +1466,6 @@ class AtmosphericEffects:
         # Compute phase
         freq_expanded = self.frequencies.unsqueeze(0).unsqueeze(2)  # [1, n_freq, 1]
         phase = 2.0 * np.pi * freq_expanded * delay  # [n_ant, n_freq, n_time]
-
-        # DEBUG OUTPUT
-        LOGGER.info("DEBUG: Delay to Jones Phase Statistics")
-        LOGGER.info(f"Frequencies: {self.frequencies / 1e6} MHz")
-        LOGGER.info(f"Delay shape: {delay.shape}")
-        LOGGER.info(f"Delay range: [{delay.min():.6e}, {delay.max():.6e}] seconds")
-        LOGGER.info(f"Phase shape: {phase.shape}")
-        LOGGER.info(f"Phase range: [{phase.min():.6e}, {phase.max():.6e}] radians")
-        LOGGER.info(
-            f"Phase range: [{torch.rad2deg(phase.min()):.6e}, {torch.rad2deg(phase.max()):.6e}] degrees"
-        )
-        LOGGER.info(f"Phase mean: {phase.mean():.6e} radians")
 
         # Jones components
         if polarization_dependent:
@@ -1150,17 +1514,15 @@ class AtmosphericEffects:
         K_faraday = (
             const.e**3
             / (8 * np.pi**2 * const.epsilon_0 * const.m_e**2 * const.c)
-            * 1e-16  # Convert from electrons/m^2 to TECU
+            * 1e16  # Convert from Tecu to electrons/m^2
         )
 
-        # Expand dimensions
         tec_expanded = tec_values.unsqueeze(1)  # [n_ant, 1, n_time]
         freq_expanded = self.frequencies.unsqueeze(0).unsqueeze(2)  # [1, n_freq, 1]
 
-        # Rotation angle:
         rotation_angle = (
             K_faraday * magnetic_field_parallel * tec_expanded / freq_expanded**2
-        )
+        )  # [n_ant, n_freq, n_time]
 
         # Jones components
         cos_omega = torch.cos(rotation_angle)
@@ -1179,7 +1541,7 @@ class AtmosphericEffects:
         # Add to collection
         self._add_jones_effect(jones_matrix, "faraday_rotation")
         LOGGER.info("Faraday rotation simulated.")
-        return jones_matrix
+        return self.get_all_jones_effects()
 
     def apply_jones_to_visibilities(
         self,
@@ -1187,6 +1549,7 @@ class AtmosphericEffects:
         jones: torch.Tensor,
         st1: torch.Tensor,
         st2: torch.Tensor,
+        time_idx: torch.Tensor,
     ) -> torch.Tensor:
         """Apply Jones matrices to baseline visibilities using the RIME.
 
@@ -1203,7 +1566,8 @@ class AtmosphericEffects:
             Station 1 indices for each baseline with shape [n_baselines].
         st2 : torch.Tensor
             Station 2 indices for each baseline with shape [n_baselines].
-
+        time_idx : torch.Tensor
+            [n_baselines], integer indices in [0, n_time-1]
         Returns
         -------
         torch.Tensor
@@ -1216,16 +1580,32 @@ class AtmosphericEffects:
 
         where p and q are antenna indices (st1 and st2).
         """
-        # Assume single time (t=0) for now
-        jones_single_time = jones[:, :, 0, :, :]  # [n_ant, n_freq, 2, 2]
+        # # Assume single time (t=0) for now
+        # jones_single_time = jones[:, :, 0, :, :]  # [n_ant, n_freq, 2, 2]
 
-        # Extract Jones matrices for each baseline
-        jones_i = jones_single_time[st1.long()]  # [n_baselines, n_freq, 2, 2]
-        jones_j = jones_single_time[st2.long()]  # [n_baselines, n_freq, 2, 2]
+        # # Extract Jones matrices for each baseline
+        # jones_i = jones_single_time[st1.long()]  # [n_baselines, n_freq, 2, 2]
+        # jones_j = jones_single_time[st2.long()]  # [n_baselines, n_freq, 2, 2]
 
-        # Ensure consistent dtype - convert int_values to match jones dtype
-        if int_values.dtype != jones_i.dtype:
-            int_values = int_values.to(jones_i.dtype)
+        # # Ensure consistent dtype - convert int_values to match jones dtype
+        # if int_values.dtype != jones_i.dtype:
+        #     int_values = int_values.to(jones_i.dtype)
+
+        st1 = st1.long()
+        st2 = st2.long()
+        time_idx = time_idx.long()
+
+        if int_values.dtype != jones.dtype:
+            int_values = int_values.to(jones.dtype)
+
+        n_baselines, n_freq = int_values.shape[:2]
+
+        # Reorder to [n_ant, n_time, n_freq, 2, 2]
+        jones_tf = jones.permute(0, 2, 1, 3, 4)
+
+        # Select Jones per baseline and per time
+        jones_i = jones_tf[st1, time_idx]  # [n_baselines, n_freq, 2, 2]
+        jones_j = jones_tf[st2, time_idx]  # [n_baselines, n_freq, 2, 2]
 
         # Hermitian conjugate for antenna j
         jones_j_herm = torch.conj(jones_j.transpose(-2, -1))
@@ -1234,7 +1614,6 @@ class AtmosphericEffects:
         corrupted_vis = torch.einsum(
             "bfij,bfjk,bfkl->bfil", jones_i, int_values, jones_j_herm
         )
-        print("applied jones to visibilities")
         return corrupted_vis
 
 
@@ -1340,7 +1719,7 @@ def tec_field_from_iri(obs, return_times=bool):
         if n_int <= 0:
             continue
 
-        offsets = (np.arange(n_int) + 0.5) * int_s  # center of integration
+        offsets = (np.arange(n_int) + 0.5) * int_s
         t_mid = start + offsets * un.s
         times_list.append(t_mid.utc.jd)
 
@@ -1358,7 +1737,7 @@ def tec_field_from_iri(obs, return_times=bool):
 
     tec_np = np.empty((n_ant, n_time), dtype=np.float64)
 
-    # Loop over time+antenna
+    # Loop over time and antenna
     for it, t in enumerate(times.utc.datetime):
         # iricore expects UTC naive
         dt = t.replace(tzinfo=None)

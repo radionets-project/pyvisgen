@@ -160,6 +160,15 @@ class CodeCarbonEmissionTrackerConfig(BaseModel, validate_assignment=True):
     output_dir: str | None = os.getcwd()
 
 
+class AtmosphericEffectsConfig(BaseModel, validate_assignment=True):
+    """Atmospheric effects configuration"""
+
+    # include_ionosphere: bool = True
+    # include_troposphere: bool = True
+    include_faraday: bool = False
+    tec_values: torch.tensor | None = None
+
+
 class Config(BaseModel):
     """Main training configuration."""
 
@@ -170,6 +179,7 @@ class Config(BaseModel):
     gridding: GriddingConfig = Field(default_factory=GriddingConfig)
     fft: FFTConfig = Field(default_factory=FFTConfig)
     codecarbon: bool | CodeCarbonEmissionTrackerConfig = False
+    atmospheric_effects: bool | AtmosphericEffectsConfig = False
 
     @classmethod
     def from_toml(cls, path: str | Path) -> "Config":
@@ -190,5 +200,15 @@ class Config(BaseModel):
             return CodeCarbonEmissionTrackerConfig(**v, project_name="pyvisgen")
         elif v is True:
             return CodeCarbonEmissionTrackerConfig(project_name="pyvisgen")
+
+        return v
+
+    @field_validator("atmospheric_effects", mode="after")
+    @classmethod
+    def validate_atmospheric_effects(cls, v: bool | "AtmosphericEffectsConfig"):
+        if isinstance(v, dict):  # pragma: no cover
+            return AtmosphericEffectsConfig(**v)
+        elif v is True:
+            return AtmosphericEffectsConfig()
 
         return v

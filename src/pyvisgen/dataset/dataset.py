@@ -211,6 +211,10 @@ class SimulateDataSet:
             )
             for SI in SIs:
                 obs = self.create_observation(i)
+                if self.conf.atmospheric_effects:
+                    # Apply atmospheric effects
+                    pass
+
                 vis = vis_loop(
                     obs,
                     SI,
