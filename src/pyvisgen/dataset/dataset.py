@@ -20,6 +20,8 @@ from pyvisgen.io import Config
 from pyvisgen.simulation.observation import Observation
 from pyvisgen.simulation.utils import create_progress_tracker
 from pyvisgen.simulation.visibility import vis_loop
+from pyvisgen.simulation.visibility import AtmosphericEffects
+from pyvisgen.simulation.visibility import tec_field_from_iri
 from pyvisgen.utils.data import load_bundles, open_bundles
 from pyvisgen.utils.logging import setup_logger
 
@@ -209,11 +211,18 @@ class SimulateDataSet:
             current_bundle_task_id = current_bundle_progress.add_task(
                 "", total=len(SIs), name=i + 1
             )
+            # for SI in SIs:
+            #     obs = self.create_observation(i)
+            #     if self.conf.atmospheric_effects:
             for SI in SIs:
                 obs = self.create_observation(i)
+
+                tec_values = None
+                atm_effects = None
                 if self.conf.atmospheric_effects:
-                    # Apply atmospheric effects
-                    pass
+                    atm_effects = self.create_atmospheric_effects(obs)
+                    if self.conf.atmospheric_effects.ionosphere:
+                        tec_values = tec_field_from_iri(obs, return_times=False)
 
                 vis = vis_loop(
                     obs,
@@ -221,6 +230,8 @@ class SimulateDataSet:
                     noisy=self.conf.sampling.noisy,
                     mode=self.conf.sampling.mode,
                     ft=self.conf.fft.ft,
+                    atmospheric_effects=atm_effects,
+                    tec_values=tec_values,
                 )
 
                 if self.grid:
@@ -381,6 +392,57 @@ class SimulateDataSet:
         )
 
         return obs
+
+    def create_atmospheric_effects(self, obs) -> AtmosphericEffects:
+        """Creates :class:`~pyvisgen.simulation.visibility.AtmosphericEffects`
+        dataclass object for image ``i``.
+
+        Parameters
+        ----------
+        obs : Observation
+            :class:`~pyvisgen.simulation.Observation` dataclass
+            object for image ``i``.
+
+        Returns
+        -------
+        atm_effects : AtmosphericEffects
+            :class:`~pyvisgen.simulation.visibility.AtmosphericEffects`
+            dataclass object for image ``i``.
+        """
+        times_list = []
+
+        for scan in obs.scans:
+            start = scan.start
+            stop = scan.stop
+            int_time = scan.integration_time
+            dur_s = (stop - start).to_value(un.s)
+            int_s = int_time.to_value(un.s)
+            n_int = int(np.floor(dur_s / int_s))
+            if n_int <= 0:
+                continue
+
+            offsets = (np.arange(n_int) + 0.5) * int_s
+            t_mid = start + offsets * un.s
+            times_list.append(t_mid.utc.jd)
+
+        times = Time(np.concatenate(times_list), format="jd", scale="utc")
+
+        time_axis_jd = torch.tensor(times.jd, dtype=torch.float64, device=obs.device)
+        time_axis_sec = torch.tensor(
+            (times.jd - times.jd[0]) * 86400.0,
+            dtype=torch.float64,
+            device=obs.device,
+        )
+
+        atm_effects = AtmosphericEffects(
+            obs,
+            n_time=len(times),
+            time_axis=time_axis_sec,
+        )
+
+        atm_effects.time_axis_jd = time_axis_jd
+
+        return atm_effects
 
     def create_sampling_rc(self, size: int) -> None:
         """Creates sampling runtime configuration containing
