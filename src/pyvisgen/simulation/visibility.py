@@ -36,6 +36,7 @@ __all__ = [
     "AtmosphericEffects",
     "generate_tec_field",
     "tec_field_from_iri",
+    "timesteps",
 ]
 
 
@@ -553,18 +554,18 @@ def vis_loop(
 
     # calculate vis
     visibilities = Visibilities(
-        torch.empty(size=[0] + [len(obs.waves_low)]),
-        torch.empty(size=[0] + [len(obs.waves_low)]),
-        torch.empty(size=[0] + [len(obs.waves_low)]),
-        torch.empty(size=[0] + [len(obs.waves_low)]),
-        torch.tensor([]),
-        torch.tensor([]),
-        torch.tensor([]),
-        torch.tensor([]),
-        torch.tensor([]),
-        torch.tensor([]),
-        torch.tensor([]),
-        torch.tensor([]),
+        torch.empty(size=[0] + [len(obs.waves_low)]).to(obs.device),
+        torch.empty(size=[0] + [len(obs.waves_low)]).to(obs.device),
+        torch.empty(size=[0] + [len(obs.waves_low)]).to(obs.device),
+        torch.empty(size=[0] + [len(obs.waves_low)]).to(obs.device),
+        torch.tensor([]).to(obs.device),
+        torch.tensor([]).to(obs.device),
+        torch.tensor([]).to(obs.device),
+        torch.tensor([]).to(obs.device),
+        torch.tensor([]).to(obs.device),
+        torch.tensor([]).to(obs.device),
+        torch.tensor([]).to(obs.device),
+        torch.tensor([]).to(obs.device),
     )
 
     vis_num = torch.zeros(1)
@@ -605,8 +606,8 @@ def vis_loop(
         jones_atm=jones_atm,
     )
 
-    visibilities.linear_dop = lin_dop.cpu()
-    visibilities.circular_dop = circ_dop.cpu()
+    visibilities.linear_dop = lin_dop.to(obs.device)
+    visibilities.circular_dop = circ_dop.to(obs.device)
 
     return visibilities
 
@@ -765,18 +766,18 @@ def _batch_loop(
         # LOGGER.info(f"Differenz orig - int_values: {(orig - int_values).abs().max()}")
         # Extract visibility components - back to 2D [n_baselines, n_freq]
         vis = Visibilities(
-            int_values[..., 0, 0].cpu(),  # V_11
-            int_values[..., 1, 1].cpu(),  # V_22
-            int_values[..., 0, 1].cpu(),  # V_12
-            int_values[..., 1, 0].cpu(),  # V_21
-            vis_num,
-            bas_p[9].cpu(),
-            bas_p[2].cpu(),
-            bas_p[5].cpu(),
-            bas_p[8].cpu(),
-            bas_p[10].cpu(),
-            torch.tensor([]),
-            torch.tensor([]),
+            int_values[..., 0, 0].to(obs.device),  # V_11
+            int_values[..., 1, 1].to(obs.device),  # V_22
+            int_values[..., 0, 1].to(obs.device),  # V_12
+            int_values[..., 1, 0].to(obs.device),  # V_21
+            vis_num.to(obs.device),
+            bas_p[9].to(obs.device),
+            bas_p[2].to(obs.device),
+            bas_p[5].to(obs.device),
+            bas_p[8].to(obs.device),
+            bas_p[10].to(obs.device),
+            torch.tensor([]).to(obs.device),
+            torch.tensor([]).to(obs.device),
         )
 
         visibilities.add(vis)
@@ -1384,9 +1385,14 @@ class AtmosphericEffects:
             wet_fluct_zenith_m = wet_fluct_zenith_m - wet_fluct_zenith_m.mean(
                 dim=0, keepdim=True
             )
-
         # Total slant path delay in meters, shape: [n_ant, n_time]
         path_delay_m = m_h * zhd_m + m_w * zwd_m + m_w * wet_fluct_zenith_m
+        LOGGER.info(
+            "tropospheric delays sample: %.3f m (dry), %.3f m (wet mean), %.3f m (wet fluctuation RMS)",
+            zhd_m,
+            zwd_m,
+            wet_fluct_zenith_m.std(),
+        )
 
         total_delay_s = path_delay_m / self.c
 
@@ -1751,7 +1757,7 @@ def tec_field_from_iri(obs, return_times=bool):
             if np.any(ne < 0) or np.all(ne == 0):
                 tec_np[ia, it] = np.nan
                 continue
-            vtec_e_m2 = np.trapz(ne, alt_m)  # el/m^2
+            vtec_e_m2 = np.trapezoid(ne, alt_m)  # el/m^2
             tec_np[ia, it] = vtec_e_m2 / 1e16  # TECU
 
     tec_field = torch.tensor(tec_np, dtype=torch.float64, device=obs.device)
@@ -1759,3 +1765,36 @@ def tec_field_from_iri(obs, return_times=bool):
     if return_times:
         return tec_field, times
     return tec_field
+
+
+def timesteps(obs):
+    """Return time axis in seconds since first integration."""
+    times_list = []
+
+    for scan in obs.scans:
+        start = scan.start
+        stop = scan.stop
+        int_time = scan.integration_time
+
+        dur_s = (stop - start).to_value(un.s)
+        int_s = int_time.to_value(un.s)
+        n_int = int(np.floor(dur_s / int_s))
+        if n_int <= 0:
+            continue
+
+        offsets = (np.arange(n_int) + 0.5) * int_s
+        t_mid = start + offsets * un.s
+        times_list.append(t_mid.utc.jd)
+
+    if len(times_list) == 0:
+        LOGGER.error("timesteps: No integration times produced from obs.scans.")
+
+    times = Time(np.concatenate(times_list), format="jd", scale="utc")
+
+    time_axis_jd = torch.tensor(times.jd, dtype=torch.float64, device=obs.device)
+    time_axis_sec = torch.tensor(
+        (times.jd - times.jd[0]) * 86400.0,
+        dtype=torch.float64,
+        device=obs.device,
+    )
+    return time_axis_sec
