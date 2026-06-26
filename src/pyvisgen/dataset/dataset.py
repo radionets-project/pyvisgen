@@ -19,9 +19,11 @@ from pyvisgen.dataset.utils import (
 from pyvisgen.io import Config
 from pyvisgen.simulation.observation import Observation
 from pyvisgen.simulation.utils import create_progress_tracker
-from pyvisgen.simulation.visibility import vis_loop
-from pyvisgen.simulation.visibility import AtmosphericEffects
-from pyvisgen.simulation.visibility import tec_field_from_iri
+from pyvisgen.simulation.visibility import (
+    AtmosphericEffects,
+    tec_field_from_iri,
+    vis_loop,
+)
 from pyvisgen.utils.data import load_bundles, open_bundles
 from pyvisgen.utils.logging import setup_logger
 
@@ -57,7 +59,7 @@ class SimulateDataSet:
     @classmethod
     def from_config(
         cls,
-        config: str | Path | dict,
+        config: str | Path | dict | Config,
         /,
         image_key: str = "y",
         *,
@@ -148,27 +150,19 @@ class SimulateDataSet:
             f"Simulating {cls.conf.bundle.dataset_type} dataset", total=3
         )
 
-        with (
-            Live(progress_group),
-            cls.conf.datawriter.writer(
-                output_path=cls.out_path,
-                dataset_type=cls.conf.bundle.dataset_type,
-                amp_phase=cls.conf.bundle.amp_phase,
-                **cls.conf.datawriter.model_dump(),
-            ) as cls.writer,
-        ):
+        with Live(progress_group):
             if cls.num_images is None:
                 # get number of random parameter draws from number of images in data
                 counting_task_id = counting_progress.add_task(
                     "", total=len(cls.data_paths)
                 )
 
-                num_images = []
+                num_images_list = []
                 for bundle_id in range(len(cls.data_paths)):
-                    num_images.append(len(cls.get_images(bundle_id)))
+                    num_images_list.append(len(cls.get_images(bundle_id)))
                     counting_progress.update(counting_task_id, advance=1)
 
-                cls.num_images = int(np.sum(num_images))
+                cls.num_images = int(np.sum(num_images_list))
                 overall_progress.update(cls.overall_task_id, advance=1)
 
             if cls.num_images == 0:
@@ -200,6 +194,16 @@ class SimulateDataSet:
         """Runs the simulation and saves visibility data using the
         data writer specified in the configuration.
         """
+        fits_writer = None
+        if self.conf.bundle.fits_out_path is not None:
+            from pyvisgen.io.datawriters import FITSWriter
+
+            self.conf.bundle.fits_out_path.mkdir(parents=True, exist_ok=True)
+            fits_writer = FITSWriter(
+                output_path=self.conf.bundle.fits_out_path,
+                dataset_type=self.conf.bundle.dataset_type,
+            )
+
         bundles_task_id = bundles_progress.add_task("", total=len(self.data_paths))
         for i in range(len(self.data_paths)):
             SIs = self.get_images(i)
@@ -227,9 +231,13 @@ class SimulateDataSet:
                 vis = vis_loop(
                     obs,
                     SI,
-                    noisy=self.conf.sampling.noisy,
+                    noise_level=self.conf.noise.noise_level,
+                    noise_mode=self.conf.noise.noise_mode,
+                    telescope=self.conf.noise.telescope,
+                    band=self.conf.noise.band,
                     mode=self.conf.sampling.mode,
                     ft=self.conf.fft.ft,
+                    normalize=self.conf.sampling.normalize,
                     atmospheric_effects=atm_effects,
                     tec_values=tec_values,
                 )
@@ -245,12 +253,13 @@ class SimulateDataSet:
                     ).grid()
 
                     sim_data.append(np.array(grid_data.get_mask_real_imag()))
+                else:
+                    sim_data.append(vis)
 
                 current_bundle_progress.update(current_bundle_task_id, advance=1)
 
-            sim_data = np.array(sim_data)
-
             if self.grid:
+                sim_data = np.array(sim_data)
                 if self.conf.bundle.amp_phase:
                     sim_data = convert_amp_phase(sim_data, sky_sim=False)
                     truth_fft = convert_amp_phase(truth_fft, sky_sim=True)
@@ -274,8 +283,18 @@ class SimulateDataSet:
                 )
 
             else:
-                for i, vis_data in enumerate(sim_data):
-                    self.writer.write(vis_data, obs, index=i, overwrite=True)
+                for j, vis_data in enumerate(sim_data):
+                    self.writer.write(
+                        vis_data,
+                        obs,
+                        index=i * bundle_length + j,
+                        sky=SIs[j],
+                        overwrite=True,
+                        normalize=self.conf.sampling.normalize,
+                    )
+
+                    if fits_writer is not None:
+                        fits_writer.write(vis_data, obs, index=i, overwrite=True)
 
                 path_msg = self.conf.bundle.out_path / Path(
                     f"samp_{self.conf.bundle.dataset_type}_<id>.fits"
@@ -305,10 +324,16 @@ class SimulateDataSet:
         self.create_sampling_rc(1)
         obs = self.create_observation(0)
         vis_data = vis_loop(
-            obs, SI, noisy=self.conf.sampling.noisy, mode=self.conf.sampling.mode
+            obs,
+            SI,
+            noise_level=self.conf.noise.noise_level,
+            noise_mode=self.conf.noise.noise_mode,
+            telescope=self.conf.noise.telescope,
+            band=self.conf.noise.band,
+            mode=self.conf.sampling.mode,
         )
 
-        self.writer.write(vis_data, obs, index=job_id, overwrite=True)
+        self.writer.write(vis_data, obs, index=job_id, sky=SI, overwrite=True)
 
     def _get_gridder(self):
         try:
@@ -319,11 +344,11 @@ class SimulateDataSet:
             LOGGER.warning(e)
             LOGGER.warning("Falling back to default gridder!")
 
-            gridder = Gridder
+            self.gridder = Gridder
 
-        return gridder
+        return self.gridder
 
-    def get_images(self, i: int) -> torch.tensor:
+    def get_images(self, i: int) -> torch.Tensor:
         """Opens bundle with index i and returns :func:`~torch.tensor`
         of images.
 
@@ -516,46 +541,49 @@ class SimulateDataSet:
         samp_opts : dict
             Sampling options/parameters stored inside a dictionary.
         """
-        ra = self.rng.uniform(
-            self.conf.sampling.fov_center_ra[0],
-            self.conf.sampling.fov_center_ra[1],
-            size,
+        ra_cfg = self.conf.sampling.fov_center_ra
+        ra = (
+            np.full(size, ra_cfg[0])
+            if len(ra_cfg) == 1
+            else self.rng.uniform(ra_cfg[0], ra_cfg[1], size)
         )
-        dec = self.rng.uniform(
-            self.conf.sampling.fov_center_dec[0],
-            self.conf.sampling.fov_center_dec[1],
-            size,
+
+        dec_cfg = self.conf.sampling.fov_center_dec
+        dec = (
+            np.full(size, dec_cfg[0])
+            if len(dec_cfg) == 1
+            else self.rng.uniform(dec_cfg[0], dec_cfg[1], size)
         )
 
         start_time_l = datetime.strptime(
             self.conf.sampling.scan_start[0], self.date_fmt
         )
-        start_time_h = datetime.strptime(
-            self.conf.sampling.scan_start[1], self.date_fmt
-        )
-        start_times = np.arange(
-            start_time_l,
-            start_time_h,
-            timedelta(hours=1),
-        ).astype(datetime)
+        if len(self.conf.sampling.scan_start) == 1:
+            scan_start = np.full(size, start_time_l)
+        else:
+            start_time_h = datetime.strptime(
+                self.conf.sampling.scan_start[1], self.date_fmt
+            )
+            start_times = np.arange(
+                start_time_l,
+                start_time_h,
+                timedelta(hours=1),
+            ).astype(datetime)
+            scan_start = self.rng.choice(start_times, size)
 
-        scan_start = self.rng.choice(start_times, size)
-        scan_duration = self.rng.integers(
-            self.conf.sampling.scan_duration[0],
-            self.conf.sampling.scan_duration[1],
-            size,
-        )
-        num_scans = self.rng.integers(
-            self.conf.sampling.num_scans[0],
-            self.conf.sampling.num_scans[1],
-            size,
+        dur_cfg = self.conf.sampling.scan_duration
+        scan_duration = (
+            np.full(size, dur_cfg[0], dtype=int)
+            if len(dur_cfg) == 1
+            else self.rng.integers(dur_cfg[0], dur_cfg[1], size)
         )
 
-        if scan_duration.size == 1:
-            scan_duration = scan_duration.astype(int)
-
-        if num_scans.size == 1:
-            num_scans = num_scans.astype(int)
+        ns_cfg = self.conf.sampling.num_scans
+        num_scans = (
+            np.full(size, ns_cfg[0], dtype=int)
+            if len(ns_cfg) == 1
+            else self.rng.integers(ns_cfg[0], ns_cfg[1], size)
+        )
 
         # if polarization is None, we don't need to enter the
         # conditional below, so we set delta, amp_ratio, field_order,
@@ -563,12 +591,12 @@ class SimulateDataSet:
         delta, amp_ratio, field_order, field_scale = np.full((4, size), np.nan)
 
         if self.conf.polarization.mode:
-            if self.conf.polarization.delta:
+            if self.conf.polarization.delta is not None:
                 delta = np.repeat(self.conf.polarization.delta, size)
             else:
                 delta = self.rng.uniform(0, 180, size)
 
-            if self.conf.polarization.amp_ratio:
+            if self.conf.polarization.amp_ratio is not None:
                 amp_ratio = np.repeat(self.conf.polarization.amp_ratio, size)
             else:
                 amp_ratio = self.rng.uniform(0, 1, size)
@@ -587,7 +615,7 @@ class SimulateDataSet:
                 )
             else:
                 a = self.rng.uniform(0, 1 - 1e-6, size)
-                b = np.repeat(1, size, dtype=float)
+                b = np.repeat(1, size)
                 field_scale = np.stack((a, b), axis=1)
 
         samp_opts = dict(
@@ -705,8 +733,8 @@ class SimulateDataSet:
         return Time(time_steps)
 
     def _geocentric_to_spherical(
-        self, x: torch.tensor, y: torch.tensor, z: torch.tensor
-    ) -> torch.tensor:
+        self, x: torch.Tensor, y: torch.Tensor, z: torch.Tensor
+    ) -> tuple[torch.Tensor, torch.Tensor]:
         """Convert geocentric coordinates to lon/lat.
 
         Parameters
@@ -728,8 +756,8 @@ class SimulateDataSet:
         return lat, lon
 
     def _compute_altitude(
-        self, ra: torch.tensor, dec: torch.tensor, lst: torch.tensor
-    ) -> torch.tensor:
+        self, ra: torch.Tensor, dec: torch.Tensor, lst: torch.Tensor
+    ) -> torch.Tensor:
         """Computes altitude for a given RA/DEC, and local sidereal time (LST).
 
         Parameters
@@ -760,62 +788,5 @@ class SimulateDataSet:
         # in the arcsin below
         sin_alt = torch.clamp(sin_alt, -1, 1)
         alt_rad = torch.arcsin(sin_alt)
+
         return torch.rad2deg(alt_rad)
-
-    @classmethod
-    def _get_obs_test(
-        cls,
-        config: str | Path,
-        /,
-        image_key: str = "y",
-        *,
-        date_fmt: str = DATEFMT,
-    ) -> tuple:  # pragma: no cover
-        """Creates an :class:`~pyvisgen.simulation.Observation` class
-        object for tests.
-
-        Parameters
-        ----------
-        config : str or Path
-            Path to the config file.
-        image_key : str, optional
-            Key under which the true sky distributions are saved
-            in the HDF5 file. Default: ``'y'``
-        date_fmt : str, optional
-            Format string for datetime objects.
-            Default: ``'%d-%m-%Y %H:%M:%S'``
-
-        Returns
-        -------
-        self : SimulateDataSet
-            Class object.
-        obs : :class:`~pyvisgen.simulation.Observation`
-            :class:`~pyvisgen.simulation.Observation` class object.
-        """
-        cls = cls()
-        cls.key = image_key
-        cls.date_fmt = date_fmt
-        cls.multiprocess = 1
-
-        if isinstance(config, (str, Path)):
-            cls.conf = Config.from_toml(config)
-        elif isinstance(config, Config):
-            cls.conf = config
-        elif isinstance(config, dict):
-            cls.conf = Config.model_validate(config)
-        else:
-            raise ValueError(
-                "Expected config to be one of str, Path, dict, or pyvisgen.io.Config!"
-            )
-
-        cls.device = cls.conf.sampling.device
-
-        cls.overall_task_id = overall_progress.add_task(
-            f"Simulating {cls.conf.bundle.dataset_type} dataset", total=3
-        )
-
-        cls.data_paths = load_bundles(cls.conf.bundle.in_path)[0]
-        cls.create_sampling_rc(1)
-        obs = cls.create_observation(0)
-
-        return cls, obs

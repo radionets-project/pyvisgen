@@ -28,6 +28,8 @@ def setup_logger(namespace="rich", level="INFO", **kwargs):
         Rich's builtin logging handler for more information on
         allowed keyword arguments.
     """
+    logging.captureWarnings(True)
+
     FORMAT = "%(message)s"
 
     logging.basicConfig(

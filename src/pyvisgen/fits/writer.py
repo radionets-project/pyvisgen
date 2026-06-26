@@ -51,9 +51,14 @@ def create_vis_hdu(data, obs, source_name="sim-source-0") -> fits.GroupsHDU:
     # visibility data
     values = data.get_values()
 
-    vis = np.stack([values.real, values.imag, np.ones(values.shape)], axis=3)[
-        :, None, None, None, ...
-    ]
+    vis = np.stack(
+        [
+            values.real,
+            values.imag,
+            data.weights.unsqueeze(2).expand(values.real.shape),
+        ],  # real, imag, weights [n, freqs, pol]
+        axis=3,
+    )[:, None, None, None, ...]
 
     DATA = vis
     # in dim 4 = IFs , dim = 1, dim 4 = number of jones, 3 = real, imag, weight

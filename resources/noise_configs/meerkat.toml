@@ -1,0 +1,15 @@
+# MeerKAT telescope noise configuration
+# Each [bands.<name>] section holds noise parameters for one frequency band.
+# dish_diameter is shared across all bands.
+
+dish_diameter = 13.5  # metres
+
+# ── L-band at 1284 MHz ─────────────────────────────────────────────────────
+# Digitized from https://skaafrica.atlassian.net/wiki/
+# spaces/ESDKB/pages/277315585/MeerKAT+specifications (Figure 6)
+[bands.L]
+frequency_mhz = 1284
+el_knots  = [15.0, 20.0, 25.0, 30.0, 35.0, 40.0, 50.0, 60.0, 70.0, 80.0, 90.0]
+t_atm     = [5.05, 3.80, 3.10, 2.65, 2.35, 2.15, 1.85, 1.65, 1.52, 1.43, 1.38]
+t_spill_h = [2.58, 2.52, 2.48, 2.45, 2.43, 2.42, 2.43, 2.50, 2.65, 2.88, 3.15]
+t_spill_v = [2.60, 2.54, 2.50, 2.47, 2.45, 2.44, 2.46, 2.55, 2.70, 2.92, 3.18]

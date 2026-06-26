@@ -1,25 +1,23 @@
-from __future__ import annotations
-
 from math import pi
-from typing import TYPE_CHECKING
 
 import torch
-from radioft.finufft import CupyFinufft
 from scipy.constants import c
 from torch.special import bessel_j1
 
-if TYPE_CHECKING:
-    from typing import Literal
-
-    from numpy.typing import ArrayLike
-
 torch.set_default_dtype(torch.float64)
 
+try:
+    from radioft.finufft import CupyFinufft
 
-finufft = CupyFinufft(image_size=512, fov_arcsec=1024, eps=1e-8)
+    _FINUFFT_AVAIL = True
+
+except ImportError as e:
+    _FINUFFT_AVAIL = False
+    _FINUFFT_ERROR = str(e)
+
 
 __all__ = [
-    "rime",
+    "RIMEScan",
     "apply_finufft",
     "calc_fourier",
     "calc_feed_rotation",
@@ -30,102 +28,289 @@ __all__ = [
 ]
 
 
-# @torch.compile
-def rime(
-    img: ArrayLike,
-    bas: ArrayLike,
-    lm: ArrayLike,
-    rd: ArrayLike,
-    ra: ArrayLike,
-    dec: ArrayLike,
-    ant_diam: ArrayLike,
-    spw_low: ArrayLike,
-    spw_high: ArrayLike,
-    polarization: str,
-    mode: str,
-    corrupted: bool = False,
-    ft: Literal["default", "finufft", "reversed"] = "default",
-):
-    """Calculates visibilities using RIME
+class RIMEScan:
+    """Apply the Radio Interferometry Measurement Equation (RIME) to sky images.
+
+    This class handles the calculation of visibilities from sky images using
+    either direct Fourier transforms or Non-Uniform Fast Fourier Transforms
+    (FINUFFT). Depending on the observation settings it also applies
+    telescope beam effects or feed rotation.
 
     Parameters
     ----------
-    img: torch.tensor
-        sky distribution
-    bas : dataclass object
-        baselines dataclass
-    lm : 2d array
-        lm grid for FOV
-    spw_low : float
-        lower wavelength
-    spw_high : float
-        higher wavelength
-    polarization : str
-        Type of polarization.
+    ft : str
+        Fourier transform method to use ('default', 'reversed', or 'finufft').
     mode : str
-        Select one of `'full'`, `'grid'`, or `'dense'` to get
-        all valid baselines, a grid of unique baselines, or
-        dense baselines.
-    corrupted : bool, optional
-        If ``True``, apply beam smearing to the simulated data.
-        Default: ``False``
-    ft : str, optional
-        Sets the type of fourier transform used in the RIME.
-        Choose one of ``'default'``, ``'finufft'`` (Flatiron Institute
-        Nonuniform Fast Fourier Transform) or `'reversed'`.
-        Default: ``'default'``
-
-    Returns
-    -------
-    2d tensor
-        Returns visibility for every baseline
+        Observation mode, can be 'full', 'grid' or 'dense'. Dense is only suitable
+        for debugging and disables feed rotation calculation.
+    obs : :class:`~pyvisgen.simulation.Observation`
+        Observation class object containing observation parameters such as
+        the source position.
+    lm : :class:`~torch.Tensor`
+        Direction cosines (l, m) grid for the field of view.
+    rd : :class:`~torch.Tensor`
+        Right ascension and declination grid corresponding to the field of view.
+    eps : float, optional
+        Tolerance for the cuFINUFFT. Default: 1e-8.
     """
-    if ft == "default":
+
+    def __init__(self, ft, mode, obs, lm, rd, eps=1e-8):
+        if _FINUFFT_AVAIL:
+            self.cupy_finufft = CupyFinufft(
+                image_size=obs.img_size, fov_arcsec=obs.fov, eps=eps
+            )
+
+        self.mode = mode
+        self.ft = ft
+        self.ft_func = getattr(self, ft)
+        self.polarization = obs.polarization
+        self.corrupted = obs.corrupted
+        self.ra = obs.ra
+        self.dec = obs.dec
+        self.ant_diam = torch.unique(obs.array.diam)
+        self.lm = lm
+        self.rd = rd
+
+    def __call__(
+        self,
+        img: torch.Tensor,
+        bas,
+        spw_low: torch.Tensor,
+        spw_high: torch.Tensor,
+    ) -> torch.Tensor:
+        """Process the input sky image to produce visibilities.
+
+        Parameters
+        ----------
+        img : :class:`~torch.Tensor`
+            Input sky image tensor.
+        bas : :class:`~pyvisgen.simulation.ValidBaselineSubset`
+            Subset of valid baselines containing uvw coordinates.
+        spw_low : :class:`~torch.Tensor`
+            Lower spectral window frequencies/wavelengths.
+        spw_high : :class:`~torch.Tensor`
+            Higher spectral window frequencies/wavelengths.
+
+        Returns
+        -------
+        :class:`~torch.Tensor`
+            Calculated complex visibilities for the given baselines.
+        """
         with torch.no_grad():
+            if self.ft == "reversed":
+                img = torch.repeat_interleave(
+                    img.clone()[None], len(bas.u_valid), dim=0
+                )
+
             X1 = img.clone()
             X2 = img.clone()
-            X1, X2 = calc_fourier(X1, X2, bas, lm, spw_low, spw_high)
 
-            if polarization and mode != "dense":
-                X1, X2 = calc_feed_rotation(X1, X2, bas, polarization)
+            return self.ft_func(
+                X1,
+                X2,
+                bas,
+                spw_low,
+                spw_high,
+            )
 
-            if corrupted:
-                X1, X2 = calc_beam(X1, X2, rd, ra, dec, ant_diam, spw_low, spw_high)
+    def default(
+        self,
+        X1: torch.Tensor,
+        X2: torch.Tensor,
+        bas: torch.Tensor,
+        spw_low: torch.Tensor,
+        spw_high: torch.Tensor,
+    ) -> torch.Tensor:
+        """Evaluate default the RIME Jones chain.
 
-            vis = integrate(X1, X2)
-    if ft == "reversed":
-        with torch.no_grad():
-            img = torch.repeat_interleave(img.clone()[None], len(bas[2]), dim=0)
-            X1 = img.clone()
-            X2 = img.clone()
-            if polarization and mode != "dense":
-                X1, X2 = calc_feed_rotation(X1, X2, bas, polarization)
+        Calculates direct Fourier kernels, applies feed rotation and
+        beam effects, and integrates over the image.
 
-            if corrupted:
-                X1, X2 = calc_beam(X1, X2, rd, ra, dec, ant_diam, spw_low, spw_high)
+        Parameters
+        ----------
+        X1 : :class:`~torch.Tensor`
+            Sky tensor for the lower spectral window.
+        X2 : :class:`~torch.Tensor`
+            Sky tensor for the higher spectral window.
+        bas : :class:`~pyvisgen.simulation.ValidBaselineSubset`
+            Subset of valid baselines containing uvw coordinates.
+        spw_low : :class:`~torch.Tensor`
+            Lower spectral window frequencies/wavelengths.
+        spw_high : :class:`~torch.Tensor`
+            Higher spectral window frequencies/wavelengths.
 
-            X1, X2 = calc_fourier(X1, X2, bas, lm, spw_low, spw_high)
-            vis = integrate(X1, X2)
-    if ft == "finufft":
-        with torch.no_grad():
-            X1 = img.clone()
-            X2 = img.clone()
+        Returns
+        -------
+        :class:`~torch.Tensor`
+            Visibilities calculated with the default RIME Jones chain.
+        """
+        X1, X2 = calc_fourier(X1, X2, bas, self.lm, spw_low, spw_high)
 
-            if corrupted:
-                X1, X2 = calc_beam(X1, X2, rd, ra, dec, ant_diam, spw_low, spw_high)
+        if self.polarization and self.mode != "dense":
+            X1, X2 = calc_feed_rotation(X1, X2, bas, self.polarization)
 
-            vis = apply_finufft(X1, X2, bas, lm, spw_low, spw_high)
-    return vis
+        if self.corrupted:
+            X1, X2 = calc_beam(
+                X1,
+                X2,
+                self.rd,
+                self.ra,
+                self.dec,
+                self.ant_diam,
+                spw_low,
+                spw_high,
+            )
+
+        vis = integrate(X1, X2)
+
+        return vis
+
+    def reversed(
+        self,
+        X1: torch.Tensor,
+        X2: torch.Tensor,
+        bas: torch.Tensor,
+        spw_low: torch.Tensor,
+        spw_high: torch.Tensor,
+    ) -> torch.Tensor:
+        """Compute the default RIME Jones chain in reversed order.
+
+        Applies feed rotation and primary beam effects before calculating
+        Fourier kernels and integrating.
+
+        Parameters
+        ----------
+        X1 : :class:`~torch.Tensor`
+            Sky tensor for the lower spectral window.
+        X2 : :class:`~torch.Tensor`
+            Sky tensor for the higher spectral window.
+        bas : :class:`~pyvisgen.simulation.ValidBaselineSubset`
+            Subset of valid baselines containing uvw coordinates.
+        spw_low : :class:`~torch.Tensor`
+            Lower spectral window frequencies/wavelengths.
+        spw_high : :class:`~torch.Tensor`
+            Higher spectral window frequencies/wavelengths.
+
+        Returns
+        -------
+        :class:`~torch.Tensor`
+            Visibilities calculated with the reversed RIME Jones chain.
+        """
+        if self.polarization and self.mode != "dense":
+            X1, X2 = calc_feed_rotation(X1, X2, bas, self.polarization)
+
+        if self.corrupted:
+            X1, X2 = calc_beam(
+                X1,
+                X2,
+                self.rd,
+                self.ra,
+                self.dec,
+                self.ant_diam,
+                spw_low,
+                spw_high,
+            )
+
+        X1, X2 = calc_fourier(X1, X2, bas, self.lm, spw_low, spw_high)
+        vis = integrate(X1, X2)
+
+        return vis
+
+    def finufft(
+        self,
+        X1: torch.Tensor,
+        X2: torch.Tensor,
+        bas: torch.Tensor,
+        spw_low: torch.Tensor,
+        spw_high: torch.Tensor,
+    ) -> torch.Tensor:
+        """Evaluate RIME using cuFINUFFT.
+
+        Utilizes GPU-accelerated non-uniform FFTs for
+        faster visibility computation.
+
+        Parameters
+        ----------
+        X1 : :class:`~torch.Tensor`
+            Sky tensor for the lower spectral window.
+        X2 : :class:`~torch.Tensor`
+            Sky tensor for the higher spectral window.
+        bas : :class:`~pyvisgen.simulation.ValidBaselineSubset`
+            Subset of valid baselines containing uvw coordinates.
+        spw_low : :class:`~torch.Tensor`
+            Lower spectral window frequencies/wavelengths.
+        spw_high : :class:`~torch.Tensor`
+            Higher spectral window frequencies/wavelengths.
+
+        Returns
+        -------
+        :class:`~torch.Tensor`
+            Visibilities computed with cuFINUFFT.
+
+        Raises
+        ------
+        RuntimeError
+            If cuFINUFFT package is not successfully loaded or available.
+        """
+        if not _FINUFFT_AVAIL:
+            raise RuntimeError(_FINUFFT_ERROR)
+
+        if self.corrupted:
+            X1, X2 = calc_beam(
+                X1,
+                X2,
+                self.rd,
+                self.ra,
+                self.dec,
+                self.ant_diam,
+                spw_low,
+                spw_high,
+            )
+
+        vis = apply_finufft(
+            X1, X2, bas, self.lm, spw_low, spw_high, finufft=self.cupy_finufft
+        )
+
+        return vis
 
 
 def apply_finufft(
-    X1: torch.tensor,
-    X2: torch.tensor,
+    X1: torch.Tensor,
+    X2: torch.Tensor,
     bas,
-    lm: torch.tensor,
-    spw_low: float,
-    spw_high: float,
-) -> tuple[torch.tensor, torch.tensor]:  # pragma: no cover
+    lm: torch.Tensor,
+    spw_low: float | torch.Tensor,
+    spw_high: float | torch.Tensor,
+    finufft,
+) -> torch.Tensor:  # pragma: no cover
+    """Apply cuFINUFFT to input images to compute visibilities.
+
+    Parameters
+    ----------
+    X1 : :class:`~torch.Tensor`
+        Sky tensor for the lower spectral window.
+    X2 : :class:`~torch.Tensor`
+        Sky tensor for the higher spectral window.
+    bas : :class:`~pyvisgen.simulation.ValidBaselineSubset`
+        Subset of valid baselines containing uvw coordinates.
+    spw_low : :class:`~torch.Tensor`
+        Lower spectral window frequencies/wavelengths.
+    spw_high : :class:`~torch.Tensor`
+        Higher spectral window frequencies/wavelengths.
+    finufft : :class:`~radioft.finufft.finufft.CupyFinufft`
+        Initialized :class:`~radioft.finufft.finufft.CupyFinufft` object
+        to be used to compute the visibilities.
+
+    Returns
+    -------
+    :class:`~torch.Tensor`
+        Visibilities computed with cuFINUFFT.
+
+    Raises
+    ------
+    RuntimeError
+        If CUDA is not available.
+    """
     if not torch.cuda.is_available():
         raise RuntimeError(
             "CUDA is not available. Finufft backend requires a CUDA-enabled GPU to run."
@@ -135,72 +320,61 @@ def apply_finufft(
     m_coords = lm[..., 1]
     n_coords = torch.sqrt(1 - l_coords**2 - m_coords**2)
 
-    u_coords_low = bas[2] / c * spw_low
-    v_coords_low = bas[5] / c * spw_low
-    w_coords_low = bas[8] / c * spw_low
+    u_coords_low = bas.u_valid / c * spw_low
+    v_coords_low = bas.v_valid / c * spw_low
+    w_coords_low = bas.w_valid / c * spw_low
 
-    u_coords_high = bas[2] / c * spw_high
-    v_coords_high = bas[5] / c * spw_high
-    w_coords_high = bas[8] / c * spw_high
-
-    n_baselines = len(bas[2])
-
-    # Pre-allocate output
-    vis = torch.empty([n_baselines, 2, 2], dtype=torch.complex128, device=X1.device)
+    u_coords_high = bas.u_valid / c * spw_high
+    v_coords_high = bas.v_valid / c * spw_high
+    w_coords_high = bas.w_valid / c * spw_high
 
     # Reshape input
-    X1_flat = X1.reshape(4, -1)
-    X2_flat = X2.reshape(4, -1)
-
-    # Create CUDA streams for parallel execution of the 4 Stokes params
-    streams = [torch.cuda.Stream() for _ in range(4)]
+    X1_flat = X1.permute(1, 2, 0).reshape(4, -1)
+    X2_flat = X2.permute(1, 2, 0).reshape(4, -1)
 
     results_low = []
     results_high = []
 
     for i in range(4):
-        with torch.cuda.stream(streams[i]):
-            vis_low = finufft.nufft(
-                X1_flat[i],
-                l_coords,
-                m_coords,
-                n_coords,
-                u_coords_low,
-                v_coords_low,
-                w_coords_low,
-            )
-            vis_high = finufft.nufft(
-                X2_flat[i],
-                l_coords,
-                m_coords,
-                n_coords,
-                u_coords_high,
-                v_coords_high,
-                w_coords_high,
-            )
-            results_low.append(vis_low)
-            results_high.append(vis_high)
-
-    # Synchronize all streams
-    torch.cuda.synchronize()
+        vis_low = finufft.nufft(
+            X1_flat[i],
+            l_coords,
+            m_coords,
+            n_coords,
+            u_coords_low,
+            v_coords_low,
+            w_coords_low,
+        )
+        vis_high = finufft.nufft(
+            X2_flat[i],
+            l_coords,
+            m_coords,
+            n_coords,
+            u_coords_high,
+            v_coords_high,
+            w_coords_high,
+        )
+        results_low.append(vis_low)
+        results_high.append(vis_high)
 
     # Stack and reshape
     vis_low_all = torch.stack(results_low)
     vis_high_all = torch.stack(results_high)
+
     vis_avg = (vis_low_all + vis_high_all) / 2
-    vis = vis_avg.T.reshape(n_baselines, 2, 2)
+    vis = vis_avg.mT.reshape(-1, 2, 2)
 
     return vis
 
 
 def calc_fourier(
-    X1: torch.tensor,
-    X2: torch.tensor,
+    X1: torch.Tensor,
+    X2: torch.Tensor,
     bas,
-    lm: torch.tensor,
-    spw_low: float,
-    spw_high: float,
-) -> tuple[torch.tensor, torch.tensor]:
+    lm: torch.Tensor,
+    spw_low: float | torch.Tensor,
+    spw_high: float | torch.Tensor,
+) -> tuple[torch.Tensor, torch.Tensor]:
     """Calculates Fourier transformation kernel for
     every baseline and pixel in the lm grid.
 
@@ -229,9 +403,9 @@ def calc_fourier(
         baseline axis.
     """
     # only use u, v, w valid
-    u_valid = bas[2]
-    v_valid = bas[5]
-    w_valid = bas[8]
+    u_valid = bas.u_valid
+    v_valid = bas.v_valid
+    w_valid = bas.w_valid
 
     l = lm[..., 0]  # noqa: E741
     m = lm[..., 1]
@@ -249,11 +423,11 @@ def calc_fourier(
 
 
 def calc_feed_rotation(
-    X1: torch.tensor,
-    X2: torch.tensor,
+    X1: torch.Tensor,
+    X2: torch.Tensor,
     bas,
     polarization: str,
-) -> tuple[torch.tensor, torch.tensor]:
+) -> tuple[torch.Tensor, torch.Tensor]:
     """Calculates the feed rotation due to the parallactic
     angle rotation of the source over time.
 
@@ -279,8 +453,8 @@ def calc_feed_rotation(
     X2 : :func:`~torch.tensor`
         Fourier kernel with the applied feed rotation.
     """
-    q1 = bas[13][..., None]
-    q2 = bas[16][..., None]
+    q1 = bas.q1_valid[..., None]
+    q2 = bas.q2_valid[..., None]
 
     xa = torch.zeros_like(X1)
     xb = torch.zeros_like(X2)
@@ -315,15 +489,15 @@ def calc_feed_rotation(
 
 
 def calc_beam(
-    X1: torch.tensor,
-    X2: torch.tensor,
-    rd: torch.tensor,
-    ra: float,
-    dec: float,
-    ant_diam: torch.tensor,
-    spw_low: float,
-    spw_high: float,
-) -> tuple[torch.tensor, torch.tensor]:
+    X1: torch.Tensor,
+    X2: torch.Tensor,
+    rd: torch.Tensor,
+    ra: float | torch.Tensor,
+    dec: float | torch.Tensor,
+    ant_diam: torch.Tensor,
+    spw_low: float | torch.Tensor,
+    spw_high: float | torch.Tensor,
+) -> tuple[torch.Tensor, torch.Tensor]:
     """Computes the beam influence on the image.
 
     Parameters
@@ -358,7 +532,7 @@ def calc_beam(
 
 
 @torch.compile
-def angular_distance(rd, ra, dec):
+def angular_distance(rd: torch.Tensor, ra: torch.Tensor, dec: torch.Tensor):
     """Calculates angular distance from source position
 
     Parameters

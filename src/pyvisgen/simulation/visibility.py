@@ -17,7 +17,8 @@ from typing import Optional
 
 
 import torch.nn.functional as F
-import pyvisgen.simulation.scan as scan
+from pyvisgen.simulation.noise import generate_noise
+from pyvisgen.simulation.scan import RIMEScan
 from pyvisgen.utils.batch_size import adaptive_batch_size
 from pyvisgen.utils.logging import setup_logger
 
@@ -50,6 +51,7 @@ class Visibilities:
     V_22 : :func:`~torch.tensor`
     V_12 : :func:`~torch.tensor`
     V_21 : :func:`~torch.tensor`
+    weights : :func:`~torch.tensor`
     num : :func:`~torch.tensor`
     base_num : :func:`~torch.tensor`
     u : :func:`~torch.tensor`
@@ -60,18 +62,20 @@ class Visibilities:
     circular_dop : :func:`~torch.tensor`
     """
 
-    V_11: torch.tensor
-    V_22: torch.tensor
-    V_12: torch.tensor
-    V_21: torch.tensor
-    num: torch.tensor
-    base_num: torch.tensor
-    u: torch.tensor
-    v: torch.tensor
-    w: torch.tensor
-    date: torch.tensor
-    linear_dop: torch.tensor
-    circular_dop: torch.tensor
+    V_11: torch.Tensor
+    V_22: torch.Tensor
+    V_12: torch.Tensor
+    V_21: torch.Tensor
+    weights: torch.Tensor
+    num: torch.Tensor
+    base_num: torch.Tensor
+    u: torch.Tensor
+    v: torch.Tensor
+    w: torch.Tensor
+    date: torch.Tensor
+    st_id_pairs: torch.Tensor
+    linear_dop: torch.Tensor
+    circular_dop: torch.Tensor
 
     def __getitem__(self, i):
         return Visibilities(*[getattr(self, f.name)[i] for f in fields(self)])
@@ -129,10 +133,10 @@ class Polarization:
 
     def __init__(
         self,
-        SI: torch.tensor,
+        SI: torch.Tensor,
         sensitivity_cut: float,
         amp_ratio: float,
-        delta: float,
+        delta: float | torch.Tensor,
         polarization: str,
         field_kwargs: dict,
         random_state: int,
@@ -189,10 +193,10 @@ class Polarization:
 
             self.delta = delta
 
-            if amp_ratio and (amp_ratio >= 0):
-                ax2 = amp_ratio
-            else:
-                ax2 = torch.rand(1).to(self.device)
+            ax2 = amp_ratio if amp_ratio and amp_ratio >= 0 else torch.rand(1)
+
+            if isinstance(ax2, torch.Tensor):
+                ax2 = ax2.to(self.device)
 
             ay2 = 1 - ax2
 
@@ -341,12 +345,12 @@ class Polarization:
 
     def rand_polarization_field(
         self,
-        shape: list[int, int] | int,
-        order: list[int, int] | int = 1,
-        random_state: int = None,
-        scale: list = None,
-        threshold: float = None,
-    ) -> torch.tensor:
+        shape: list[int] | int,
+        order: list[int] | int = 1,
+        random_state: int | None = None,
+        scale: list | None = None,
+        threshold: float | None = None,
+    ) -> torch.Tensor:
         """
         Generates a random noise mask for polarization.
 
@@ -373,7 +377,7 @@ class Polarization:
             scale[0] and scale[1].
         """
         if random_state:
-            torch.random.manual_seed(random_state)
+            torch.manual_seed(random_state)
 
         if isinstance(shape, int):
             shape = [shape]
@@ -384,9 +388,9 @@ class Polarization:
         if len(shape) < 2:
             shape *= 2
         elif len(shape) > 2:
-            raise ValueError("Only 2d shapes are allowed!")
+            raise ValueError("Expected len of 'shape' to be 2!")
 
-        if isinstance(order, int):
+        if isinstance(order, int | float):
             order = [order]
 
         if not isinstance(order, list):
@@ -395,7 +399,7 @@ class Polarization:
         if len(order) < 2:
             order *= 2
         elif len(order) > 2:
-            raise ValueError("Only 2d shapes are allowed!")
+            raise ValueError("Expected len of 'order' to be 2!")
 
         sigma = torch.mean(torch.tensor(shape).double()) / (40 * torch.tensor(order))
 
@@ -405,6 +409,9 @@ class Polarization:
         if scale is None:
             scale = [im.min(), im.max()]
 
+        if len(scale) != 2:
+            raise ValueError("Expected len of 'scale' to be 2!")
+
         im_flatten = torch.from_numpy(im.flatten())
         im_argsort = torch.argsort(torch.argsort(im_flatten))
         im_linspace = torch.linspace(*scale, im_argsort.size()[0])
@@ -413,18 +420,21 @@ class Polarization:
         im = torch.reshape(uniform_flatten, im.shape)
 
         if threshold:
-            im = im < threshold
+            im = im[im < threshold]
 
         return im
 
 
 def vis_loop(
     obs,
-    SI: torch.tensor,
+    SI: torch.Tensor,
     num_threads: int = 10,
-    noisy: bool = True,
+    noise_level: float = 0,
+    noise_mode: str = "sefd",
+    telescope: str = "meerkat",
+    band: str | None = None,
     mode: str = "full",
-    batch_size: int = "auto",
+    batch_size: int | Literal["auto"] = "auto",
     show_progress: bool = False,
     normalize: bool = True,
     ft: Literal["default", "finufft", "reversed"] = "default",
@@ -445,10 +455,18 @@ def vis_loop(
     num_threads : int, optional
         Number of threads used for intraoperative parallelism
         on the CPU. See `~torch.set_num_threads`. Default: 10
-    noisy : bool, optional
-        If `True`, generate and add additional noise to
-        the simulated measurements. Default: True
-    mode :  str, optional
+    noise_level : float, optional
+        Noise amplitude: SEFD in Jy when ``noise_mode='sefd'``,
+        or T_sys/η in K when ``noise_mode='tsys'``. Set to 0 to disable noise.
+        Default: 0
+    noise_mode : str, optional
+        ``'sefd'``: uniform SEFD noise (backward compatible, no elevation dependence).
+        ``'tsys'``: elevation-dependent noise from system temperature.
+        Default: ``'sefd'``
+    telescope : str, optional
+        Telescope name for elevation-dependent Tsys corrections.
+        Only used when ``noise_mode='tsys'``. Default: ``'meerkat'``
+    mode : str, optional
         Select one of `'full'`, `'grid'`, or `'dense'` to get
         all valid baselines, a grid of unique baselines, or
         dense baselines.  Default: 'full'
@@ -554,18 +572,20 @@ def vis_loop(
 
     # calculate vis
     visibilities = Visibilities(
-        torch.empty(size=[0] + [len(obs.waves_low)]).to(obs.device),
-        torch.empty(size=[0] + [len(obs.waves_low)]).to(obs.device),
-        torch.empty(size=[0] + [len(obs.waves_low)]).to(obs.device),
-        torch.empty(size=[0] + [len(obs.waves_low)]).to(obs.device),
-        torch.tensor([]).to(obs.device),
-        torch.tensor([]).to(obs.device),
-        torch.tensor([]).to(obs.device),
-        torch.tensor([]).to(obs.device),
-        torch.tensor([]).to(obs.device),
-        torch.tensor([]).to(obs.device),
-        torch.tensor([]).to(obs.device),
-        torch.tensor([]).to(obs.device),
+        torch.empty(size=[0] + [len(obs.waves_low)]),
+        torch.empty(size=[0] + [len(obs.waves_low)]),
+        torch.empty(size=[0] + [len(obs.waves_low)]),
+        torch.empty(size=[0] + [len(obs.waves_low)]),
+        torch.tensor([]),
+        torch.tensor([]),
+        torch.tensor([]),
+        torch.tensor([]),
+        torch.tensor([]),
+        torch.tensor([]),
+        torch.tensor([]),
+        torch.empty(0, 2),
+        torch.tensor([]),
+        torch.tensor([]),
     )
 
     vis_num = torch.zeros(1)
@@ -578,15 +598,16 @@ def vis_loop(
         ).get_unique_grid(obs.fov, obs.ref_frequency, obs.img_size, obs.device)
     elif mode == "dense":
         if obs.device == torch.device("cpu"):
-            raise ValueError("Only available for GPU calculations!")
+            raise ValueError("Mode 'dense' is only available for GPU calculations!")
 
+        # We cannot test this with our CI at the moment
         obs.calc_dense_baselines()  # pragma: no cover
         bas = obs.dense_baselines_gpu  # pragma: nocover
     else:
-        raise ValueError("Unsupported mode!")
+        raise ValueError(f"Unsupported mode: {mode}")
 
     if batch_size == "auto":
-        batch_size = bas[:].shape[1]
+        batch_size = bas.baseline_nums.shape[0]
 
     visibilities = adaptive_batch_size(
         _batch_loop,
@@ -598,7 +619,10 @@ def vis_loop(
         bas=bas,
         lm=lm,
         rd=rd,
-        noisy=noisy,
+        noise_level=noise_level,
+        noise_mode=noise_mode,
+        telescope=telescope,
+        band=band,
         show_progress=show_progress,
         mode=mode,
         ft=ft,
@@ -615,22 +639,64 @@ def vis_loop(
 def _batch_loop(
     batch_size: int,
     visibilities,
-    vis_num: int,
+    vis_num: torch.Tensor,
     obs,
-    B: torch.tensor,
+    B: torch.Tensor,
     bas,
-    lm: torch.tensor,
-    rd: torch.tensor,
-    noisy: bool | float,
+    lm: torch.Tensor,
+    rd: torch.Tensor,
+    noise_level: float,
+    noise_mode: str,
+    telescope: str,
+    band: str | None,
     show_progress: bool,
     mode: str,
     ft: Literal["default", "finufft", "reversed"] = "default",
     atmospheric_effects: Optional["AtmosphericEffects"] = None,
     jones_atm: Optional[torch.Tensor] = None,
 ):
-    """Main simulation loop of pyvisgen. Computes visibilities batchwise."""
+    """Main simulation loop of pyvisgen. Computes visibilities
+    batchwise.
 
-    batches = torch.arange(bas[:].shape[1]).split(batch_size)
+    Parameters
+    ----------
+    batch_size : int
+        Batch size for loop over Baselines dataclass object.
+    visibilities : Visibilities
+        Visibilities dataclass object.
+    vis_num : torch.Tensor
+        Number of visibilities.
+    obs : Observation
+        Observation class object.
+    B : torch.tensor
+        Stokes matrix containing stokes visibilities.
+    bas : Baselines
+        Baselines dataclass object.
+    lm : torch.tensor
+        lm grid.
+    rd : torch.tensor
+        rd grid.
+    system_temp : float or bool
+        Simulate noise based on system temperature with given value. If set to False,
+        no noise is simulated.
+    show_progress : bool
+        If True, show a progress bar tracking the loop.
+    mode : str
+        Select one of `'full'`, `'grid'`, or `'dense'` to get
+        all valid baselines, a grid of unique baselines, or
+        dense baselines.
+    ft : str, optional
+        Sets the type of fourier transform used in the RIME.
+        Choose one of ``'default'``, ``'finufft'`` (Flatiron Institute
+        Nonuniform Fast Fourier Transform) or `'reversed'`.
+        Default: ``'default'``
+
+    Returns
+    -------
+    visibilities : Visibilities
+        Visibilities dataclass object.
+    """
+    batches = torch.arange(bas.baseline_nums.shape[0]).split(batch_size)
     batches = tqdm(
         batches,
         position=0,
@@ -639,34 +705,32 @@ def _batch_loop(
         postfix=f"Batch size: {batch_size}",
     )
 
+    rime = RIMEScan(ft=ft, mode=mode, obs=obs, lm=lm, rd=rd)
+
     for p in batches:
-        bas_p = bas[:][:, p]
+        bas_p = bas[p]
 
         int_values = torch.cat(
-            [
-                scan.rime(
+            tensors=[
+                rime(
                     B,
                     bas_p,
-                    lm,
-                    rd,
-                    obs.ra,
-                    obs.dec,
-                    torch.unique(obs.array.diam),
-                    wave_low,
-                    wave_high,
-                    obs.polarization,
-                    mode=mode,
-                    corrupted=obs.corrupted,
-                    ft=ft,
+                    spw_low=wave_low,
+                    spw_high=wave_high,
                 )[None]
                 for wave_low, wave_high in zip(obs.waves_low, obs.waves_high)
             ]
         )
+
         if int_values.numel() == 0:
             continue
 
         int_values = torch.swapaxes(int_values, 0, 1)
-        orig = int_values.clone()
+
+        # In case any row contains NaN
+        int_values_nans = torch.isnan(int_values).any(dim=(1, 2, 3))
+        int_values = int_values[~int_values_nans]
+
         # int_values shape: [n_baselines, n_freq, 2, 2]
 
         if atmospheric_effects is not None and jones_atm is not None:
@@ -758,56 +822,45 @@ def _batch_loop(
                 LOGGER.error(f"Error applying atmospheric effects: {e}")
                 LOGGER.info("Continuing without atmospheric effects for this batch")
 
-        if noisy != 0:
-            noise = generate_noise(int_values.shape, obs, noisy)
+        if noise_level != 0:
+            noise, weights = generate_noise(
+                int_values.shape,
+                obs,
+                noise_level,
+                mode=noise_mode,
+                el1_deg=bas_p.el1_valid,
+                el2_deg=bas_p.el2_valid,
+                telescope=telescope,
+                band=band,
+            )
             int_values += noise
+        else:
+            weights = torch.ones(int_values.shape[0], int_values.shape[1])
         vis_num = torch.arange(int_values.shape[0]) + 1 + vis_num.max()
 
         # LOGGER.info(f"Differenz orig - int_values: {(orig - int_values).abs().max()}")
         # Extract visibility components - back to 2D [n_baselines, n_freq]
         vis = Visibilities(
-            int_values[..., 0, 0].to(obs.device),  # V_11
-            int_values[..., 1, 1].to(obs.device),  # V_22
-            int_values[..., 0, 1].to(obs.device),  # V_12
-            int_values[..., 1, 0].to(obs.device),  # V_21
-            vis_num.to(obs.device),
-            bas_p[9].to(obs.device),
-            bas_p[2].to(obs.device),
-            bas_p[5].to(obs.device),
-            bas_p[8].to(obs.device),
-            bas_p[10].to(obs.device),
-            torch.tensor([]).to(obs.device),
-            torch.tensor([]).to(obs.device),
+            V_11=int_values[..., 0, 0].cpu(),
+            V_22=int_values[..., 1, 1].cpu(),
+            V_12=int_values[..., 0, 1].cpu(),
+            V_21=int_values[..., 1, 0].cpu(),
+            weights=weights.cpu(),
+            num=vis_num,
+            base_num=bas_p.baseline_nums[~int_values_nans].cpu(),
+            u=bas_p.u_valid[~int_values_nans].cpu(),
+            v=bas_p.v_valid[~int_values_nans].cpu(),
+            w=bas_p.w_valid[~int_values_nans].cpu(),
+            date=bas_p.date[~int_values_nans].cpu(),
+            st_id_pairs=bas_p.st_id_pairs[~int_values_nans].cpu(),
+            linear_dop=torch.tensor([]),
+            circular_dop=torch.tensor([]),
         )
 
         visibilities.add(vis)
         del int_values
 
     return visibilities
-
-
-def generate_noise(shape, obs, SEFD):
-    # scaling factor for the noise
-    factor = 1
-
-    # system efficency factor, near 1
-    eta = 0.93
-
-    # taken from simulations
-    chan_width = obs.bandwidths[0] * len(obs.bandwidths)
-
-    # corr_int_time
-    exposure = obs.int_time
-
-    # taken from:
-    # https://science.nrao.edu/facilities/vla/docs/manuals/oss/performance/sensitivity
-
-    std = factor * 1 / eta * SEFD
-    std /= torch.sqrt(2 * exposure * chan_width)
-    noise = torch.normal(mean=0, std=std, size=shape, device=obs.device)
-    noise = noise + 1.0j * torch.normal(mean=0, std=std, size=shape, device=obs.device)
-
-    return noise
 
 
 class AtmosphericEffects:

@@ -20,7 +20,14 @@ except ImportError:
     _WDS_AVAIL = False
 
 
-__all__ = ["DataWriter", "FITSWriter", "H5Writer", "PTWriter", "WDSShardWriter"]
+__all__ = [
+    "DataWriter",
+    "FITSWriter",
+    "H5Writer",
+    "PTWriter",
+    "UVH5Writer",
+    "WDSShardWriter",
+]
 
 
 class DataWriter(ABC):
@@ -60,7 +67,9 @@ class DataWriter(ABC):
     """
 
     @abstractmethod
-    def __init__(self, output_path: Path, dataset_type: str, *args, **kwargs) -> None:
+    def __init__(
+        self, output_path: Path, dataset_type: str, *args, **kwargs
+    ) -> None:  # pragma: no cover
         """Initialize the data writer.
 
         This method must be implemented by subclasses to handle the setup
@@ -80,7 +89,7 @@ class DataWriter(ABC):
         ...
 
     @abstractmethod
-    def write(self, *args, **kwargs) -> None:
+    def write(self, *args, **kwargs) -> None:  # pragma: no cover
         """Write data to the output destination.
 
         This method must be implemented by subclasses to handle the actual
@@ -119,7 +128,10 @@ class DataWriter(ABC):
         if array.shape[1] != 2:
             raise ValueError(
                 f"Expected array {name} axis 1 to be 2 but got "
-                f"{array.shape} with axis 1: {array.shape[1]}!"
+                f"{array.shape} with axis 1: {array.shape[1]}! "
+                "This usually indicates that the images do not have "
+                "separate channels for amplitude/phase or real/imaginary "
+                "data."
             )
 
         if array.ndim != 4:
@@ -217,7 +229,9 @@ class H5Writer(DataWriter):
     ...         writer.write(x, y, index=bundle_id)
     """
 
-    def __init__(self, output_path: Path, dataset_type: str, **kwargs) -> None:
+    def __init__(
+        self, output_path: Path, dataset_type: str, half_image: bool = True, **kwargs
+    ) -> None:
         """Initialize the HDF5 writer.
 
         Parameters
@@ -230,6 +244,7 @@ class H5Writer(DataWriter):
         """
         self.output_path = output_path
         self.dataset_type = dataset_type
+        self.half_image = half_image
 
         os.environ["HDF5_USE_FILE_LOCKING"] = "FALSE"
 
@@ -288,7 +303,8 @@ class H5Writer(DataWriter):
             f"samp_{self.dataset_type}_" + str(index) + ".h5"
         )
 
-        x, y = self.get_half_image(x, y, overlap=overlap)
+        if self.half_image:
+            x, y = self.get_half_image(x, y, overlap=overlap)
 
         self.test_shapes(x, "x")
         self.test_shapes(y, "y")
@@ -309,6 +325,9 @@ class FITSWriter(DataWriter):
     ----------
     output_path : str or Path
         Directory path where FITS files will be written.
+    dataset_type : str
+        Type of dataset being written (e.g., 'train', 'test',
+        'validation'). This is used in the file names.
 
     Examples
     --------
@@ -321,7 +340,7 @@ class FITSWriter(DataWriter):
     ...     writer.write(vis_data, obs, index=0)
     """
 
-    def __init__(self, output_path: Path, **kwargs) -> None:
+    def __init__(self, output_path: Path, dataset_type: str, **kwargs) -> None:
         """Initialize the FITS writer.
 
         Parameters
@@ -330,6 +349,7 @@ class FITSWriter(DataWriter):
             Directory path where FITS files will be written.
         """
         self.output_path = output_path
+        self.dataset_type = dataset_type
 
     def write(
         self,
@@ -372,10 +392,160 @@ class FITSWriter(DataWriter):
         >>> # Creates file: ./data/vis_train_1.fits (raises error if exists)
         """
         output_file = self.output_path / Path(
-            f"vis_{self.conf.bundle.dataset_type}_" + str(index) + ".fits"
+            f"vis_{self.dataset_type}_" + str(index) + ".fits"
         )
         hdu_list = create_hdu_list(vis_data, obs)
         hdu_list.writeto(output_file, overwrite=overwrite)
+
+
+class UVH5Writer(DataWriter):
+    """HDF5 file writer for UV-plane simulation data.
+
+    This writer saves visibilities, UVW coordinates, LMN coordinates,
+    and the simulated sky to a single HDF5 file per sample. The file
+    layout is::
+
+        {dataset_type}_{index}.uvh5
+        ├── visibilities/
+        │   ├── V_11     (complex128)
+        │   ├── V_22     (complex128)
+        │   ├── V_12     (complex128)
+        │   ├── V_21     (complex128)
+        │   └── weights  (float64)
+        ├── uvw/
+        │   ├── u
+        │   ├── v
+        │   ├── w
+        │   └── st_id_pairs  (int64, shape n_baselines x 2)
+        ├── lmn/
+        │   ├── l
+        │   ├── m
+        │   └── n
+        ├── frequency_bands
+        ├── channel_widths
+        ├── normalize
+        ├── times
+        └── sky/
+            └── SI
+
+    Parameters
+    ----------
+    output_path : str or Path
+        Directory path where HDF5 files will be written.
+    dataset_type : str
+        Type of dataset being written (e.g., 'train', 'test',
+        'validation'). Used in the output filename pattern.
+
+    Examples
+    --------
+    >>> writer = UVH5Writer(output_path="./data", dataset_type="train")
+    >>> writer.write(vis_data, obs, index=0, sky=SI)
+
+    Or as a context manager:
+
+    >>> with UVH5Writer(output_path="./data", dataset_type="train") as writer:
+    ...     writer.write(vis_data, obs, index=0, sky=SI)
+    """
+
+    def __init__(self, output_path: Path, dataset_type: str, **kwargs) -> None:
+        """Initialize the UVH5 writer.
+
+        Parameters
+        ----------
+        output_path : str or Path
+            Directory path where HDF5 files will be written.
+        dataset_type : str
+            Type of dataset being written (e.g., 'train', 'test',
+            'validation').
+        """
+        self.output_path = output_path
+        self.dataset_type = dataset_type
+
+        os.environ["HDF5_USE_FILE_LOCKING"] = "FALSE"
+
+    def write(
+        self,
+        vis_data,
+        obs,
+        index: int,
+        sky=None,
+        normalize: bool = True,
+        **kwargs,
+    ) -> None:
+        """Write simulation data to an HDF5 file.
+
+        Creates a new HDF5 file for each sample with pattern
+        ``uvh5_{dataset_type}_{index}.uvh5``.
+
+        Parameters
+        ----------
+        vis_data : Visibilities
+            Visibilities dataclass object from
+            :func:`~pyvisgen.simulation.visibility.vis_loop`, containing
+            V_11, V_22, V_12, V_21, u, v, w, and related tensors.
+        obs : Observation
+            Observation object from
+            :class:`~pyvisgen.simulation.Observation`. Used to retrieve
+            the LMN coordinate grid via ``obs.lm``.
+        index : int
+            Sample index used in the output filename.
+        sky : torch.Tensor or np.ndarray, optional
+            Sky intensity distribution (SI) passed to the visibility
+            simulation, with shape ``(C, H, W)``. If ``None``, the
+            ``sky/`` group is omitted from the output file.
+
+        Examples
+        --------
+        >>> writer = UVH5Writer(output_path="./data", dataset_type="train")
+        >>> writer.write(vis_data, obs, index=0, sky=SI)
+        """
+        output_file = self.output_path / Path(f"{self.dataset_type}_{index}.uvh5")
+
+        lm = self.__to_numpy(obs.lm)  # shape (H, W, 2)
+        n = np.sqrt(np.maximum(1.0 - lm[..., 0] ** 2 - lm[..., 1] ** 2, 0.0))
+
+        with File(output_file, "w") as f:
+            vis_grp = f.create_group("visibilities")
+            vis_grp.create_dataset("V_11", data=self.__to_numpy(vis_data.V_11))
+            vis_grp.create_dataset("V_22", data=self.__to_numpy(vis_data.V_22))
+            vis_grp.create_dataset("V_12", data=self.__to_numpy(vis_data.V_12))
+            vis_grp.create_dataset("V_21", data=self.__to_numpy(vis_data.V_21))
+            vis_grp.create_dataset("weights", data=self.__to_numpy(vis_data.weights))
+
+            uvw_grp = f.create_group("uvw")
+            uvw_grp.create_dataset("u", data=self.__to_numpy(vis_data.u))
+            uvw_grp.create_dataset("v", data=self.__to_numpy(vis_data.v))
+            uvw_grp.create_dataset("w", data=self.__to_numpy(vis_data.w))
+            uvw_grp.create_dataset(
+                "st_id_pairs", data=self.__to_numpy(vis_data.st_id_pairs)
+            )
+
+            lmn_grp = f.create_group("lmn")
+            lmn_grp.create_dataset("l", data=lm[..., 0])
+            lmn_grp.create_dataset("m", data=lm[..., 1])
+            lmn_grp.create_dataset("n", data=n)
+
+            freq_bands = self.__to_numpy(obs.ref_frequency + obs.frequency_offsets)
+            f.create_dataset("frequency_bands", data=freq_bands)
+            f.create_dataset("channel_widths", data=self.__to_numpy(obs.bandwidths))
+            f.create_dataset("normalize", data=np.bool_(normalize))
+
+            times = self.__to_numpy(vis_data.date)
+            f.create_dataset("times", data=times)
+
+            obs_grp = f.create_group("obs")
+            obs_grp.create_dataset("ra", data=self.__to_numpy(obs.ra))
+            obs_grp.create_dataset("dec", data=self.__to_numpy(obs.dec))
+            obs_grp.create_dataset("layout", data=obs.layout)
+
+            if sky is not None:
+                sky_grp = f.create_group("sky")
+                sky_grp.create_dataset("SI", data=self.__to_numpy(sky))
+
+    def __to_numpy(self, t: torch.Tensor) -> torch.Tensor:
+        if isinstance(t, torch.Tensor):
+            return t.detach().cpu().numpy()
+        return np.asarray(t)
 
 
 class WDSShardWriter(DataWriter):
@@ -439,10 +609,11 @@ class WDSShardWriter(DataWriter):
         output_path: str | Path,
         *,
         dataset_type: str,
-        total_samples: int,
         shard_pattern: str,
         amp_phase: bool,
         compress: bool = False,
+        total_samples: int,
+        half_image: bool = True,
         **kwargs,
     ) -> None:
         """Initializes the WebDataset writer.
@@ -468,14 +639,22 @@ class WDSShardWriter(DataWriter):
         **kwargs
             Additional keyword arguments for compatibility with other writers.
         """
+        if not _WDS_AVAIL:
+            raise ImportError(
+                "Could not import webdataset. Please make sure you install "
+                "pyvisgen with the webdataset extra: "
+                "uv pip install pyvisgen[webdataset]"
+            )
+
         if not isinstance(output_path, Path):
             output_path = Path(output_path)
 
         self.output_path = output_path
         self.dataset_type = dataset_type
-        self.total_samples = total_samples
         self.shard_pattern = shard_pattern
         self.compress = compress
+        self.half_image = half_image
+        self.total_samples = total_samples
 
         if amp_phase:
             self.data_type = "amp_phase"
@@ -551,10 +730,13 @@ class WDSShardWriter(DataWriter):
 
         shard_path = str(self.output_path / filename)
 
-        inputs, targets = self.get_half_image(x, y, overlap=overlap)
+        if self.half_image:
+            inputs, targets = self.get_half_image(x, y, overlap=overlap)
+        else:
+            inputs, targets = x, y
 
-        self.test_shapes(x, "x")
-        self.test_shapes(y, "y")
+        self.test_shapes(inputs, "x")
+        self.test_shapes(targets, "y")
 
         with wds.TarWriter(shard_path, compress=self.compress) as tarwriter:
             for x, y in zip(inputs, targets):
@@ -631,7 +813,12 @@ class PTWriter(DataWriter):
     """
 
     def __init__(
-        self, output_path: Path, dataset_type: str, amp_phase: bool, **kwargs
+        self,
+        output_path: Path,
+        dataset_type: str,
+        amp_phase: bool,
+        half_image: bool = True,
+        **kwargs,
     ) -> None:
         """Initialize the PT writer.
 
@@ -648,6 +835,7 @@ class PTWriter(DataWriter):
         """
         self.output_path = output_path
         self.dataset_type = dataset_type
+        self.half_image = half_image
 
         if amp_phase:
             self.data_type = "amp_phase"
@@ -656,8 +844,8 @@ class PTWriter(DataWriter):
 
     def write(
         self,
-        x: np.ndarray,
-        y: np.ndarray,
+        x: np.ndarray | torch.Tensor,
+        y: np.ndarray | torch.Tensor,
         *,
         index,
         bundle_length: int,
@@ -695,7 +883,7 @@ class PTWriter(DataWriter):
         --------
         >>> rng = np.random.default_rng()
         >>>
-        >>> with H5Writer(
+        >>> with PTWriter(
         ...     output_path="./data", dataset_type="train", amp_phase=True
         ... ) as writer:
         ...     x_data = rng.uniform(size=(5, 10, 2, 256, 256))
@@ -704,9 +892,13 @@ class PTWriter(DataWriter):
         ...     for bundle_id, (x, y) in enumerate(zip(x_data, y_data)):
         ...         writer.write(x, y, index=bundle_id, bundle_length=len(x))
         """
-        x, y = self.get_half_image(x, y, overlap=overlap)
-        x = torch.from_numpy(x)
-        y = torch.from_numpy(y)
+        if self.half_image:
+            x, y = self.get_half_image(x, y, overlap=overlap)
+
+        if isinstance(x, np.ndarray):
+            x = torch.from_numpy(x)
+        if isinstance(y, np.ndarray):
+            y = torch.from_numpy(y)
 
         self.test_shapes(x, "X")
         self.test_shapes(y, "y")
@@ -716,10 +908,10 @@ class PTWriter(DataWriter):
 
         for i in range(bundle_length):
             output_file = self.output_path / Path(
-                f"samp_{self.dataset_type}_{index + i}.pt"
+                f"samp_{self.dataset_type}_{index * bundle_length + i}.pt"
             )
 
             torch.save(
-                obj={"SIM": x.to_sparse(), "TRUTH": y, "TYPE": self.data_type},
+                obj={"SIM": x[i].to_sparse(), "TRUTH": y[i], "TYPE": self.data_type},
                 f=output_file,
             )

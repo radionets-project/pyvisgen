@@ -18,7 +18,7 @@ def _cuda_gc():
 
 def _reduce_batch_size(batch_size, factor=0.5):
     """Reduces the batch size by a factor"""
-    return int(batch_size * 0.5)
+    return int(batch_size * factor)
 
 
 def adaptive_batch_size(func, initial_batch_size, factor=0.5, *args, **kwargs):

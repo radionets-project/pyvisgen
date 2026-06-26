@@ -3,9 +3,10 @@ from datetime import datetime
 
 import astropy.units as un
 import numpy as np
+import numpy.typing
 import torch
 from astropy.constants import c
-from astropy.coordinates import AltAz, Angle, EarthLocation, Longitude, SkyCoord
+from astropy.coordinates import AltAz, EarthLocation, Longitude, SkyCoord
 from astropy.time import Time
 from tqdm.auto import tqdm
 
@@ -44,36 +45,42 @@ class Baselines:
 
     Attributes
     ----------
-    st1 : :func:`~torch.tensor`
+    st1 : :func:`~torch.Tensor`
         Station IDs for antenna pairs.
-    st2 : :func:`~torch.tensor`
+    st2 : :func:`~torch.Tensor`
         Station IDs for antenna pairs.
-    u : :func:`~torch.tensor`
+    u : :func:`~torch.Tensor`
         u coordinate coverage.
-    v : :func:`~torch.tensor`
+    v : :func:`~torch.Tensor`
         v coordinate coverage.
-    w : :func:`~torch.tensor`
+    w : :func:`~torch.Tensor`
         w coordinate coverage.
-    valid : :func:`~torch.tensor`
+    valid : :func:`~torch.Tensor`
         Mask of valid values, i.e. where the source
         is visible to the antenna pairs.
-    time : :func:`~torch.tensor`
+    time : :func:`~torch.Tensor`
         Tensor of observation time steps.
-    q1 : :func:`~torch.tensor`
+    q1 : :func:`~torch.Tensor`
         Tensor of parallactic angle values.
-    q2 : :func:`~torch.tensor`
+    q2 : :func:`~torch.Tensor`
         Tensor of parallactic angle values.
+    el1 : :func:`~torch.Tensor`
+        Tensor of elevations for ant 1
+    el2 : :func:`~torch.Tensor`
+        Tensor of elevations for ant 2
     """
 
-    st1: torch.tensor
-    st2: torch.tensor
-    u: torch.tensor
-    v: torch.tensor
-    w: torch.tensor
-    valid: torch.tensor
-    time: torch.tensor
-    q1: torch.tensor
-    q2: torch.tensor
+    st1: torch.Tensor
+    st2: torch.Tensor
+    u: torch.Tensor
+    v: torch.Tensor
+    w: torch.Tensor
+    valid: torch.Tensor
+    time: torch.Tensor
+    q1: torch.Tensor
+    q2: torch.Tensor
+    el1: torch.Tensor
+    el2: torch.Tensor
 
     def __getitem__(self, i):
         """Returns element at index ``i`` for all fields."""
@@ -121,11 +128,12 @@ class Baselines:
         )
 
         mask = (bas_reshaped.valid[:-1].bool()) & (bas_reshaped.valid[1:].bool())
-        baseline_nums = (
-            256 * (bas_reshaped.st1[:-1][mask].ravel() + 1)
-            + bas_reshaped.st2[:-1][mask].ravel()
-            + 1
-        ).to(device)
+
+        stations_1 = bas_reshaped.st1[:-1][mask].ravel()
+        stations_2 = bas_reshaped.st2[:-1][mask].ravel()
+        baseline_nums = (256 * (stations_1 + 1) + stations_2 + 1).to(device)
+
+        st_id_pairs = torch.stack([stations_1, stations_2], dim=1).to(device)
 
         u_start = bas_reshaped.u[:-1][mask].to(device)
         v_start = bas_reshaped.v[:-1][mask].to(device)
@@ -148,6 +156,13 @@ class Baselines:
         q1_valid = (q1_start + q1_stop) / 2
         q2_valid = (q2_start + q2_stop) / 2
 
+        el1_start = bas_reshaped.el1[:-1][mask].to(device)
+        el2_start = bas_reshaped.el2[:-1][mask].to(device)
+        el1_stop = bas_reshaped.el1[1:][mask].to(device)
+        el2_stop = bas_reshaped.el2[1:][mask].to(device)
+        el1_valid = (el1_start + el1_stop) / 2
+        el2_valid = (el2_start + el2_stop) / 2
+
         t = Time(bas_reshaped.time / (60 * 60 * 24), format="mjd").jd
         date = (torch.from_numpy(t[:-1][mask] + t[1:][mask]) / 2).to(device)
 
@@ -169,6 +184,13 @@ class Baselines:
             q2_start,
             q2_stop,
             q2_valid,
+            el1_start,
+            el1_stop,
+            el1_valid,
+            el2_start,
+            el2_stop,
+            el2_valid,
+            st_id_pairs,
         )
 
 
@@ -183,81 +205,78 @@ class ValidBaselineSubset:
 
     Attributes
     ----------
-    u_start : :func:`~torch.tensor`
+    u_start : :class:`~torch.Tensor`
         Start value for u coverage integration.
-    u_stop : :func:`~torch.tensor`
+    u_stop : :class:`~torch.Tensor`
         Stop value for u coverage integration.
-    u_valid : :func:`~torch.tensor`
+    u_valid : :class:`~torch.Tensor`
         Valid u values.
-    v_start : :func:`~torch.tensor`
+    v_start : :class:`~torch.Tensor`
         Start value for v coverage integration.
-    v_stop : :func:`~torch.tensor`
+    v_stop : :class:`~torch.Tensor`
         Start value for v coverage integration.
-    v_valid : :func:`~torch.tensor`
+    v_valid : :class:`~torch.Tensor`
         Valid v values.
-    w_start : :func:`~torch.tensor`
+    w_start : :class:`~torch.Tensor`
         Start value for w coverage integration.
-    w_stop : :func:`~torch.tensor`
+    w_stop : :class:`~torch.Tensor`
         Start value for w coverage integration.
-    w_valid : :func:`~torch.tensor`
+    w_valid : :class:`~torch.Tensor`
         Valid w values.
-    baseline_nums : :func:`~torch.tensor`
+    baseline_nums : :class:`~torch.Tensor`
         Numbers of baselines per time step.
-    date : :func:`~torch.tensor`
+    date : :class:`~torch.Tensor`
         Time steps of the measurement during which
         at least one baseline pair contributed to the
         measurement.
-    q1_start : :func:`~torch.tensor`
-    q1_stop : :func:`~torch.tensor`
-    q1_valid : :func:`~torch.tensor`
+    q1_start : :class:`~torch.Tensor`
+    q1_stop : :class:`~torch.Tensor`
+    q1_valid : :class:`~torch.Tensor`
         Valid parallactic angle values (first half of the pair).
-    q2_start : :func:`~torch.tensor`
-    q2_stop : :func:`~torch.tensor`
-    q2_valid : :func:`~torch.tensor`
+    q2_start : :class:`~torch.Tensor`
+    q2_stop : :class:`~torch.Tensor`
+    q2_valid : :class:`~torch.Tensor`
         Valid parallactic angle values (second half of the pair).
+    el1_start : :func:`~torch.tensor`
+    el1_stop : :func:`~torch.tensor`
+    el1_valid : :func:`~torch.tensor`
+        Valid elevation values (first half of the pair).
+    el2_start : :func:`~torch.tensor`
+    el2_stop : :func:`~torch.tensor`
+    el2_valid : :func:`~torch.tensor`
+        Valid elevation angle values (second half of the pair).
+    st_id_pairs : :class:`~torch.Tensor`
+        Station ID pairs for the valid baselines.
     """
 
-    u_start: torch.tensor
-    u_stop: torch.tensor
-    u_valid: torch.tensor
-    v_start: torch.tensor
-    v_stop: torch.tensor
-    v_valid: torch.tensor
-    w_start: torch.tensor
-    w_stop: torch.tensor
-    w_valid: torch.tensor
-    baseline_nums: torch.tensor
-    date: torch.tensor
-    q1_start: torch.tensor
-    q1_stop: torch.tensor
-    q1_valid: torch.tensor
-    q2_start: torch.tensor
-    q2_stop: torch.tensor
-    q2_valid: torch.tensor
+    u_start: torch.Tensor
+    u_stop: torch.Tensor
+    u_valid: torch.Tensor
+    v_start: torch.Tensor
+    v_stop: torch.Tensor
+    v_valid: torch.Tensor
+    w_start: torch.Tensor
+    w_stop: torch.Tensor
+    w_valid: torch.Tensor
+    baseline_nums: torch.Tensor
+    date: torch.Tensor
+    q1_start: torch.Tensor
+    q1_stop: torch.Tensor
+    q1_valid: torch.Tensor
+    q2_start: torch.Tensor
+    q2_stop: torch.Tensor
+    q2_valid: torch.Tensor
+    el1_start: torch.Tensor
+    el1_stop: torch.Tensor
+    el1_valid: torch.Tensor
+    el2_start: torch.Tensor
+    el2_stop: torch.Tensor
+    el2_valid: torch.Tensor
+    st_id_pairs: torch.Tensor
 
     def __getitem__(self, i):
         """Returns element at index ``i`` for all fields."""
-        return torch.stack(
-            [
-                self.u_start,
-                self.u_stop,
-                self.u_valid,
-                self.v_start,
-                self.v_stop,
-                self.v_valid,
-                self.w_start,
-                self.w_stop,
-                self.w_valid,
-                self.baseline_nums,
-                self.date,
-                self.q1_start,
-                self.q1_stop,
-                self.q1_valid,
-                self.q2_start,
-                self.q2_stop,
-                self.q2_valid,
-            ]
-        )
+        return ValidBaselineSubset(*[getattr(self, f.name)[i] for f in fields(self)])
 
     def get_timerange(self, t_start, t_stop):
         """Returns all attributes that fall into the time range
@@ -277,9 +296,9 @@ class ValidBaselineSubset:
             object containing all attributes that fall in the time
             range between ``t_start`` and ``t_stop``.
         """
-        return ValidBaselineSubset(
-            *[getattr(self, f.name).ravel() for f in fields(self)]
-        )[(self.date >= t_start) & (self.date <= t_stop)]
+        return ValidBaselineSubset(*[getattr(self, f.name) for f in fields(self)])[
+            (self.date >= t_start) & (self.date <= t_stop)
+        ]
 
     def get_unique_grid(
         self,
@@ -323,11 +342,11 @@ class ValidBaselineSubset:
             ).astype(np.float64)
         ).to(device)
 
-        if len(bins) - 1 > img_size:
+        if len(bins) - 1 > img_size:  # pragma: no cover
             bins = bins[:-1]
 
         indices_bucket = torch.bucketize(uv, bins)
-        indices_bucket_sort, indices_bucket_inv = self._lexsort(indices_bucket)
+        indices_bucket_sort = self._lexsort(indices_bucket)
         indices_unique, indices_unique_inv, counts = torch.unique_consecutive(
             indices_bucket[:, indices_bucket_sort],
             dim=1,
@@ -340,9 +359,13 @@ class ValidBaselineSubset:
         cum_sum = torch.cat((torch.tensor([0], device=device), cum_sum[:-1]))
         first_indices = ind_sorted[cum_sum]
 
-        return self[:][:, indices_bucket_sort[first_indices]]
+        unique_grid_indices = indices_bucket_sort[first_indices]
 
-    def _lexsort(self, a: torch.tensor, dim: int = -1) -> torch.tensor:
+        return ValidBaselineSubset(
+            *[getattr(self, f.name)[unique_grid_indices] for f in fields(self)]
+        )
+
+    def _lexsort(self, a: torch.Tensor, dim: int = -1) -> torch.Tensor:
         """Sort a sequence of tensors in lexicographic order.
 
         Parameters
@@ -357,7 +380,7 @@ class ValidBaselineSubset:
         # To be consistent with numpy, we flip the keys (sort by last row first)
         a_unq, inv = torch.unique(a.flip(0), dim=dim, sorted=True, return_inverse=True)
 
-        return torch.argsort(inv), inv
+        return torch.argsort(inv)
 
 
 @dataclass
@@ -378,25 +401,33 @@ class Scan:
 
     Attributes
     ----------
-
     start: astropy.times.Time
-    The start time of the scan
-
+        The start time of the scan
     stop: astropy.times.Time
-    The stop time of the scan
-
+        The stop time of the scan
     separation: float
-    The separation to the next scan in seconds
-
+        The separation to the next scan in seconds
     integration_time: float
-    The integration time of the interferometer for this scan.
-
+        The integration time of the interferometer for this scan.
     """
 
     start: Time
     stop: Time
     separation: float
     integration_time: float
+
+    def __post_init__(self):
+        if not isinstance(self.separation, un.Quantity):
+            self.separation *= un.second
+
+        if not isinstance(self.integration_time, un.Quantity):
+            self.integration_time *= un.second
+
+        if self.separation.unit != un.second:
+            self.separation = self.separation.to("second")
+
+        if self.integration_time.unit != un.second:
+            self.integration_time = self.integration_time.to("second")
 
     def get_num_timesteps(self):
         """
@@ -409,7 +440,7 @@ class Scan:
 
         """
         return int(
-            ((self.stop - self.start).to(un.second) // self.integration_time).value
+            ((self.stop - self.start).to(un.second) // self.integration_time).value + 1
         )
 
     def get_timesteps(self):
@@ -425,7 +456,7 @@ class Scan:
         return Time(
             [
                 min([self.start + i * self.integration_time, self.stop])
-                for i in range(0, self.get_num_timesteps() + 1)
+                for i in range(0, self.get_num_timesteps())
             ]
         )
 
@@ -518,7 +549,7 @@ class Observation:
         device: str,
         dense: bool = False,
         sensitivity_cut: float = 1e-6,
-        polarization: str = None,
+        polarization: str | None = None,
         pol_kwargs: dict = DEFAULT_POL_KWARGS,
         field_kwargs: dict = DEFAULT_FIELD_KWARGS,
         show_progress: bool = False,
@@ -633,7 +664,7 @@ class Observation:
             len(self.array.st_num) * (len(self.array.st_num) - 1) / 2
         )
 
-        if dense:  # pragma: no cover
+        if dense:
             self.waves_low = [self.ref_frequency]
             self.waves_high = [self.ref_frequency]
             self.calc_dense_baselines()
@@ -661,10 +692,8 @@ class Observation:
 
         Returns
         -------
-
         list[Scan]:
             List of scans with a specific start, stop and integration time
-
         """
         scans = []
 
@@ -696,7 +725,7 @@ class Observation:
 
         return scans
 
-    def calc_dense_baselines(self):  # pragma: no cover
+    def calc_dense_baselines(self):
         """Calculates the baselines of a densely-built
         antenna array, which would provide full coverage of the
         uv space.
@@ -720,20 +749,31 @@ class Observation:
         u = uu.flatten()
         v = vv.flatten()
 
-        self.dense_baselines_gpu = torch.stack(
-            [
-                u,
-                u,
-                u,
-                v,
-                v,
-                v,
-                torch.zeros(u.shape, device=self.device),
-                torch.zeros(u.shape, device=self.device),
-                torch.zeros(u.shape, device=self.device),
-                torch.ones(u.shape, device=self.device),
-                torch.ones(u.shape, device=self.device),
-            ]
+        self.dense_baselines_gpu = ValidBaselineSubset(
+            u_start=u,
+            u_stop=u,
+            u_valid=u,
+            v_start=v,
+            v_stop=v,
+            v_valid=v,
+            w_start=torch.zeros(u.shape, device=self.device),
+            w_stop=torch.zeros(u.shape, device=self.device),
+            w_valid=torch.zeros(u.shape, device=self.device),
+            baseline_nums=torch.ones(u.shape, device=self.device),
+            date=torch.ones(u.shape, device=self.device),
+            q1_start=torch.zeros(u.shape, device=self.device),
+            q1_stop=torch.zeros(u.shape, device=self.device),
+            q1_valid=torch.zeros(u.shape, device=self.device),
+            q2_start=torch.zeros(u.shape, device=self.device),
+            q2_stop=torch.zeros(u.shape, device=self.device),
+            q2_valid=torch.zeros(u.shape, device=self.device),
+            el1_start=torch.zeros(u.shape, device=self.device),
+            el1_stop=torch.zeros(u.shape, device=self.device),
+            el1_valid=torch.zeros(u.shape, device=self.device),
+            el2_start=torch.zeros(u.shape, device=self.device),
+            el2_stop=torch.zeros(u.shape, device=self.device),
+            el2_valid=torch.zeros(u.shape, device=self.device),
+            st_id_pairs=torch.zeros(u.shape, device=self.device),
         )
 
     def calc_baselines(self):
@@ -753,6 +793,8 @@ class Observation:
             torch.tensor([]),  # time
             torch.tensor([]),  # q1
             torch.tensor([]),  # q2
+            torch.tensor([]),  # el1
+            torch.tensor([]),  # el2
         )
 
         for scan in tqdm(
@@ -786,8 +828,8 @@ class Observation:
         GHA, ha_local, el_st_all = self.calc_ref_elev(time=times)
 
         ar = Array(self.array)
-        delta_x, delta_y, delta_z = ar.calc_relative_pos
-        st_num_pairs, els_low_pairs, els_high_pairs = ar.calc_ant_pair_vals
+        delta_x, delta_y, delta_z = ar.relative_pos
+        st_num_pairs, els_low_pairs, els_high_pairs = ar.antenna_pairs
 
         baselines = Baselines(
             torch.tensor([]),  # st1
@@ -799,6 +841,8 @@ class Observation:
             torch.tensor([]),  # time
             torch.tensor([]),  # q1
             torch.tensor([]),  # q2
+            torch.tensor([]),  # el1
+            torch.tensor([]),  # el2
         )
         q_all = self.calc_feed_rotation(ha_local)
         q_comb = torch.vstack([torch.combinations(qi) for qi in q_all])
@@ -832,8 +876,10 @@ class Observation:
                 w,
                 valid,
                 time_mjd,
-                qc[..., 0].ravel(),
-                qc[..., 1].ravel(),
+                qc[..., 0].ravel(),  # q1
+                qc[..., 1].ravel(),  # q2
+                cur_el_st[..., 0].ravel(),  # el1
+                cur_el_st[..., 1].ravel(),  # el2
             )
             baselines.add_baseline(base)
 
@@ -888,7 +934,7 @@ class Observation:
                 ),
             )
         )
-        if not len(GHA.value) == len(el_st_all):
+        if not len(GHA.value) == len(el_st_all):  # pragma: no cover
             raise ValueError(
                 "Expected GHA and el_st_all to have the same length"
                 f"{len(GHA.value)} and {len(el_st_all)}"
@@ -900,9 +946,21 @@ class Observation:
             torch.tensor(el_st_all.alt.degree),
         )
 
-    def calc_feed_rotation(self, ha: Angle) -> Angle:
+    def calc_feed_rotation(self, ha: torch.Tensor) -> torch.Tensor:
         r"""Calculates feed rotation for every antenna at
         every time step.
+
+        Parameters
+        ----------
+        ha : torch.tensor
+            Local hour angle in radian.
+
+        Returns
+        -------
+        q : torch.tensor
+            Feed rotation, or parallactic angle of the source for
+            an observer at :attr:`Observation.array_earth_loc` and
+            local hour angle ``ha``.
 
         Notes
         -----
@@ -920,15 +978,13 @@ class Observation:
         """
         # We need to create a tensor from the EarthLocation object
         # and save only the geographical latitude of each antenna
-        ant_lat = torch.tensor(self.array_earth_loc.lat)
+        ant_lat = torch.deg2rad(torch.tensor(self.array_earth_loc.lat))
+        dec = torch.deg2rad(self.dec)
 
         # Eqn (13.1) of Meeus' Astronomical Algorithms
         q = torch.arctan2(
             torch.sin(ha),
-            (
-                torch.tan(ant_lat) * torch.cos(self.dec)
-                - torch.sin(self.dec) * torch.cos(ha)
-            ),
+            torch.tan(ant_lat) * torch.cos(dec) - torch.sin(dec) * torch.cos(ha),
         )
 
         return q
@@ -1005,11 +1061,11 @@ class Observation:
 
     def calc_direction_cosines(
         self,
-        ha: torch.tensor,
-        el_st: torch.tensor,
-        delta_x: torch.tensor,
-        delta_y: torch.tensor,
-        delta_z: torch.tensor,
+        ha: torch.Tensor,
+        el_st: torch.Tensor,
+        delta_x: torch.Tensor,
+        delta_y: torch.Tensor,
+        delta_z: torch.Tensor,
     ):
         """Calculates direction cosines u, v, and w for
         given hour angles and relative antenna positions.
@@ -1049,11 +1105,5 @@ class Observation:
             - torch.cos(src_dec) * torch.sin(ha) * delta_y
             + torch.sin(src_dec) * delta_z
         ).reshape(-1)
-
-        if not (u.shape == v.shape == w.shape):
-            raise ValueError(
-                "Expected u, v, and w to have the same shapes "
-                f"but got {u.shape}, {v.shape}, and {w.shape}."
-            )
 
         return u, v, w
