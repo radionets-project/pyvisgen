@@ -14,6 +14,7 @@ __all__ = [
     "Config",
     "SamplingConfig",
     "PolarizationConfig",
+    "AtmosphericEffectsConfig",
     "BundleConfig",
 ]
 
@@ -163,10 +164,7 @@ class CodeCarbonEmissionTrackerConfig(BaseModel, validate_assignment=True):
 class AtmosphericEffectsConfig(BaseModel, validate_assignment=True):
     """Atmospheric effects configuration"""
 
-    # include_ionosphere: bool = True
-    # include_troposphere: bool = True
-    include_faraday: bool = False
-    tec_values: torch.tensor | None = None
+    ionosphere: bool = True
 
 
 class Config(BaseModel):
@@ -205,7 +203,7 @@ class Config(BaseModel):
 
     @field_validator("atmospheric_effects", mode="after")
     @classmethod
-    def validate_atmospheric_effects(cls, v: bool | "AtmosphericEffectsConfig"):
+    def validate_atmospheric_effects(cls, v: bool | AtmosphericEffectsConfig):
         if isinstance(v, dict):  # pragma: no cover
             return AtmosphericEffectsConfig(**v)
         elif v is True:
