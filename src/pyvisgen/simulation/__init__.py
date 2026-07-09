@@ -8,7 +8,6 @@ from .visibility import (
     generate_noise,
     vis_loop,
     generate_tec_field,
-    tec_field_from_iri,
 )
 
 __all__ = [
@@ -28,6 +27,4 @@ __all__ = [
     "RIMEScan",
     "vis_loop",
     "generate_tec_field",
-    "tec_field_from_iri",
-    "timesteps",
 ]

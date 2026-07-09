@@ -1,11 +1,17 @@
+from __future__ import annotations
+
 from typing import Literal
+from typing import TYPE_CHECKING
 
 import numpy as np
 import torch
 from tqdm.auto import tqdm
 
 from pyvisgen.simulation.observation import Observation
-from pyvisgen.simulation.visibility import Visibilities
+
+if TYPE_CHECKING:
+    from pyvisgen.simulation.visibility import Visibilities
+
 from pyvisgen.utils.logging import setup_logger
 
 torch.set_default_dtype(torch.float64)
@@ -86,9 +92,9 @@ class PhaseCalibration:
         obs: Observation,
         **vis_loop_kwargs,
     ) -> torch.tensor:
-        """Solve using phase-only self-calibration (Stefcal algorithm).
+        """Solve using phase-only self-calibration.
 
-        This implements a simplified version of the Stefcal algorithm for
+        This implements a simplified version of the algorithm for
         phase-only calibration.
 
         Parameters
@@ -117,8 +123,8 @@ class PhaseCalibration:
         """
 
         #  baseline numbers to antenna indices
-        ant1 = ((baseline_nums / 256).long() - 1).cpu().numpy()
-        ant2 = ((baseline_nums % 256).long() - 1).cpu().numpy()
+        ant1 = ((baseline_nums / 256).long() - 1).numpy()
+        ant2 = ((baseline_nums % 256).long() - 1).numpy()
 
         V_obs = (V_obs.V_11 + V_obs.V_22) / 2.0
         n_freq = V_obs.shape[1]
@@ -130,15 +136,13 @@ class PhaseCalibration:
         # Set default parameters for vis_loop if not provided
         vis_loop_params = {
             "num_threads": vis_loop_kwargs.get("num_threads", 10),
-            "noisy": False,
             "mode": vis_loop_kwargs.get("mode", "full"),
             "batch_size": vis_loop_kwargs.get("batch_size", "auto"),
             "show_progress": vis_loop_kwargs.get("show_progress", False),
             "normalize": vis_loop_kwargs.get("normalize", True),
             "ft": vis_loop_kwargs.get("ft", "default"),
             "atmospheric_effects": None,
-            "tec_values": None,
-            "include_faraday": False,
+            "calibration": False,
         }
 
         from pyvisgen.simulation.visibility import vis_loop
@@ -190,9 +194,12 @@ class PhaseCalibration:
                     for idx in indices1:
                         ant_j = ant2[idx]
 
-                        V_o = V_obs[idx]
-                        V_m = V_model[idx]
+                        V_o = V_obs[idx].to(self.device)
+                        V_m = V_model[idx].to(self.device)
                         g_j = gains[ant_j, :]
+                        V_o = V_o.to(self.device)
+                        g_j = g_j.to(self.device)
+                        V_m = V_m.to(self.device)
 
                         numerator += V_o * torch.conj(V_m) * torch.conj(g_j)
                         denominator += torch.abs(V_m) ** 2 * torch.abs(g_j) ** 2
@@ -203,9 +210,12 @@ class PhaseCalibration:
                     for idx in indices2:
                         ant_i = ant1[idx]
 
-                        V_o = V_obs[idx]
-                        V_m = V_model[idx]
+                        V_o = V_obs[idx].to(self.device)
+                        V_m = V_model[idx].to(self.device)
                         g_i = gains[ant_i, :]
+                        V_o = V_o.to(self.device)
+                        g_i = g_i.to(self.device)
+                        V_m = V_m.to(self.device)
 
                         numerator += torch.conj(V_o) * V_m * g_i
                         denominator += torch.abs(V_m) ** 2 * torch.abs(g_i) ** 2
@@ -279,6 +289,7 @@ class PhaseCalibration:
 
         # Apply corrections: V_corr = V_obs / (g1 * conj(g2))
         correction = g1 * torch.conj(g2)
+        correction = correction.to(vis.V_11.device)
 
         vis.V_11 = vis.V_11 / correction
         vis.V_22 = vis.V_22 / correction

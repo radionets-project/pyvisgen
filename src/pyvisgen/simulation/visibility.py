@@ -21,6 +21,7 @@ from pyvisgen.simulation.noise import generate_noise
 from pyvisgen.simulation.scan import RIMEScan
 from pyvisgen.utils.batch_size import adaptive_batch_size
 from pyvisgen.utils.logging import setup_logger
+from pyvisgen.calibration.phase import PhaseCalibration
 
 
 if TYPE_CHECKING:
@@ -36,8 +37,6 @@ __all__ = [
     "generate_noise",
     "AtmosphericEffects",
     "generate_tec_field",
-    "tec_field_from_iri",
-    "timesteps",
 ]
 
 
@@ -438,10 +437,9 @@ def vis_loop(
     show_progress: bool = False,
     normalize: bool = True,
     ft: Literal["default", "finufft", "reversed"] = "default",
-    atmospheric_effects: Optional["AtmosphericEffects"] = None,
-    tec_values: Optional[torch.Tensor] = None,
-    include_faraday: bool = False,
-    magnetic_field_parallel: float = 0.3e-4,
+    atmospheric_effects: Literal["ionosphere", "troposphere", "all"] | None = None,
+    calibration: bool = False,
+    calibration_tolerance: float = 1e-2,
 ) -> Visibilities:
     """Computes the visibilities of an observation.
 
@@ -484,19 +482,11 @@ def vis_loop(
         Nonuniform Fast Fourier Transform) or `'reversed'`.
         Default: ``'default'``
     atmospheric_effects : AtmosphericEffects, optional
-        Atmospheric effects simulator instance. If ``None``, no
-        atmospheric effects are applied. Default: ``None``
-    tec_values : torch.Tensor, optional
-        TEC values with shape [n_ant, n_time] in TECU. Required if
-        ``atmospheric_effects`` is not ``None``. Default: ``None``
-    include_faraday : bool, optional
-        Whether to include Faraday rotation in ionospheric effects.
-        Only used if ``atmospheric_effects`` is not ``None``.
-        Default: ``True``
-    magnetic_field_parallel : float, optional
-        Parallel component of Earth's magnetic field in Tesla.
-        Only used if ``atmospheric_effects`` is not ``None``.
-        Default: 0.3e-4
+        Whether and which atmospheric effects to include. There are ionospheric and
+        tropospheric delay.
+        If ``None``, no atmospheric effects are applied. Default: ``None``
+    calibration : bool, optional
+        Whether to include self-calibration. Default: ``False``
 
     Returns
     -------
@@ -534,28 +524,38 @@ def vis_loop(
         B *= 0.5
 
     jones_atm = None
+    atm_effects = None
     if atmospheric_effects is not None:
-        if tec_values is not None:
-            # LOGGER.info("Computing ionospheric Jones...")
-            jones_atm = atmospheric_effects.simulate_ionospheric_delay(
+        times, time_axis_jd = AtmosphericEffects.timesteps(obs)
+
+        atm_effects = AtmosphericEffects(
+            obs,
+            n_time=len(times),
+            time_axis=times,
+        )
+        atm_effects.time_axis_jd = time_axis_jd
+
+        if atmospheric_effects == "ionosphere":
+            tec_values = atm_effects.tec_field_from_iri(obs, return_times=False)
+            LOGGER.info("Computing ionospheric Jones...")
+            jones_atm = atm_effects._simulate_ionospheric_delay(
                 tec_values,
             )
-            # jones_atm = atmospheric_effects.simulate_faraday_rotation(
-            #    tec_values=tec_values
-            # )
-
-        else:
-            jones_atm = atmospheric_effects.simulate_tropospheric_delay()
+        elif atmospheric_effects == "troposphere":
+            jones_atm = atm_effects.simulate_tropospheric_delay()
             LOGGER.info("Simulating tropospheric delay")
-        LOGGER.info(
-            f"Atmospheric effects:  {len(atmospheric_effects.effect_names)} effects"
-        )
+        elif atmospheric_effects == "all":
+            tec_values = atm_effects.tec_field_from_iri(obs, return_times=False)
+            jones_iono = atm_effects._simulate_ionospheric_delay(
+                tec_values,
+            )
+            jones_atm.append(jones_iono)
 
-        LOGGER.info(f"\n{'-' * 70}")
-        LOGGER.info("Jones Matrix Statistics")
-        LOGGER.info(f"{'=' * 70}")
+            jones_tropo = atm_effects.simulate_tropospheric_delay()
+            jones_atm.append(jones_tropo)
+
         LOGGER.info(f"Jones shape: {jones_atm.shape}")
-        for i, name in enumerate(atmospheric_effects.effect_names):
+        for i, name in enumerate(atm_effects.effect_names):
             jones_i = jones_atm[i]
             LOGGER.info(f"\nEffect {i}: {name}")
 
@@ -626,12 +626,44 @@ def vis_loop(
         show_progress=show_progress,
         mode=mode,
         ft=ft,
-        atmospheric_effects=atmospheric_effects,
+        atmospheric_effects=atm_effects,
         jones_atm=jones_atm,
     )
 
     visibilities.linear_dop = lin_dop.to(obs.device)
     visibilities.circular_dop = circ_dop.to(obs.device)
+
+    if calibration:
+        LOGGER.info("Applying self-calibration")
+        phase_cal = PhaseCalibration(
+            obs,
+            max_iter=8,
+            tolerance=calibration_tolerance,
+            ref_antenna=0,
+            device=obs.device,
+            show_progress=False,
+        )
+
+        n_ant = len(obs.array.st_num)
+        n_freq = len(obs.waves_low)
+        gains = torch.ones((n_ant, n_freq), dtype=torch.cdouble, device=obs.device)
+
+        gains_solved = phase_cal.selfcal(
+            V_obs=visibilities,
+            sky_model=SI,
+            gains=gains,
+            baseline_nums=visibilities.base_num,
+            n_ant=n_ant,
+            ref_ant=1,
+            obs=obs,
+            num_threads=20,
+            mode="full",
+            batch_size=100,
+            show_progress=False,
+            normalize=True,
+        )
+        gains_solved = torch.as_tensor(gains_solved)
+        visibilities = phase_cal.apply_phase_corrections(visibilities, gains_solved)
 
     return visibilities
 
@@ -737,7 +769,7 @@ def _batch_loop(
             try:
                 # LOGGER.info("Applying atmospheric effects to visibilities...")
                 # Extract antenna indices from baseline numbers
-                base_num = bas_p[9]
+                base_num = bas_p.baseline_nums[~int_values_nans].to(obs.device)
                 n_ant = len(obs.array.st_num)
 
                 # Decode baseline numbers to antenna indices
@@ -792,7 +824,7 @@ def _batch_loop(
                 #    f"Combined Jones distance from identity: {distance_from_identity:.6e}"
                 # )
 
-                obs_time_jd = bas_p[10].to(obs.device).double()
+                obs_time_jd = bas_p.date[~int_values_nans].to(obs.device).double()
                 time_axis_jd = atmospheric_effects.time_axis_jd.to(obs.device).double()
 
                 time_idx = torch.argmin(
@@ -802,9 +834,10 @@ def _batch_loop(
                 # LOGGER.info("unique time_idx =", torch.unique(time_idx)[:20])
                 # LOGGER.info("n_time =", combined_jones.shape[2])
 
-                if distance_from_identity < 1e-10:
+                if distance_from_identity < 1e-3:
                     LOGGER.warning(
-                        "Combined Jones matrix is very close to identity! Effects may be too small."
+                        "Combined Jones matrix is very close to identity! "
+                        "Effects may be too small."
                     )
 
                 # LOGGER.info(f"combined_jones: {combined_jones}")
@@ -1449,7 +1482,7 @@ class AtmosphericEffects:
 
         total_delay_s = path_delay_m / self.c
 
-        jones_matrix = self.delay_to_jones_phase(total_delay_s)
+        jones_matrix = self._delay_to_jones_phase(total_delay_s)
 
         self._add_jones_effect(jones_matrix, "tropospheric_delay")
         LOGGER.info("better tropospheric delay simulated.")
@@ -1486,7 +1519,7 @@ class AtmosphericEffects:
         delay_seconds = delay_meters / self.c
 
         # Convert to Jones matrix
-        jones_matrix = self.delay_to_jones_phase(delay_seconds)
+        jones_matrix = self._delay_to_jones_phase(delay_seconds)
 
         # Add to collection
         self._add_jones_effect(jones_matrix, "ionospheric_delay")
@@ -1494,7 +1527,7 @@ class AtmosphericEffects:
 
         return self.get_all_jones_effects()
 
-    def delay_to_jones_phase(
+    def _delay_to_jones_phase(
         self,
         delay: torch.Tensor,
         polarization_dependent: bool = False,
@@ -1675,6 +1708,109 @@ class AtmosphericEffects:
         )
         return corrupted_vis
 
+    def tec_field_from_iri(obs, return_times=bool):
+        """Generate TEC field from IRI (International Reference Ionosphere) for given observation.
+        Returns
+        -------
+        tec_field : torch.Tensor [n_ant, n_time] in TECU
+        (optional) times : astropy.time.Time [n_time]
+        """
+
+        from iricore import iri
+
+        # antenna positions
+        ant_locs = obs.array_earth_loc
+        alat = ant_locs.lat.to_value(un.deg).ravel()
+        alon = ant_locs.lon.to_value(un.deg).ravel()
+        n_ant = len(alat)
+
+        # mid integration time for each scans tec values
+        times_list = []
+
+        for scan in obs.scans:
+            start = scan.start
+            stop = scan.stop
+            int_time = scan.integration_time
+
+            dur_s = (stop - start).to_value(un.s)
+            int_s = int_time.to_value(un.s)
+            n_int = int(np.floor(dur_s / int_s))
+            if n_int <= 0:
+                continue
+
+            offsets = (np.arange(n_int) + 0.5) * int_s
+            t_mid = start + offsets * un.s
+            times_list.append(t_mid.utc.jd)
+
+        if len(times_list) == 0:
+            LOGGER.error(
+                "tec_field_from_iri: No integration times produced from obs.scans."
+            )
+
+        times = Time(np.concatenate(times_list), format="jd", scale="utc")
+        n_time = len(times)
+
+        alt0, alt1, dalt = 90.0, 2000.0, 2.0  # km
+        alt_km = np.arange(alt0, alt1 + dalt, dalt, dtype=float)
+        alt_m = alt_km * 1000.0
+
+        tec_np = np.empty((n_ant, n_time), dtype=np.float64)
+
+        # Loop over time and antenna
+        for it, t in enumerate(times.utc.datetime):
+            # iricore expects UTC naive
+            dt = t.replace(tzinfo=None)
+
+            for ia in range(n_ant):
+                out = iri(
+                    dt, [alt0, alt1, dalt], float(alat[ia]), float(alon[ia]), version=20
+                )
+
+                ne = np.asarray(out.edens, dtype=float)
+                if np.any(ne < 0) or np.all(ne == 0):
+                    tec_np[ia, it] = np.nan
+                    continue
+                vtec_e_m2 = np.trapezoid(ne, alt_m)  # el/m^2
+                tec_np[ia, it] = vtec_e_m2 / 1e16  # TECU
+
+        tec_field = torch.tensor(tec_np, dtype=torch.float64, device=obs.device)
+
+        if return_times:
+            return tec_field, times
+        return tec_field
+
+    def timesteps(obs):
+        """Return time axis in seconds since first integration."""
+        times_list = []
+
+        for scan in obs.scans:
+            start = scan.start
+            stop = scan.stop
+            int_time = scan.integration_time
+
+            dur_s = (stop - start).to_value(un.s)
+            int_s = int_time.to_value(un.s)
+            n_int = int(np.floor(dur_s / int_s))
+            if n_int <= 0:
+                continue
+
+            offsets = (np.arange(n_int) + 0.5) * int_s
+            t_mid = start + offsets * un.s
+            times_list.append(t_mid.utc.jd)
+
+        if len(times_list) == 0:
+            LOGGER.error("timesteps: No integration times produced from obs.scans.")
+
+        times = Time(np.concatenate(times_list), format="jd", scale="utc")
+
+        time_axis_jd = torch.tensor(times.jd, dtype=torch.float64, device=obs.device)
+        time_axis_sec = torch.tensor(
+            (times.jd - times.jd[0]) * 86400.0,
+            dtype=torch.float64,
+            device=obs.device,
+        )
+        return time_axis_sec, time_axis_jd
+
 
 def generate_tec_field(
     n_ant: int,
@@ -1746,108 +1882,3 @@ def generate_tec_field(
     tec_field = torch.clamp(tec_field, min=0.1)
 
     return tec_field
-
-
-def tec_field_from_iri(obs, return_times=bool):
-    """Generate TEC field from IRI (International Reference Ionosphere) for given observation.
-    Returns
-    -------
-    tec_field : torch.Tensor [n_ant, n_time] in TECU
-    (optional) times : astropy.time.Time [n_time]
-    """
-
-    from iricore import iri
-
-    # antenna positions
-    ant_locs = obs.array_earth_loc
-    alat = ant_locs.lat.to_value(un.deg).ravel()
-    alon = ant_locs.lon.to_value(un.deg).ravel()
-    n_ant = len(alat)
-
-    # mid integration time for each scans tec values
-    times_list = []
-
-    for scan in obs.scans:
-        start = scan.start
-        stop = scan.stop
-        int_time = scan.integration_time
-
-        dur_s = (stop - start).to_value(un.s)
-        int_s = int_time.to_value(un.s)
-        n_int = int(np.floor(dur_s / int_s))
-        if n_int <= 0:
-            continue
-
-        offsets = (np.arange(n_int) + 0.5) * int_s
-        t_mid = start + offsets * un.s
-        times_list.append(t_mid.utc.jd)
-
-    if len(times_list) == 0:
-        LOGGER.error(
-            "tec_field_from_iri: No integration times produced from obs.scans."
-        )
-
-    times = Time(np.concatenate(times_list), format="jd", scale="utc")
-    n_time = len(times)
-
-    alt0, alt1, dalt = 90.0, 2000.0, 2.0  # km
-    alt_km = np.arange(alt0, alt1 + dalt, dalt, dtype=float)
-    alt_m = alt_km * 1000.0
-
-    tec_np = np.empty((n_ant, n_time), dtype=np.float64)
-
-    # Loop over time and antenna
-    for it, t in enumerate(times.utc.datetime):
-        # iricore expects UTC naive
-        dt = t.replace(tzinfo=None)
-
-        for ia in range(n_ant):
-            out = iri(
-                dt, [alt0, alt1, dalt], float(alat[ia]), float(alon[ia]), version=20
-            )
-
-            ne = np.asarray(out.edens, dtype=float)
-            if np.any(ne < 0) or np.all(ne == 0):
-                tec_np[ia, it] = np.nan
-                continue
-            vtec_e_m2 = np.trapezoid(ne, alt_m)  # el/m^2
-            tec_np[ia, it] = vtec_e_m2 / 1e16  # TECU
-
-    tec_field = torch.tensor(tec_np, dtype=torch.float64, device=obs.device)
-
-    if return_times:
-        return tec_field, times
-    return tec_field
-
-
-def timesteps(obs):
-    """Return time axis in seconds since first integration."""
-    times_list = []
-
-    for scan in obs.scans:
-        start = scan.start
-        stop = scan.stop
-        int_time = scan.integration_time
-
-        dur_s = (stop - start).to_value(un.s)
-        int_s = int_time.to_value(un.s)
-        n_int = int(np.floor(dur_s / int_s))
-        if n_int <= 0:
-            continue
-
-        offsets = (np.arange(n_int) + 0.5) * int_s
-        t_mid = start + offsets * un.s
-        times_list.append(t_mid.utc.jd)
-
-    if len(times_list) == 0:
-        LOGGER.error("timesteps: No integration times produced from obs.scans.")
-
-    times = Time(np.concatenate(times_list), format="jd", scale="utc")
-
-    time_axis_jd = torch.tensor(times.jd, dtype=torch.float64, device=obs.device)
-    time_axis_sec = torch.tensor(
-        (times.jd - times.jd[0]) * 86400.0,
-        dtype=torch.float64,
-        device=obs.device,
-    )
-    return time_axis_sec
