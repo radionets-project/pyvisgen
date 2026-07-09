@@ -482,11 +482,11 @@ def vis_loop(
         Nonuniform Fast Fourier Transform) or `'reversed'`.
         Default: ``'default'``
     atmospheric_effects : AtmosphericEffects, optional
-        Whether and which atmospheric effects to include. There are ionospheric and
-        tropospheric delay.
+        Whether and which atmospheric effects to include. Choose one of ``'ionosphere'``
+        ``'troposphere'``, or ``'all'`` to include both.
         If ``None``, no atmospheric effects are applied. Default: ``None``
     calibration : bool, optional
-        Whether to include self-calibration. Default: ``False``
+        Whether to include phase self-calibration. Default: ``False``
 
     Returns
     -------
@@ -542,7 +542,7 @@ def vis_loop(
                 tec_values,
             )
         elif atmospheric_effects == "troposphere":
-            jones_atm = atm_effects.simulate_tropospheric_delay()
+            jones_atm = atm_effects.simulate_tropospheric_delay(obs=obs)
             LOGGER.info("Simulating tropospheric delay")
         elif atmospheric_effects == "all":
             tec_values = atm_effects.tec_field_from_iri(obs, return_times=False)
@@ -551,7 +551,7 @@ def vis_loop(
             )
             jones_atm.append(jones_iono)
 
-            jones_tropo = atm_effects.simulate_tropospheric_delay()
+            jones_tropo = atm_effects.simulate_tropospheric_delay(obs=obs)
             jones_atm.append(jones_tropo)
 
         LOGGER.info(f"Jones shape: {jones_atm.shape}")
@@ -1019,183 +1019,6 @@ class AtmosphericEffects:
 
         return torch.stack(self.jones_effects, dim=0)
 
-    # def apply_delay_to_visibilities(
-    #     self,
-    #     int_values: torch.Tensor,
-    #     delay: torch.Tensor,
-    #     st1: torch.Tensor,
-    #     st2: torch.Tensor,
-    #     time_idx: torch.Tensor,
-    #     polarization_dependent: bool = False,
-    #     polarization_offset: float = 0.0,
-    # ) -> torch.Tensor:
-    #     """Apply a scalar atmospheric delay directly to visibility matrices.
-
-    #     This combines:
-    #     1. delay_to_jones_phase(...)
-    #     2. apply_jones_to_visibilities(...)
-
-    #     Parameters
-    #     ----------
-    #     int_values : torch.Tensor
-    #         Input visibilities with shape [n_baselines, n_freq, 2, 2].
-
-    #     delay : torch.Tensor
-    #         Delay in seconds with shape [n_ant, n_time]
-    #         or [n_ant, n_freq, n_time].
-
-    #     st1 : torch.Tensor
-    #         First antenna index for each baseline, shape [n_baselines].
-
-    #     st2 : torch.Tensor
-    #         Second antenna index for each baseline, shape [n_baselines].
-
-    #     time_idx : torch.Tensor
-    #         Time index for each baseline, shape [n_baselines].
-
-    #     polarization_dependent : bool
-    #         If True, V_11 and V_22 get different phase terms.
-
-    #     polarization_offset : float
-    #         Additional phase offset for the second polarization.
-
-    #     Returns
-    #     -------
-    #     torch.Tensor
-    #         Corrupted visibilities with shape [n_baselines, n_freq, 2, 2].
-    #     """
-    #     st1 = st1.long()
-    #     st2 = st2.long()
-    #     time_idx = time_idx.long()
-
-    #     if delay.ndim == 2:
-    #         # [n_ant, n_time] -> [n_ant, 1, n_time]
-    #         delay = delay.unsqueeze(1)
-
-    #     delay = delay.to(self.device).double()
-
-    #     # [1, n_freq, 1]
-    #     freq = self.frequencies.unsqueeze(0).unsqueeze(2)
-
-    #     # [n_ant, n_freq, n_time]
-    #     phase = 2.0 * np.pi * freq * delay
-
-    #     if polarization_dependent:
-    #         phase_11 = phase
-    #         phase_22 = phase + polarization_offset
-    #     else:
-    #         phase_11 = phase
-    #         phase_22 = phase
-
-    #     phase_11_tf = phase_11.permute(0, 2, 1)  # [n_ant, n_time, n_freq]
-    #     phase_22_tf = phase_22.permute(0, 2, 1)  # [n_ant, n_time, n_freq]
-
-    #     ji_11 = torch.exp(1j * phase_11_tf[st1, time_idx])
-    #     ji_22 = torch.exp(1j * phase_22_tf[st1, time_idx])
-
-    #     jj_11 = torch.exp(1j * phase_11_tf[st2, time_idx])
-    #     jj_22 = torch.exp(1j * phase_22_tf[st2, time_idx])
-
-    #     if int_values.dtype != torch.complex128:
-    #         int_values = int_values.to(torch.complex128)
-
-    #     out = torch.empty_like(int_values, dtype=torch.complex128)
-
-    #     out[..., 0, 0] = ji_11 * int_values[..., 0, 0] * torch.conj(jj_11)
-    #     out[..., 0, 1] = ji_11 * int_values[..., 0, 1] * torch.conj(jj_22)
-    #     out[..., 1, 0] = ji_22 * int_values[..., 1, 0] * torch.conj(jj_11)
-    #     out[..., 1, 1] = ji_22 * int_values[..., 1, 1] * torch.conj(jj_22)
-
-    #     return out
-
-    # def simulate_tropospheric_delay(
-    #     self,
-    #     elevation_angle: float = 45.0,
-    #     zenith_delay_wet: float = 0.1,
-    #     zenith_delay_dry: float = 2.3,
-    #     spatial_scale: float = 5000.0,
-    #     temporal_scale: float = 600.0,
-    #     random_state: Optional[int] = None,
-    # ) -> torch.Tensor:
-    #     """Simulate tropospheric time delay.
-
-    #     Parameters
-    #     ----------
-    #     elevation_angle : float, optional
-    #         Source elevation in degrees. Default: 45.0
-    #     zenith_delay_wet : float, optional
-    #         Wet zenith component in meters. Default: 0.1
-    #     zenith_delay_dry :  float, optional
-    #         Dry zenith component in meters. Default: 2.3
-    #     spatial_scale : float, optional
-    #         Spatial correlation length in meters. Default: 5000.0
-    #     temporal_scale :  float, optional
-    #         Temporal correlation timescale in seconds. Default: 600.0
-    #     random_state : int, optional
-    #         Random seed for reproducibility.
-
-    #     Returns
-    #     -------
-    #     torch.Tensor
-    #         Jones matrix with shape [n_ant, n_freq, n_time, 2, 2].
-    #     """
-    #     if random_state is not None:
-    #         torch.manual_seed(random_state)
-
-    #     # Mapping function (simple 1/sin(El) approximation)
-    #     el_rad = torch.deg2rad(torch.tensor(elevation_angle, dtype=torch.float64))
-    #     mapping_factor = 1.0 / torch.sin(el_rad)
-
-    #     # Dry component (constant, spatially homogeneous)
-    #     dry_delay = zenith_delay_dry * mapping_factor / self.c
-
-    #     # Wet component (spatially and temporally variable)
-    #     # Spatial covariance
-    #     ant_pos_2d = self.ant_positions[:, :2]
-    #     baseline_distances = torch.cdist(ant_pos_2d, ant_pos_2d)
-    #     spatial_cov = torch.exp(-baseline_distances / spatial_scale)
-
-    #     # Temporal covariance (exponential)
-    #     time_diff = self.time_axis.unsqueeze(0) - self.time_axis.unsqueeze(1)
-    #     temporal_cov = torch.exp(-torch.abs(time_diff) / temporal_scale)
-
-    #     # Generate correlated noise (separable covariance)
-    #     # Spatial component
-    #     spatial_cov_reg = (
-    #         spatial_cov
-    #         + torch.eye(self.n_ant, device=self.device, dtype=torch.float64) * 1e-6
-    #     )
-    #     spatial_cholesky = torch.linalg.cholesky(spatial_cov_reg)
-    #     spatial_noise = torch.randn(self.n_ant, dtype=torch.float64, device=self.device)
-    #     spatial_component = torch.matmul(spatial_cholesky, spatial_noise)
-
-    #     # Temporal component
-    #     temporal_cov_reg = (
-    #         temporal_cov
-    #         + torch.eye(self.n_time, device=self.device, dtype=torch.float64) * 1e-6
-    #     )
-    #     temporal_cholesky = torch.linalg.cholesky(temporal_cov_reg)
-    #     temporal_noise = torch.randn(
-    #         self.n_time, dtype=torch.float64, device=self.device
-    #     )
-    #     temporal_component = torch.matmul(temporal_cholesky, temporal_noise)
-
-    #     # Combine via outer product
-    #     wet_delay_variation = torch.outer(spatial_component, temporal_component)
-    #     wet_delay_variation *= zenith_delay_wet * mapping_factor / self.c
-
-    #     # Total delay
-    #     total_delay = dry_delay + wet_delay_variation
-
-    #     # Convert to Jones matrix
-    #     jones_matrix = self.delay_to_jones_phase(total_delay)
-
-    #     # Add to collection
-    #     self._add_jones_effect(jones_matrix, "tropospheric_delay")
-    #     LOGGER.info("tropospheric delay simulated.")
-
-    #     return self.get_all_jones_effects()
-
     def _saastamoinen_zhd(
         self,
         pressure_hpa: float,
@@ -1284,107 +1107,21 @@ class AtmosphericEffects:
 
         return m_h, m_w
 
-    def _make_von_karman_screen(
-        self,
-        npix: int,
-        pixel_size_m: float,
-        outer_scale_m: float,
-        wet_rms_ref_m: float,
-        reference_baseline_m: float,
-        device,
-        dtype=torch.float64,
-    ) -> torch.Tensor:
-        """Create a 2D von-Karman/Kolmogorov-like zenith wet path screen.
-
-        The screen is scaled so that the RMS path difference over
-        reference_baseline_m is approximately wet_rms_ref_m.
-        """
-        complex_dtype = torch.complex128 if dtype == torch.float64 else torch.complex64
-
-        kx = 2.0 * torch.pi * torch.fft.fftfreq(npix, d=pixel_size_m, device=device)
-        ky = 2.0 * torch.pi * torch.fft.fftfreq(npix, d=pixel_size_m, device=device)
-        kx, ky = torch.meshgrid(kx, ky, indexing="ij")
-
-        k2 = kx**2 + ky**2
-        k0 = 2.0 * torch.pi / outer_scale_m
-
-        # 2D phase/path PSD giving Kolmogorov-like structure function.
-        psd = (k2 + k0**2) ** (-11.0 / 6.0)
-        psd[0, 0] = 0.0
-
-        noise = torch.randn((npix, npix), device=device, dtype=complex_dtype)
-        coeff = noise * torch.sqrt(psd).to(dtype)
-
-        screen = torch.fft.ifft2(coeff).real
-        screen = screen - screen.mean()
-        screen = screen / screen.std().clamp_min(1e-12)
-
-        # Scale by differential RMS at reference baseline.
-        shift_pix = max(1, int(round(reference_baseline_m / pixel_size_m)))
-        diff = screen - torch.roll(screen, shifts=shift_pix, dims=0)
-        current_rms = diff.std().clamp_min(1e-12)
-
-        screen = screen * (wet_rms_ref_m / current_rms)
-        return screen
-
-    def _sample_periodic_bilinear(self, screen, xy_m, pixel_size_m):
-        """Bilinear periodic sampling of screen at xy positions.
-
-        screen: [N, N]
-        xy_m: [..., 2]
-        returns: [...]
-        """
-        n = screen.shape[0]
-
-        x = torch.remainder(xy_m[..., 0] / pixel_size_m, n)
-        y = torch.remainder(xy_m[..., 1] / pixel_size_m, n)
-
-        x0 = torch.floor(x).long()
-        y0 = torch.floor(y).long()
-        x1 = (x0 + 1) % n
-        y1 = (y0 + 1) % n
-
-        wx = x - x0.to(x.dtype)
-        wy = y - y0.to(y.dtype)
-
-        f00 = screen[y0, x0]
-        f10 = screen[y0, x1]
-        f01 = screen[y1, x0]
-        f11 = screen[y1, x1]
-
-        return (
-            (1.0 - wx) * (1.0 - wy) * f00
-            + wx * (1.0 - wy) * f10
-            + (1.0 - wx) * wy * f01
-            + wx * wy * f11
-        )
-
     def simulate_tropospheric_delay(
         self,
+        obs,
         elevation_angle: float = 45.0,
-        azimuth_angle: float = 0.0,
-        # Site meteo / geometry
         pressure_hpa: float = 1013.25,
         temperature_K: float = 288.15,
         relative_humidity: float = 50.0,
-        latitude_deg: float = 45.0,
         height_m: float = 0.0,
-        # Optional: if you want to force ZWD instead of deriving it
-        zenith_delay_wet: Optional[float] = None,
-        # Turbulence
-        layer_height_m: float = 2000.0,
-        outer_scale_m: float = 5000.0,
-        screen_pixel_size_m: float = 25.0,
-        screen_npix: int = 512,
-        wind_velocity_mps: tuple[float, float] = (10.0, 0.0),
-        # Differential wet path RMS at reference baseline.
-        # This is NOT the mean ZWD. It is the RMS zenith wet path difference.
-        wet_rms_ref_m: float = 1e-3,
-        reference_baseline_m: float = 100.0,
-        remove_common_piston: bool = True,
-        random_state: Optional[int] = None,
     ) -> torch.Tensor:
-        """Simulate tropospheric delay.
+        """Simulate a simple physically motivated tropospheric delay.
+
+        Uses:
+        - Saastamoinen zenith hydrostatic delay
+        - approximate zenith wet delay from surface meteorology
+        - simple 1/sin(elevation) mapping
 
         Returns
         -------
@@ -1393,10 +1130,9 @@ class AtmosphericEffects:
         """
         dtype = torch.float64
 
-        if random_state is not None:
-            torch.manual_seed(random_state)
+        ant_locs = obs.array_earth_loc
+        latitude_deg = ant_locs.lat.to_value(un.deg).ravel()
 
-        # Hydrostatic zenith delay
         zhd_m = self._saastamoinen_zhd(
             pressure_hpa=pressure_hpa,
             latitude_deg=latitude_deg,
@@ -1405,18 +1141,13 @@ class AtmosphericEffects:
             dtype=dtype,
         )
 
-        # Mean wet zenith delay
-        if zenith_delay_wet is None:
-            zwd_m = self._approx_zwd_from_surface_met(
-                temperature_K=temperature_K,
-                relative_humidity=relative_humidity,
-                device=self.device,
-                dtype=dtype,
-            )
-        else:
-            zwd_m = torch.tensor(zenith_delay_wet, device=self.device, dtype=dtype)
-
-        # hydrostatic and wet mapping functions.
+        zwd_m = self._approx_zwd_from_surface_met(
+            temperature_K=temperature_K,
+            relative_humidity=relative_humidity,
+            device=self.device,
+            dtype=dtype,
+        )
+        latitude_deg = torch.as_tensor(latitude_deg).flatten()[0].item()
         m_h, m_w = self._simple_niell_like_mapping(
             elevation_angle=elevation_angle,
             latitude_deg=latitude_deg,
@@ -1424,69 +1155,24 @@ class AtmosphericEffects:
             dtype=dtype,
         )
 
-        # Frozen-flow wet path screen
-        screen = self._make_von_karman_screen(
-            npix=screen_npix,
-            pixel_size_m=screen_pixel_size_m,
-            outer_scale_m=outer_scale_m,
-            wet_rms_ref_m=wet_rms_ref_m,
-            reference_baseline_m=reference_baseline_m,
-            device=self.device,
-            dtype=dtype,
-        )
+        slant_delay_m = m_h * zhd_m + m_w * zwd_m
+        # Broadcast to [n_ant, n_time], because _delay_to_jones_phase likely expects
+        # per-antenna/per-time delays.
+        n_ant = self.ant_positions.shape[0]
+        n_time = self.time_axis.shape[0]
 
-        ant_xy = self.ant_positions[:, :2].to(device=self.device, dtype=dtype)
-        t = self.time_axis.to(device=self.device, dtype=dtype)
-        t = t - t[0]
-
-        wind = torch.tensor(wind_velocity_mps, device=self.device, dtype=dtype)
-
-        el = torch.deg2rad(
-            torch.tensor(elevation_angle, device=self.device, dtype=dtype)
-        )
-        az = torch.deg2rad(torch.tensor(azimuth_angle, device=self.device, dtype=dtype))
-
-        # Direction of source projection on horizontal layer
-        source_dir = torch.stack([torch.sin(az), torch.cos(az)])
-
-        # Pierce-point offset at turbulent layer
-        # For a plane-parallel layer: horizontal offset = h / tan(E)
-        pierce_offset = layer_height_m / torch.tan(el).clamp_min(1e-3) * source_dir
-
-        # Positions on screen: [n_ant, n_time, 2]
-        xy = (
-            ant_xy[:, None, :]
-            + wind[None, None, :] * t[None, :, None]
-            + pierce_offset[None, None, :]
-        )
-
-        wet_fluct_zenith_m = self._sample_periodic_bilinear(
-            screen=screen,
-            xy_m=xy,
-            pixel_size_m=screen_pixel_size_m,
-        )
-
-        # Remove common atmospheric piston; interferometers only see differential phase
-        if remove_common_piston:
-            wet_fluct_zenith_m = wet_fluct_zenith_m - wet_fluct_zenith_m.mean(
-                dim=0, keepdim=True
-            )
-        # Total slant path delay in meters, shape: [n_ant, n_time]
-        path_delay_m = m_h * zhd_m + m_w * zwd_m + m_w * wet_fluct_zenith_m
-        LOGGER.info(
-            "tropospheric delays sample: %.3f m (dry), %.3f m (wet mean), %.3f m (wet fluctuation RMS)",
-            zhd_m,
-            zwd_m,
-            wet_fluct_zenith_m.std(),
-        )
-
+        path_delay_m = slant_delay_m[:, None].expand(n_ant, n_time)
         total_delay_s = path_delay_m / self.c
-
         jones_matrix = self._delay_to_jones_phase(total_delay_s)
 
         self._add_jones_effect(jones_matrix, "tropospheric_delay")
-        LOGGER.info("better tropospheric delay simulated.")
 
+        LOGGER.info(
+            "Tropospheric delay simulated: %.3f m dry, %.3f m wet, %.3f m total slant.",
+            zhd_m.mean().item(),
+            zwd_m.mean().item(),
+            slant_delay_m.mean().item(),
+        )
         return self.get_all_jones_effects()
 
     def simulate_ionospheric_delay(
