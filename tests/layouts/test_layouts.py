@@ -37,6 +37,14 @@ class TestStations:
         for item, param in zip(stations[0], params):
             assert item == param[0]
 
+    def test_peek(self, mocker, params) -> None:
+        stations = Stations(**params)
+
+        mock_array_display = mocker.patch("pyvisgen.layouts.layouts.ArrayDisplay")
+        stations.peek()
+
+        assert mock_array_display.called
+
 
 class TestGetArrayLayout:
     def test_array_layout_str(self) -> None:
