@@ -184,7 +184,11 @@ class ArrayDisplay:
     def _set_unit(self) -> None:
         if self.unit == "auto":
             self.display_unit = (
-                "deg" if self.max_radius_km > self.deg_km_thresh else "km"
+                "deg"
+                if self.max_radius_km > self.deg_km_thresh
+                else "km"
+                if self.max_radius_km > 1
+                else "m"
             )
         else:
             self.display_unit = self.unit
@@ -194,29 +198,25 @@ class ArrayDisplay:
                 self.stations_el, self.reference
             )
             self.z = self.st_coords.z
-            self.axis_unit_label = "deg"
+            self.axis_unit_label = self.display_unit
             self.r = self.stations.diam
             self.xlabel = "Approx. Rel. Longitude"
             self.ylabel = "Approx. Rel. Latitude"
-        elif self.display_unit == "km":
-            self.x = self.st_coords.y.to(u.km)  # Easting
-            self.y = self.st_coords.x.to(u.km)  # Northing
-            self.z = self.st_coords.z.to(u.km)
+        elif self.display_unit in {"m", "km"}:
+            self.x = self.st_coords.y.to(self.display_unit)  # Easting
+            self.y = self.st_coords.x.to(self.display_unit)  # Northing
+            self.z = self.st_coords.z.to(self.display_unit)
             self.r = self.stations.diam
-            self.axis_unit_label = "km"
+            self.axis_unit_label = self.display_unit
             self.xlabel = "Easting"
             self.ylabel = "Northing"
         else:
-            self.x = self.st_coords.y  # Easting
-            self.y = self.st_coords.x  # Northing
-            self.z = self.st_coords.z
-            self.r = self.stations.diam
-            self.axis_unit_label = "m"
-            self.grid_unit_label = "m"
-            self.xlabel = "Easting"
-            self.ylabel = "Northing"
+            raise ValueError(
+                f"unit {self.display_unit!r} is unknown. Choose one of 'm', "
+                "'km', or 'deg'"
+            )
 
-    def _dish_marker_sizes(self) -> float:
+    def _dish_marker_sizes(self) -> np.ndarray:
         diam_m = u.Quantity(self.stations.diam, u.m).to_value(u.m)
 
         if np.any(~np.isfinite(diam_m)) or np.any(diam_m <= 0):
