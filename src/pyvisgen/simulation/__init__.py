@@ -7,7 +7,6 @@ from .visibility import (
     AtmosphericEffects,
     generate_noise,
     vis_loop,
-    generate_tec_field,
 )
 
 __all__ = [
@@ -26,5 +25,4 @@ __all__ = [
     "jinc",
     "RIMEScan",
     "vis_loop",
-    "generate_tec_field",
 ]

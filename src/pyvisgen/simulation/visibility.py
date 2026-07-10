@@ -36,7 +36,6 @@ __all__ = [
     "Polarization",
     "generate_noise",
     "AtmosphericEffects",
-    "generate_tec_field",
 ]
 
 
@@ -1044,7 +1043,7 @@ class AtmosphericEffects:
         device,
         dtype=torch.float64,
     ) -> torch.Tensor:
-        """Approximate zenith wet delay in meters from surface meteo."""
+        """Approximate zenith wet delay in meters from surface meteorology."""
         T = torch.tensor(temperature_K, device=device, dtype=dtype)
         RH = torch.tensor(relative_humidity / 100.0, device=device, dtype=dtype)
 
@@ -1058,7 +1057,7 @@ class AtmosphericEffects:
         return zwd
 
     def _mapping_continued_fraction(self, el_rad, a, b, c):
-        """Generic continued-fraction mapping function."""
+        """Continued-fraction mapping function."""
         s = torch.sin(el_rad).clamp_min(1e-3)
         numerator = 1.0 + a / (1.0 + b / (1.0 + c))
         denominator = s + a / (s + b / (s + c))
@@ -1067,11 +1066,7 @@ class AtmosphericEffects:
     def _simple_niell_like_mapping(
         self, elevation_angle, latitude_deg, device, dtype=torch.float64
     ):
-        """Approximate Niell-style hydrostatic/wet mapping functions.
-
-        This omits seasonal and height corrections, but is much better than
-        using the same 1/sin(E) factor for dry and wet components.
-        """
+        """Approximate Niell-style hydrostatic/wet mapping functions."""
         el = torch.deg2rad(torch.tensor(elevation_angle, device=device, dtype=dtype))
 
         # Niell-like coefficient tables versus |latitude|.
@@ -1116,13 +1111,12 @@ class AtmosphericEffects:
         relative_humidity: float = 50.0,
         height_m: float = 0.0,
     ) -> torch.Tensor:
-        """Simulate a simple physically motivated tropospheric delay.
+        """Simulate the tropospheric phase delay.
 
         Uses:
         - Saastamoinen zenith hydrostatic delay
         - approximate zenith wet delay from surface meteorology
-        - simple 1/sin(elevation) mapping
-
+        - approximate Niell-like hydrostatic and wet mapping functions
         Returns
         -------
         torch.Tensor
@@ -1131,6 +1125,7 @@ class AtmosphericEffects:
         dtype = torch.float64
 
         ant_locs = obs.array_earth_loc
+        height_m = ant_locs.height.to_value(un.m).ravel()
         latitude_deg = ant_locs.lat.to_value(un.deg).ravel()
 
         zhd_m = self._saastamoinen_zhd(
@@ -1496,75 +1491,3 @@ class AtmosphericEffects:
             device=obs.device,
         )
         return time_axis_sec, time_axis_jd
-
-
-def generate_tec_field(
-    n_ant: int,
-    n_time: int,
-    mean_tec: float = 10.0,
-    std_tec: float = 2.0,
-    spatial_scale: float = 50000.0,
-    temporal_scale: float = 1800.0,
-    device: Optional[torch.device] = None,
-    random_state: Optional[int] = None,
-) -> torch.Tensor:
-    """Generate a realistic TEC field with spatial and temporal correlations.
-    Parameters
-    ----------
-    n_ant : int
-        Number of antennas.
-    n_time : int
-        Number of time samples.
-    mean_tec : float, optional
-        Mean TEC value in TECU. Default: 10.0
-    std_tec : float, optional
-        Standard deviation of TEC fluctuations in TECU. Default: 2.0
-    spatial_scale : float, optional
-        Spatial correlation length in meters. Default: 50000.0
-    temporal_scale :  float, optional
-        Temporal correlation timescale in seconds. Default: 1800.0
-    device :  torch.device, optional
-        PyTorch device.
-    random_state : int, optional
-        Random seed.
-    Returns
-    -------
-    torch.Tensor
-        TEC field with shape [n_ant, n_time] in TECU.
-    """
-    if device is None:
-        device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-    if random_state is not None:
-        torch.manual_seed(random_state)
-    # Start with mean TEC
-    tec_field = torch.ones(n_ant, n_time, dtype=torch.float64, device=device) * mean_tec
-    # Add correlated fluctuations
-    fluctuations = torch.randn(n_ant, n_time, dtype=torch.float64, device=device)
-    # Smooth fluctuations using 2D convolution
-    kernel_size_spatial = max(3, int(n_ant / 10))
-    kernel_size_temporal = max(3, int(n_time / 50))
-    # Ensure odd kernel size
-    if kernel_size_spatial % 2 == 0:
-        kernel_size_spatial += 1
-    if kernel_size_temporal % 2 == 0:
-        kernel_size_temporal += 1
-    kernel = torch.ones(
-        1,
-        1,
-        kernel_size_spatial,
-        kernel_size_temporal,
-        dtype=torch.float64,
-        device=device,
-    ) / (kernel_size_spatial * kernel_size_temporal)
-    fluctuations_smoothed = F.conv2d(
-        fluctuations.unsqueeze(0).unsqueeze(0),
-        kernel,
-        padding=(kernel_size_spatial // 2, kernel_size_temporal // 2),
-    ).squeeze()
-    # Scale fluctuations
-    fluctuations_smoothed = fluctuations_smoothed * std_tec
-    tec_field += fluctuations_smoothed
-    # Ensure TEC is always positive
-    tec_field = torch.clamp(tec_field, min=0.1)
-
-    return tec_field
