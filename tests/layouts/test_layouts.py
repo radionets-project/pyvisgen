@@ -13,6 +13,7 @@ class TestStations:
         rng = np.random.default_rng()
 
         params = dict(
+            st_name=np.arange(10),
             st_num=np.arange(10),
             x=rng.uniform(size=(10)),
             y=rng.uniform(size=(10)),
