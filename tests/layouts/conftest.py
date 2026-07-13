@@ -10,11 +10,11 @@ def params() -> dict:
     rng = np.random.default_rng(42)
 
     params = dict(
-        st_name=np.arange(10),
+        st_name=np.asarray(["a", "b", "c", "d", "e", "f", "g", "h", "i", "j"]),
         st_num=np.arange(10),
-        x=rng.uniform(size=(10)),
-        y=rng.uniform(size=(10)),
-        z=rng.uniform(size=(10)),
+        x=rng.uniform(size=(10)) * 1e5,
+        y=rng.uniform(size=(10)) * 1e5,
+        z=rng.uniform(size=(10)) * 1e5,
         diam=np.full(shape=(10), fill_value=5),
         el_low=np.full(shape=(10), fill_value=15),
         el_high=np.full(shape=(10), fill_value=85),
@@ -25,7 +25,7 @@ def params() -> dict:
     return params
 
 
-@pytest.fixture
+@pytest.fixture(scope="function")
 def mock_stations(params) -> SimpleNamespace:
     return SimpleNamespace(**params)
 
