@@ -306,8 +306,8 @@ class ArrayDisplay:
         if step <= 0 or not np.isfinite(step):
             return 1.0
 
-        exponent = np.floor(np.log10(step))
-        _fraction = step / 10**exponent
+        exp = np.floor(np.log10(step))
+        _fraction = step / 10**exp
 
         if _fraction <= 1:
             fraction = 1
@@ -318,7 +318,7 @@ class ArrayDisplay:
         else:
             fraction = 10
 
-        return fraction * 10**exponent
+        return fraction * 10**exp
 
     def _pad_limits(self, padding_fraction: float = 0.12) -> None:
         xmin = np.nanmin(self.x)
@@ -330,7 +330,7 @@ class ArrayDisplay:
         yspan = ymax - ymin
         span = max(xspan, yspan).value
 
-        if span == 0:
+        if span == 0:  # pragma: no cover
             span = 1.0
 
         xmid = 0.5 * (xmin + xmax).value
