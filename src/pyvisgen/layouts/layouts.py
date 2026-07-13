@@ -8,6 +8,8 @@ from astropy.coordinates import EarthLocation
 
 from pyvisgen.utils.logging import setup_logger
 
+from .disp import ArrayDisplay
+
 LOGGER = setup_logger(namespace=__name__)
 
 __all__ = ["Stations", "get_array_layout", "get_array_names"]
@@ -41,6 +43,7 @@ class Stations:
         Altitude of the antennas.
     """
 
+    st_name: list[str | int]
     st_num: list[int]
     x: list[float]
     y: list[float]
@@ -67,11 +70,14 @@ class Stations:
         """
         return Stations(*[getattr(self, f.name)[i] for f in fields(self)])
 
+    def peek(self, **kwargs):
+        return ArrayDisplay(self, **kwargs)
+
 
 def get_array_layout(
     array_layout: str | Path | pd.DataFrame,
     writer: bool = False,
-) -> Stations:
+) -> Stations | pd.DataFrame:
     r"""Reads a telescope layout txt file and converts it
     into a dataclass. Also allows a DataFrame to be passed
     that is then converted into a dataclass object. This
@@ -154,7 +160,7 @@ def get_array_layout(
     # swap axes for easy conversion into stations object
     tensor = tensor.swapaxes(0, 1)
 
-    stations = Stations(*tensor)
+    stations = Stations(array["station_name"], *tensor)
 
     if writer:
         return array

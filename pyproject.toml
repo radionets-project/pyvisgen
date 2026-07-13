@@ -96,6 +96,7 @@ tests = [
   "pytest >= 7.0",
   "restructuredtext-lint",
   "pytest-mock>=3.15.1",
+  "cmasher>=1.9.2",
 ]
 
 [build-system]

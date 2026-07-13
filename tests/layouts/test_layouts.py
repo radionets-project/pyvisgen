@@ -8,24 +8,6 @@ from pyvisgen.layouts import Stations, get_array_layout, get_array_names
 
 
 class TestStations:
-    @pytest.fixture
-    def params(self) -> dict:
-        rng = np.random.default_rng()
-
-        params = dict(
-            st_num=np.arange(10),
-            x=rng.uniform(size=(10)),
-            y=rng.uniform(size=(10)),
-            z=rng.uniform(size=(10)),
-            diam=np.full(shape=(10), fill_value=5),
-            el_low=np.full(shape=(10), fill_value=15),
-            el_high=np.full(shape=(10), fill_value=85),
-            altitude=rng.uniform(1e2, 8e3, size=(10)),
-            sefd=np.full(shape=(10), fill_value=100),
-        )
-
-        return params
-
     def test_stations_instantiation(self, params: dict) -> None:
         # should not raise an exception
         Stations(**params)
@@ -35,6 +17,14 @@ class TestStations:
 
         for item, param in zip(stations[0], params):
             assert item == param[0]
+
+    def test_peek(self, mocker, params) -> None:
+        stations = Stations(**params)
+
+        mock_array_display = mocker.patch("pyvisgen.layouts.layouts.ArrayDisplay")
+        stations.peek()
+
+        assert mock_array_display.called
 
 
 class TestGetArrayLayout:
@@ -73,7 +63,7 @@ class TestGetArrayLayout:
         assert isinstance(stations, pd.DataFrame)
         pd.testing.assert_frame_equal(stations, df)
 
-    def test_vla_abs_pos(self, mocker, monkeypatch):
+    def test_vla_abs_pos(self, mocker):
         mock_loc = mocker.MagicMock()
         mock_loc.value = np.ones(shape=(27))
 
