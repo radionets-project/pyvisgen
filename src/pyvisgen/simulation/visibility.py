@@ -11,7 +11,7 @@ from scipy import constants as const
 from astropy import constants as astro_const
 from astropy import units as un
 from astropy.time import Time
-from astropy.coordinates import EarthLocation
+from astropy.coordinates import EarthLocation, SkyCoord, AltAz
 
 from typing import Optional
 
@@ -525,7 +525,7 @@ def vis_loop(
     jones_atm = None
     atm_effects = None
     if atmospheric_effects is not None:
-        times, time_axis_jd = AtmosphericEffects.timesteps(obs)
+        times, time_axis_jd, time_list = AtmosphericEffects.timesteps(atm_effects, obs)
 
         atm_effects = AtmosphericEffects(
             obs,
@@ -535,17 +535,17 @@ def vis_loop(
         atm_effects.time_axis_jd = time_axis_jd
 
         if atmospheric_effects == "ionosphere":
-            tec_values = atm_effects.tec_field_from_iri(obs, return_times=False)
+            tec_values = atm_effects.slant_tec_from_iri(obs)
             LOGGER.info("Computing ionospheric Jones...")
-            jones_atm = atm_effects._simulate_ionospheric_delay(
+            jones_atm = atm_effects.simulate_ionospheric_delay(
                 tec_values,
             )
         elif atmospheric_effects == "troposphere":
             jones_atm = atm_effects.simulate_tropospheric_delay(obs=obs)
             LOGGER.info("Simulating tropospheric delay")
         elif atmospheric_effects == "all":
-            tec_values = atm_effects.tec_field_from_iri(obs, return_times=False)
-            jones_iono = atm_effects._simulate_ionospheric_delay(
+            tec_values = atm_effects.slant_tec_from_iri(obs)
+            jones_iono = atm_effects.simulate_ionospheric_delay(
                 tec_values,
             )
             jones_atm.append(jones_iono)
@@ -1102,73 +1102,127 @@ class AtmosphericEffects:
 
         return m_h, m_w
 
-    def simulate_tropospheric_delay(
-        self,
-        obs,
-        elevation_angle: float = 45.0,
-        pressure_hpa: float = 1013.25,
-        temperature_K: float = 288.15,
-        relative_humidity: float = 50.0,
-        height_m: float = 0.0,
-    ) -> torch.Tensor:
-        """Simulate the tropospheric phase delay.
+    def _calc_elevation_deg(self, obs, time, dtype=torch.float64) -> torch.Tensor:
+        """Compute source elevation for all antennas and time steps.
 
-        Uses:
-        - Saastamoinen zenith hydrostatic delay
-        - approximate zenith wet delay from surface meteorology
-        - approximate Niell-like hydrostatic and wet mapping functions
         Returns
         -------
         torch.Tensor
-            Jones matrix with shape [n_ant, n_freq, n_time, 2, 2].
+            Elevation angles in degrees with shape [n_ant, n_time].
         """
-        dtype = torch.float64
+
+        src_crd = SkyCoord(
+            ra=obs.ra.detach().numpy(),
+            dec=obs.dec.detach().numpy(),
+            unit=(un.deg, un.deg),
+        )
 
         ant_locs = obs.array_earth_loc
-        height_m = ant_locs.height.to_value(un.m).ravel()
-        latitude_deg = ant_locs.lat.to_value(un.deg).ravel()
+        n_time = len(time)
 
-        zhd_m = self._saastamoinen_zhd(
-            pressure_hpa=pressure_hpa,
-            latitude_deg=latitude_deg,
-            height_m=height_m,
+        x = ant_locs.x.to_value(un.m)
+        y = ant_locs.y.to_value(un.m)
+        z = ant_locs.z.to_value(un.m)
+
+        x_grid = np.repeat(x[None, :], n_time, axis=0)
+        y_grid = np.repeat(y[None, :], n_time, axis=0)
+        z_grid = np.repeat(z[None, :], n_time, axis=0)
+
+        loc_grid = EarthLocation.from_geocentric(
+            x_grid * un.m,
+            y_grid * un.m,
+            z_grid * un.m,
+        )
+
+        altaz = src_crd.transform_to(
+            AltAz(
+                obstime=time[..., None],
+                location=loc_grid,
+            )
+        )
+        LOGGER.info(f"altaz shape: {altaz.shape}, altaz.alt.shape: {altaz.alt.shape}")
+        # Astropy gives [n_time, n_ant], but we need [n_ant, n_time]
+        elevation_deg = altaz.alt.degree.T
+
+        return torch.as_tensor(
+            elevation_deg,
             device=self.device,
             dtype=dtype,
         )
 
-        zwd_m = self._approx_zwd_from_surface_met(
-            temperature_K=temperature_K,
-            relative_humidity=relative_humidity,
+    def _calc_azimuth_deg(
+        self,
+        obs,
+        time,
+        dtype: torch.dtype = torch.float64,
+    ) -> torch.Tensor:
+        """Compute geometric source azimuth for all antennas and times.
+
+        Parameters
+        ----------
+        obs
+            Must provide scalar ICRS source coordinates ``ra`` and ``dec``
+            in degrees and ``array_earth_loc`` as absolute EarthLocation
+            coordinates.
+        time : astropy.time.Time
+            One-dimensional observation times.
+
+        Returns
+        -------
+        torch.Tensor
+            Azimuth in degrees, shape [n_ant, n_time].
+            Convention: north=0 deg, east=90 deg.
+        """
+
+        if not isinstance(time, Time):
+            raise TypeError("time must be an astropy.time.Time object")
+
+        # Normalize scalar time to a one-element time axis.
+        times = time[np.newaxis] if time.isscalar else time
+
+        if times.ndim != 1:
+            raise ValueError("time must be scalar or one-dimensional")
+
+        if not isinstance(obs.array_earth_loc, EarthLocation):
+            raise TypeError("obs.array_earth_loc must be an EarthLocation")
+
+        ant_locs = obs.array_earth_loc
+        if ant_locs.isscalar:
+            ant_locs = ant_locs[np.newaxis]
+
+        # Astropy/NumPy requires CPU data. This intentionally breaks autograd.
+        ra = obs.ra.detach().cpu().numpy()
+        dec = obs.dec.detach().cpu().numpy()
+
+        if np.size(ra) != 1 or np.size(dec) != 1:
+            raise ValueError("This function expects exactly one source coordinate")
+
+        src_crd = SkyCoord(
+            ra=np.asarray(ra).item() * un.deg,
+            dec=np.asarray(dec).item() * un.deg,
+            frame="icrs",
+        )
+
+        # Shapes:
+        # obstime: [n_time, 1]
+        # location: [1, n_ant]
+        # resulting AltAz: [n_time, n_ant]
+        frame = AltAz(
+            obstime=times[:, np.newaxis],
+            location=ant_locs[np.newaxis, :],
+            pressure=0 * un.hPa,
+        )
+
+        az = src_crd.transform_to(frame).az.to_value(un.deg).T
+
+        # Contiguous representation is predictable when converting to Torch.
+        az = np.ascontiguousarray(az)
+
+        return torch.as_tensor(
+            az,
             device=self.device,
             dtype=dtype,
         )
-        latitude_deg = torch.as_tensor(latitude_deg).flatten()[0].item()
-        m_h, m_w = self._simple_niell_like_mapping(
-            elevation_angle=elevation_angle,
-            latitude_deg=latitude_deg,
-            device=self.device,
-            dtype=dtype,
-        )
-
-        slant_delay_m = m_h * zhd_m + m_w * zwd_m
-        # Broadcast to [n_ant, n_time], because _delay_to_jones_phase likely expects
-        # per-antenna/per-time delays.
-        n_ant = self.ant_positions.shape[0]
-        n_time = self.time_axis.shape[0]
-
-        path_delay_m = slant_delay_m[:, None].expand(n_ant, n_time)
-        total_delay_s = path_delay_m / self.c
-        jones_matrix = self._delay_to_jones_phase(total_delay_s)
-
-        self._add_jones_effect(jones_matrix, "tropospheric_delay")
-
-        LOGGER.info(
-            "Tropospheric delay simulated: %.3f m dry, %.3f m wet, %.3f m total slant.",
-            zhd_m.mean().item(),
-            zwd_m.mean().item(),
-            slant_delay_m.mean().item(),
-        )
-        return self.get_all_jones_effects()
 
     def simulate_ionospheric_delay(
         self,
@@ -1192,7 +1246,7 @@ class AtmosphericEffects:
 
         # Expand dimensions for broadcasting
         tec_expanded = tec_values.unsqueeze(1)  # [n_ant, 1, n_time]
-        tec_expanded *= 1e16  # Convert from TECU to electrons/m^2
+        tec_expanded *= 1e16  # Convert from TECU to electrons/m^3
         freq_expanded = self.frequencies.unsqueeze(0).unsqueeze(2)  # [1, n_freq, 1]
 
         # Ionospheric delay
@@ -1205,6 +1259,106 @@ class AtmosphericEffects:
         # Add to collection
         self._add_jones_effect(jones_matrix, "ionospheric_delay")
         LOGGER.info("Ionospheric delay simulated.")
+
+        return self.get_all_jones_effects()
+
+    def simulate_tropospheric_delay(
+        self,
+        obs,
+        pressure_hpa: float = 1013.25,
+        temperature_K: float = 288.15,
+        relative_humidity: float = 50.0,
+    ) -> torch.Tensor:
+        """Simulate the tropospheric phase delay.
+
+        Uses:
+        - Saastamoinen zenith hydrostatic delay
+        - approximate zenith wet delay from surface meteorology
+        - time- and antenna-dependent elevation angles
+        - approximate Niell-like hydrostatic and wet mapping functions
+
+        Returns
+        -------
+        torch.Tensor
+            Jones matrix with shape [n_ant, n_freq, n_time, 2, 2].
+        """
+        dtype = torch.float64
+
+        ant_locs = obs.array_earth_loc
+
+        latitude_deg = ant_locs.lat.to_value(un.deg).ravel()
+
+        times_sec, times_jd, times = self.timesteps(obs)
+
+        height_m = ant_locs.height.to_value(un.m).ravel()
+
+        n_ant = self.ant_positions.shape[0]
+        n_time = self.time_axis.shape[0]
+
+        zhd_m = self._saastamoinen_zhd(
+            pressure_hpa=pressure_hpa,
+            latitude_deg=latitude_deg,
+            height_m=height_m,
+            device=self.device,
+            dtype=dtype,
+        )
+
+        zwd_m = self._approx_zwd_from_surface_met(
+            temperature_K=temperature_K,
+            relative_humidity=relative_humidity,
+            device=self.device,
+            dtype=dtype,
+        )
+
+        elevation_angle = self._calc_elevation_deg(obs=obs, time=times)
+
+        if elevation_angle.shape != (n_ant, n_time):
+            raise ValueError(
+                f"Expected elevation shape ({n_ant}, {n_time}), "
+                f"got {tuple(elevation_angle.shape)}."
+            )
+
+        latitude_ref_deg = torch.as_tensor(latitude_deg).flatten()[0].item()
+
+        m_h, m_w = self._simple_niell_like_mapping(
+            elevation_angle=elevation_angle,
+            latitude_deg=latitude_ref_deg,
+            device=self.device,
+            dtype=dtype,
+        )
+
+        zhd_m = torch.as_tensor(
+            zhd_m,
+            device=self.device,
+            dtype=dtype,
+        )
+
+        if zhd_m.ndim == 1:
+            zhd_m = zhd_m[:, None]
+
+        zwd_m = torch.as_tensor(
+            zwd_m,
+            device=self.device,
+            dtype=dtype,
+        )
+
+        if zwd_m.ndim == 0:
+            zwd_m = zwd_m[None, None]
+
+        path_delay_m = m_h * zhd_m + m_w * zwd_m
+
+        total_delay_s = path_delay_m / self.c
+
+        jones_matrix = self._delay_to_jones_phase(total_delay_s)
+
+        self._add_jones_effect(jones_matrix, "tropospheric_delay")
+
+        LOGGER.info(
+            "Tropospheric delay simulated: %.3f m dry, %.3f m wet, %.3f m total slant.",
+            zhd_m.mean().item(),
+            zwd_m.mean().item(),
+            path_delay_m.mean().item(),
+        )
 
         return self.get_all_jones_effects()
 
@@ -1424,9 +1578,7 @@ class AtmosphericEffects:
             times_list.append(t_mid.utc.jd)
 
         if len(times_list) == 0:
-            LOGGER.error(
-                "tec_field_from_iri: No integration times produced from obs.scans."
-            )
+            LOGGER.error("tec_field_from_iri: No times produced from obs.scans.")
 
         times = Time(np.concatenate(times_list), format="jd", scale="utc")
         n_time = len(times)
@@ -1451,8 +1603,8 @@ class AtmosphericEffects:
                 if np.any(ne < 0) or np.all(ne == 0):
                     tec_np[ia, it] = np.nan
                     continue
-                vtec_e_m2 = np.trapezoid(ne, alt_m)  # el/m^2
-                tec_np[ia, it] = vtec_e_m2 / 1e16  # TECU
+                vtec_e_m3 = np.trapezoid(ne, alt_m)
+                tec_np[ia, it] = vtec_e_m3 / 1e16  # in TECU
 
         tec_field = torch.tensor(tec_np, dtype=torch.float64, device=obs.device)
 
@@ -1460,7 +1612,62 @@ class AtmosphericEffects:
             return tec_field, times
         return tec_field
 
-    def timesteps(obs):
+    def slant_tec_from_iri(self, obs):
+        """Generate TEC field from IRI (International Reference Ionosphere) for given observation.
+        Returns
+        -------
+        tec_field : torch.Tensor [n_ant, n_time] in TECU
+        """
+
+        from iricore import stec
+
+        # antenna positions
+        ant_locs = obs.array_earth_loc
+        alat = ant_locs.lat.to_value(un.deg).ravel()
+        alon = ant_locs.lon.to_value(un.deg).ravel()
+        n_ant = len(alat)
+
+        times_sec, times_jd, times = self.timesteps(obs)
+
+        n_time = len(times)
+        el = self._calc_elevation_deg(obs, times.utc.datetime)
+        az = self._calc_azimuth_deg(obs, times)
+
+        # iricore uses NumPy and therefore requires CPU data
+        if isinstance(el, torch.Tensor):
+            el = el.detach().cpu().numpy()
+        else:
+            el = np.asarray(el)
+
+        if isinstance(az, torch.Tensor):
+            az = az.detach().cpu().numpy()
+        else:
+            az = np.asarray(az)
+
+        tec_np = np.empty((n_ant, n_time), dtype=np.float64)
+
+        # Loop over time and antenna
+        for it, t in enumerate(times.utc.datetime):
+            # iricore expects UTC naive
+            dt = t.replace(tzinfo=None)
+
+            for ia in range(n_ant):
+                out = stec(
+                    el=el[ia, it],
+                    az=az[ia, it],
+                    dt=dt,
+                    lat=alat[ia],
+                    lon=alon[ia],
+                    version=20,
+                    npoints=40,
+                )
+                tec_np[ia, it] = out  # in TECU
+
+        tec_field = torch.tensor(tec_np, dtype=torch.float64, device=obs.device)
+
+        return tec_field
+
+    def timesteps(self, obs):
         """Return time axis in seconds since first integration."""
         times_list = []
 
@@ -1490,4 +1697,4 @@ class AtmosphericEffects:
             dtype=torch.float64,
             device=obs.device,
         )
-        return time_axis_sec, time_axis_jd
+        return time_axis_sec, time_axis_jd, times
