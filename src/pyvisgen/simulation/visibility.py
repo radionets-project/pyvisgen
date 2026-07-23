@@ -1140,7 +1140,6 @@ class AtmosphericEffects:
                 location=loc_grid,
             )
         )
-        LOGGER.info(f"altaz shape: {altaz.shape}, altaz.alt.shape: {altaz.alt.shape}")
         # Astropy gives [n_time, n_ant], but we need [n_ant, n_time]
         elevation_deg = altaz.alt.degree.T
 
@@ -1289,6 +1288,7 @@ class AtmosphericEffects:
         latitude_deg = ant_locs.lat.to_value(un.deg).ravel()
 
         times_sec, times_jd, times = self.timesteps(obs)
+        times = times.utc.datetime
 
         height_m = ant_locs.height.to_value(un.m).ravel()
 
@@ -1311,7 +1311,6 @@ class AtmosphericEffects:
         )
 
         elevation_angle = self._calc_elevation_deg(obs=obs, time=times)
-
         if elevation_angle.shape != (n_ant, n_time):
             raise ValueError(
                 f"Expected elevation shape ({n_ant}, {n_time}), "
