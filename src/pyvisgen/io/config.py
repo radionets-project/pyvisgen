@@ -199,7 +199,13 @@ class CodeCarbonEmissionTrackerConfig(BaseModel, validate_assignment=True):
 class AtmosphericEffectsConfig(BaseModel, validate_assignment=True):
     """Atmospheric effects configuration"""
 
-    ionosphere: bool = True
+    effects: Literal["ionosphere", "troposphere", "all"] | None = None
+
+
+class CalibrationConfig(BaseModel, validate_assignment=True):
+    """Calibration configuration"""
+
+    calibration: bool = False
 
 
 class Config(BaseModel):
@@ -213,7 +219,10 @@ class Config(BaseModel):
     gridding: GriddingConfig = Field(default_factory=GriddingConfig)
     fft: FFTConfig = Field(default_factory=FFTConfig)
     codecarbon: bool | CodeCarbonEmissionTrackerConfig = False
-    atmospheric_effects: bool | AtmosphericEffectsConfig = False
+    atmospheric_effects: AtmosphericEffectsConfig = Field(
+        default_factory=AtmosphericEffectsConfig
+    )
+    calibration: CalibrationConfig = Field(default_factory=CalibrationConfig)
 
     @classmethod
     def from_toml(cls, path: str | Path) -> "Config":
