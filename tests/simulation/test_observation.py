@@ -442,6 +442,40 @@ class TestObservation:
         times = sub_tab.getcol("TIME") / 3600 / 24
         uv = sub_tab.getcol("UVW")[:, :2].T
 
+        with pytest.raises(NotADirectoryError):
+            test_path = Path("./.test_data/test.file").touch()
+            Observation.from_ms(
+                path=test_path,
+                desc_id=desc_id,
+                fov=9,
+                image_size=3000,
+                corrupted=False,
+                device=device,
+                sefd=0,
+            )
+
+        with pytest.raises(ValueError):
+            Observation.from_ms(
+                path=ms,
+                desc_id=desc_id,
+                fov=9,
+                image_size=3000,
+                corrupted=False,
+                device=device,
+                sefd=np.ones(2),
+            )
+
+        with pytest.raises(ValueError):
+            Observation.from_ms(
+                path=ms,
+                desc_id=desc_id,
+                fov=9,
+                image_size=3000,
+                corrupted=False,
+                device=device,
+                sefd=None,
+            )
+
         obs = Observation.from_ms(
             path=ms,
             desc_id=desc_id,
