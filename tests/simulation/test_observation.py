@@ -443,7 +443,8 @@ class TestObservation:
         uv = sub_tab.getcol("UVW")[:, :2].T
 
         with pytest.raises(NotADirectoryError):
-            test_path = Path("./.test_data/test.file").touch()
+            test_path = Path("./.test_data/test.file")
+            test_path.touch()
             Observation.from_ms(
                 path=test_path,
                 desc_id=desc_id,

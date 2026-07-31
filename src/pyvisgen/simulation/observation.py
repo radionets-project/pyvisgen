@@ -1312,7 +1312,7 @@ class Observation:
                 * system_temp
                 / (np.pi * (antenna_tab.getcol("DISH_DIAMETER") / 2) ** 2)
             )
-        elif len(syscal_tab) < 0 and sefd is None:
+        elif len(syscal_tab) == 0 and sefd is None:
             raise ValueError(
                 "There is no filled SYSCAL table in the measurement set"
                 " and thus the SEFD cannot be approximated. Set an SEFD manually!"

@@ -17,6 +17,7 @@ src/pyvisgen/_version.py
 *.png
 
 # data
+.test_data
 *.tgz
 *.ms
 *.tar
