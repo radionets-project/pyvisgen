@@ -16,6 +16,12 @@ src/pyvisgen/_version.py
 *.gif
 *.png
 
+# data
+*.tgz
+*.ms
+*.tar
+*.h5
+
 # make
 *_done
 */build
