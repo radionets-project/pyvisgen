@@ -1,13 +1,19 @@
+import warnings
+from collections import defaultdict
 from dataclasses import dataclass, fields
 from datetime import datetime
+from os import PathLike
+from pathlib import Path
 
 import astropy.units as un
 import numpy as np
 import numpy.typing
+import pandas as pd
 import torch
-from astropy.constants import c
+from astropy.constants import c, k_B
 from astropy.coordinates import AltAz, EarthLocation, Longitude, SkyCoord
 from astropy.time import Time
+from casacore.tables import table
 from tqdm.auto import tqdm
 
 from pyvisgen.layouts import layouts
@@ -1107,3 +1113,254 @@ class Observation:
         ).reshape(-1)
 
         return u, v, w
+
+    @classmethod
+    def from_ms(
+        cls,
+        path: PathLike[str],
+        desc_id: int,
+        fov: float,
+        image_size: int,
+        corrupted: bool,
+        device: str,
+        el_low: float = 0.0,
+        el_high: float = 90.0,
+        sefd: float | np.typing.ArrayLike | None = None,
+        **kwargs,
+    ) -> "Observation":
+        """
+        Creates an :class:`~pyvisgen.simulation.Observation` from an
+        NRAO Measurement Set (MS). This means the following properties are
+        being read from the given MS:
+
+        - Source Position (Phase Center)
+        - Array Layout (except el_high, el_low and SEFD (if not provided in the MS))
+        - Start Time
+        - Number of Scans
+        - Scan Durations
+        - Scan Seperations
+        - Integration Times
+        - Frequencies and Bandwidths
+
+        This can be used to reproduce a measurement made by a specific configuration
+        with specific timings and pointings.
+
+        Parameters
+        ----------
+
+        path: PathLike[str]
+            The path to the root of the Measurement Set
+
+        desc_id: int
+            The description id of the (u,v) entries.
+            This id corresponds to a way of choosing between the spectral windows of
+            the observation and its polarization setup.
+
+        fov: float
+            The Field Of View of the true brightness distribution.
+
+        image_size: int
+            The image size in pixels of the true brightness distribution.
+
+        corrupted: bool
+            If ``True``, apply direction dependent effects (:math:`E`-matrix)
+            during the vis loop.
+
+        device: str
+            Torch device to select for computation.
+
+        el_low: float, optional
+            The minimum elevation at which the telescopes can observe
+            the source in degrees. Default is ``0.0``.
+
+        el_high: float, optional
+            The minimum elevation at which the telescopes can observe
+            the source in degrees. Default is ``90.0``.
+
+        sefd: float | ArrayLike | None, optional
+            The System Equivalent Flux Density (SEFD) of the telescopes. If this
+            is set to ``None`` and the MS has a filled ``SYSCAL`` table,
+            the SEFD will be approximated. If this is set to ``None`` and there
+            is no filled ``SYSCAL`` table, this will lead to an error.
+            If this is provided it will be used even if there is a filled ``SYSCAL``
+            table.
+            This can either be a single value for all telescopes or an array of values
+            containing an SEFD for every telescope (number of telescopes has to be equal
+            to the size of the array in this case).
+            Default is ``None``.
+
+        """
+
+        path = Path(path)
+
+        if not path.is_dir():
+            raise NotADirectoryError(
+                f"This measurement set does not exist under the path {path}!"
+            )
+
+        # Tables
+        main_tab = table(str(path), ack=False)
+        spectral_tab = table(str(path / "SPECTRAL_WINDOW"), ack=False)
+        field_tab = table(str(path / "FIELD"), ack=False)
+        data_desc_tab = table(str(path / "DATA_DESCRIPTION"), ack=False)
+        antenna_tab = table(str(path / "ANTENNA"), ack=False)
+        syscal_tab = table(str(path / "SYSCAL"), ack=False)
+
+        # desc_id
+        max_desc_id = len(np.unique(main_tab.getcol("DATA_DESC_ID")))
+
+        if desc_id < 0 or desc_id > max_desc_id:
+            raise ValueError(
+                "The desc_id for this measurement "
+                f"set has to be in range [0,{max_desc_id}]!"
+            )
+
+        mask = main_tab.getcol("DATA_DESC_ID") == desc_id
+        main_tab = main_tab.selectrows(rownrs=np.argwhere(mask).ravel())
+
+        # Time stamps
+        times = main_tab.getcol("TIME")
+        start_time = Time(times[0] / 3600 / 24, format="mjd").to_datetime()
+
+        # Frequencies
+        spw_id = data_desc_tab.getcell("SPECTRAL_WINDOW_ID", desc_id)
+        ref_freq = spectral_tab.getcell("REF_FREQUENCY", spw_id)
+        frequency_offsets = spectral_tab.getcell("CHAN_FREQ", spw_id) - ref_freq
+        bandwidths = spectral_tab.getcell("CHAN_WIDTH", desc_id)
+
+        # Phase center
+        phase_dir_times = field_tab.getcol("TIME")
+        time_centroids = np.tile(
+            main_tab.getcol("TIME_CENTROID"), (len(phase_dir_times), 1)
+        ).T
+        phase_dir_idx = np.argmin(np.abs(time_centroids - phase_dir_times), axis=1)
+
+        if len(np.unique(phase_dir_idx)) > 1:
+            warnings.warn(
+                "There is more than one phase center assigned to the values with this "
+                "desc_id. "
+                "This could lead to deviations in the calculated (u,v) coverage. "
+                "As a fallback the majorly appearing phase center for this desc_id "
+                "will be used.",
+                stacklevel=1,
+            )
+            phase_dir_idx, counts = np.unique(phase_dir_idx, return_counts=True)
+            phase_dir_idx = phase_dir_idx[counts.argmax()]
+        else:
+            phase_dir_idx = phase_dir_idx[0]
+
+        src_ra, src_dec = np.rad2deg(
+            field_tab.selectrows([phase_dir_idx]).getcol("PHASE_DIR").ravel()
+        )
+
+        # Scans
+        scans = main_tab.getcol("SCAN_NUMBER")
+        unique_scans = np.unique(scans)
+
+        scan_time_bounds = defaultdict(list)
+
+        for scan, time in zip(scans, times):
+            scan_time_bounds[scan].append(time)
+
+        scan_int_times = defaultdict(list)
+
+        for scan, time in zip(scans, main_tab.getcol("INTERVAL")):
+            scan_int_times[scan].append(time)
+
+        scan_times = np.array([])
+        for scan in unique_scans:
+            scan_time = np.array(scan_time_bounds[scan])
+            int_times = np.array(scan_int_times[scan])
+
+            scan_start = scan_time.min()
+            scan_end = scan_time.max()
+
+            scan_times = np.append(
+                scan_times,
+                [scan_start, scan_end, scan_end - scan_start, int_times.mean()],
+            )
+
+        scan_times = scan_times.reshape(len(unique_scans), 4)
+
+        # Array layout
+
+        telescope_pos = antenna_tab.getcol("POSITION")
+        x = telescope_pos[:, 0]
+        y = telescope_pos[:, 1]
+        z = telescope_pos[:, 2]
+
+        altitude = EarthLocation.from_geocentric(
+            x=x, y=y, z=z, unit="meter"
+        ).height.value
+
+        if len(syscal_tab) > 0 and sefd is not None:
+            warnings.warn(
+                "There is a filled SYSCAL table in the measurement and the "
+                "SEFD could be approximated. Set 'sedf = None' if an approximation is "
+                "wanted.",
+                stacklevel=1,
+            )
+            sefd = np.ones_like(x) * sefd if np.isscalar(sefd) else sefd
+        elif len(syscal_tab) > 0 and sefd is None:
+            # SEFD relation from doi: 10.1007/978-3-319-44431-4 p. 12 eq. 1.7
+            system_temp = syscal_tab.getcol("TSYS")[
+                np.argsort(syscal_tab.getcol("ANTENNA_ID"))
+            ]
+            sefd = (
+                2
+                * k_B
+                * system_temp
+                / (np.pi * (antenna_tab.getcol("DISH_DIAMETER") / 2) ** 2)
+            )
+        elif len(syscal_tab) < 0 and sefd is None:
+            raise ValueError(
+                "There is no filled SYSCAL table in the measurement set"
+                " and thus the SEFD cannot be approximated. Set an SEFD manually!"
+            )
+        else:
+            sefd = np.ones_like(x) * sefd if np.isscalar(sefd) else sefd
+
+        if len(sefd) != len(x):
+            raise ValueError(
+                "The length of the SEFD array has to be equal to the "
+                f"number of telescopes ({len(x)})."
+            )
+
+        array_layout = pd.DataFrame(
+            {
+                "station_name": antenna_tab.getcol("STATION"),
+                "X": x,
+                "Y": y,
+                "Z": z,
+                "dish_dia": antenna_tab.getcol("DISH_DIAMETER"),
+                "el_low": np.ones_like(x) * el_low,
+                "el_high": np.ones_like(x) * el_high,
+                "SEFD": sefd,
+                "altitude": altitude,
+            }
+        )
+
+        used_antennas = np.unique(
+            np.concatenate([main_tab.getcol("ANTENNA1"), main_tab.getcol("ANTENNA2")])
+        )
+
+        array_layout = array_layout.iloc[used_antennas]
+
+        return cls(
+            array_layout=array_layout,
+            src_ra=src_ra + 360.0,
+            src_dec=src_dec,
+            start_time=start_time,
+            scan_duration=scan_times[:, 2],
+            scan_separation=scan_times[:, 0][1:] - scan_times[:, 1][:-1],
+            num_scans=len(unique_scans),
+            integration_time=scan_times[:, 3],
+            ref_frequency=ref_freq,
+            frequency_offsets=frequency_offsets,
+            bandwidths=-bandwidths,
+            fov=fov,
+            image_size=image_size,
+            corrupted=corrupted,
+            device=device,
+            **kwargs,
+        )

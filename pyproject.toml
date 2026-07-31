@@ -30,6 +30,7 @@ classifiers = [
 dependencies = [
   "astropy>=7.2.0",
   "click",
+  "python-casacore",
   "h5py",
   "joblib",
   "natsort",
@@ -108,7 +109,7 @@ omit = [
   "docs/*",
   "src/pyvisgen/_version.py",
   "src/pyvisgen/version.py",
-  "tests/*"
+  "tests/*",
 ]
 
 [tool.coverage.xml]
@@ -147,12 +148,12 @@ extend-exclude = ["examples"]
 
 [tool.ruff.lint]
 extend-select = [
-  "I",  # isort
-  "E",  # pycodestyle
-  "F",  # Pyflakes
+  "I",   # isort
+  "E",   # pycodestyle
+  "F",   # Pyflakes
   "UP",  # pyupgrade
-  "B",  # flake8-bugbear
-  "SIM",  # flake8-simplify
+  "B",   # flake8-bugbear
+  "SIM", # flake8-simplify
 ]
 ignore = ["B905", "UP038"]
 fixable = ["ALL"]
