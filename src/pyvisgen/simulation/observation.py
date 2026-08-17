@@ -1205,6 +1205,7 @@ class Observation:
         data_desc_tab = table(str(path / "DATA_DESCRIPTION"), ack=False)
         antenna_tab = table(str(path / "ANTENNA"), ack=False)
         syscal_tab = table(str(path / "SYSCAL"), ack=False)
+        obs_table = table(str(path / "OBSERVATION"), ack=False)
 
         # desc_id
         max_desc_id = len(np.unique(main_tab.getcol("DATA_DESC_ID")))
@@ -1346,7 +1347,7 @@ class Observation:
 
         array_layout = array_layout.iloc[used_antennas]
 
-        return cls(
+        instance = cls(
             array_layout=array_layout,
             src_ra=src_ra + 360.0,
             src_dec=src_dec,
@@ -1364,3 +1365,5 @@ class Observation:
             device=device,
             **kwargs,
         )
+        instance.layout = obs_table.getcol("TELESCOPE_NAME")[0]
+        return instance
