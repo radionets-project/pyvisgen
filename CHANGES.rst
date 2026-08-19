@@ -1,3 +1,42 @@
+Pyvisgen v0.9.0 (2026-08-19)
+============================
+
+
+API Changes
+-----------
+
+
+Bug Fixes
+---------
+
+- add four missing antennas for MeerKat layout [`#150 <https://github.com/radionets-project/pyvisgen/pull/150>`__]
+
+- Fixed an indexing bug where images in bundles would be repeatedly overwritten if bundle size is greater than 1. The uvh5 writer now correctly creates one file per image. [`#152 <https://github.com/radionets-project/pyvisgen/pull/152>`__]
+
+- Fixed a critical bug where the rd-grid in :class:`~pyvisgen.simulation.Observation` would result in squeezed source images. The RA-axis of the rd-grid is now scaled by the cosine of the declination. [`#166 <https://github.com/radionets-project/pyvisgen/pull/166>`__]
+
+
+New Features
+------------
+
+- allow sinlge values for simulation config (bypass random value drawing) [`#150 <https://github.com/radionets-project/pyvisgen/pull/150>`__]
+
+- The UVH5 writer now also writes timestamps to the file under the ``times`` key. [`#153 <https://github.com/radionets-project/pyvisgen/pull/153>`__]
+
+- Added a new group ``obs`` containing ``ra``/``dec`` and ``layout`` to UVH5 files. [`#154 <https://github.com/radionets-project/pyvisgen/pull/154>`__]
+
+- Added layout for the LOw-Frequency ARray (LOFAR) Two-metre Sky Survey (LoTSS) [`#158 <https://github.com/radionets-project/pyvisgen/pull/158>`__]
+
+
+Maintenance
+-----------
+
+
+Refactoring and Optimization
+----------------------------
+
+- add channel bandwidths to UVH5Writer [`#150 <https://github.com/radionets-project/pyvisgen/pull/150>`__]
+
 Pyvisgen 0.8.0 (2026-04-26)
 ===========================
 

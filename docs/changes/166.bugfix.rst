@@ -1,1 +1,0 @@
-Fixed a critical bug where the rd-grid in :class:`~pyvisgen.simulation.Observation` would result in squeezed source images. The RA-axis of the rd-grid is now scaled by the cosine of the declination.

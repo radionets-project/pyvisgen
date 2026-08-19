@@ -1,1 +1,0 @@
-Added layout for the LOw-Frequency ARray (LOFAR) Two-metre Sky Survey (LoTSS)

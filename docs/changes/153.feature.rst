@@ -1,1 +1,0 @@
-The UVH5 writer now also writes timestamps to the file under the ``times`` key.
