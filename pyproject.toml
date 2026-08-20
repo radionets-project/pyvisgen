@@ -30,7 +30,6 @@ classifiers = [
 dependencies = [
   "astropy>=7.2.0",
   "click",
-  "python-casacore",
   "h5py",
   "joblib",
   "natsort",
@@ -52,7 +51,8 @@ dynamic = ["version"]
 pyvisgen = "pyvisgen.tools.cli:main"
 
 [project.optional-dependencies]
-all = ["pyvisgen[codecarbon,plot,tutorials,webdataset]"]
+all = ["pyvisgen[casa,codecarbon,plot,tutorials,webdataset]"]
+casa = ["python-casacore"]
 codecarbon = ["codecarbon"]
 plot = ["matplotlib"]
 tutorials = ["matplotlib", "pytorch_finufft"]
