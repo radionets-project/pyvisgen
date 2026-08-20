@@ -52,7 +52,7 @@ dynamic = ["version"]
 pyvisgen = "pyvisgen.tools.cli:main"
 
 [project.optional-dependencies]
-all = ["pyvisgen[casa,codecarbon,plot,tutorials,webdataset]"]
+all = ["pyvisgen[codecarbon,plot,tutorials,webdataset]"]
 codecarbon = ["codecarbon"]
 plot = ["matplotlib"]
 tutorials = ["matplotlib", "pytorch_finufft"]
