@@ -37,6 +37,7 @@ dependencies = [
   "pandas",
   "pydantic>=2.12.3",
   "pyvisgrid",
+  "python-casacore",
   "rich",
   "rich-click>=1.8.9",
   "scipy",
@@ -52,7 +53,6 @@ pyvisgen = "pyvisgen.tools.cli:main"
 
 [project.optional-dependencies]
 all = ["pyvisgen[casa,codecarbon,plot,tutorials,webdataset]"]
-casa = ["python-casacore"]
 codecarbon = ["codecarbon"]
 plot = ["matplotlib"]
 tutorials = ["matplotlib", "pytorch_finufft"]
@@ -100,7 +100,7 @@ tests = [
 ]
 
 [build-system]
-requires = ["hatch-vcs", "hatchling"]
+requires = ["hatch-vcs", "hatchling < 1.32"]
 build-backend = "hatchling.build"
 
 [tool.coverage.run]
