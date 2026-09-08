@@ -1014,10 +1014,7 @@ class Observation:
         rd_grid : 3d array
             Returns a 3d array with every pixel containing a RA and Dec value
         """
-        # transform to rad
         fov = np.deg2rad(self.fov / 3600, dtype=np.float128)
-
-        # define resolution
         res = fov / self.img_size
 
         dec = torch.deg2rad(self.dec).to(self.device)
@@ -1030,13 +1027,16 @@ class Observation:
                 dtype=np.float128,
             ).astype(np.float64)
         ).to(self.device)
+
         d = r + dec
+
+        # rescale RA-axis with the cosine of the declination
+        r /= torch.cos(dec)
 
         R, _ = torch.meshgrid((r, r), indexing="xy")
         _, D = torch.meshgrid((d, d), indexing="xy")
-        rd_grid = torch.cat([R[..., None], D[..., None]], dim=2)
 
-        return rd_grid
+        return torch.cat([R[..., None], D[..., None]], dim=2)
 
     def create_lm_grid(self):
         """Calculates sine projection for fov
