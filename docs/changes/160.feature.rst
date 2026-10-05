@@ -1,0 +1,1 @@
+- Add ``from_ms`` classmethod to ``Observation`` class to import observation parameters from an NRAO Measurement Set

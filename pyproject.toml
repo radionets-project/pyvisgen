@@ -37,6 +37,7 @@ dependencies = [
   "pandas",
   "pydantic>=2.12.3",
   "pyvisgrid",
+  "python-casacore",
   "rich",
   "rich-click>=1.8.9",
   "scipy",
@@ -99,7 +100,7 @@ tests = [
 ]
 
 [build-system]
-requires = ["hatch-vcs", "hatchling"]
+requires = ["hatch-vcs", "hatchling < 1.32"]
 build-backend = "hatchling.build"
 
 [tool.coverage.run]
@@ -108,7 +109,7 @@ omit = [
   "docs/*",
   "src/pyvisgen/_version.py",
   "src/pyvisgen/version.py",
-  "tests/*"
+  "tests/*",
 ]
 
 [tool.coverage.xml]
@@ -147,12 +148,12 @@ extend-exclude = ["examples"]
 
 [tool.ruff.lint]
 extend-select = [
-  "I",  # isort
-  "E",  # pycodestyle
-  "F",  # Pyflakes
+  "I",   # isort
+  "E",   # pycodestyle
+  "F",   # Pyflakes
   "UP",  # pyupgrade
-  "B",  # flake8-bugbear
-  "SIM",  # flake8-simplify
+  "B",   # flake8-bugbear
+  "SIM", # flake8-simplify
 ]
 ignore = ["B905", "UP038"]
 fixable = ["ALL"]
