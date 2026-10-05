@@ -384,10 +384,10 @@ class TestComputeAltitude:
     )
     def test_zenith_horizon(
         self,
-        ra: int | float | torch.Tensor,
-        dec: int | float | torch.Tensor,
-        lst: int | float | torch.Tensor,
-        expected_alt: int | float | torch.Tensor,
+        ra: float | torch.Tensor,
+        dec: float | torch.Tensor,
+        lst: float | torch.Tensor,
+        expected_alt: float | torch.Tensor,
         sd: SimulateDataSet,
     ) -> None:
         ra = torch.tensor([ra])
@@ -410,8 +410,8 @@ class TestComputeAltitude:
     @pytest.mark.parametrize(["lat", "dec"], [[90, 90], [-90, -90]])
     def test_poles(
         self,
-        lat: int | float,
-        dec: int | float | torch.Tensor,
+        lat: float,
+        dec: float | torch.Tensor,
         simulate_dataset: SimulateDataSet,
     ) -> None:
         simulate_dataset.array_lat = torch.tensor([lat])
