@@ -9,7 +9,6 @@ from joblib import Parallel, delayed
 from rich.live import Live
 from rich.pretty import pretty_repr
 
-import pyvisgen.layouts.layouts as layouts
 from pyvisgen._plugin_manager import PluginManager
 from pyvisgen.dataset.utils import (
     calc_truth_fft,
@@ -17,6 +16,7 @@ from pyvisgen.dataset.utils import (
     convert_real_imag,
 )
 from pyvisgen.io import Config
+from pyvisgen.layouts import layouts
 from pyvisgen.simulation.observation import Observation
 from pyvisgen.simulation.utils import create_progress_tracker
 from pyvisgen.simulation.visibility import vis_loop
@@ -178,7 +178,6 @@ class SimulateDataSet:
         ):
             if slurm:  # pragma: no cover
                 cls._run_slurm()
-                pass
             else:
                 # draw parameters beforehand, i.e. outside the simulation loop
                 cls.create_sampling_rc(cls.num_images)

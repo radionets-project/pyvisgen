@@ -18,13 +18,13 @@ except ImportError as e:
 
 __all__ = [
     "RIMEScan",
-    "apply_finufft",
-    "calc_fourier",
-    "calc_feed_rotation",
-    "calc_beam",
     "angular_distance",
-    "jinc",
+    "apply_finufft",
+    "calc_beam",
+    "calc_feed_rotation",
+    "calc_fourier",
     "integrate",
+    "jinc",
 ]
 
 

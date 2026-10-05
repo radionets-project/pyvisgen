@@ -11,11 +11,11 @@ from pyvisgen.io import datawriters
 from pyvisgen.layouts import get_array_names
 
 __all__ = [
+    "BundleConfig",
     "Config",
     "NoiseConfig",
-    "SamplingConfig",
     "PolarizationConfig",
-    "BundleConfig",
+    "SamplingConfig",
 ]
 
 
