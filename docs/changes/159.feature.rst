@@ -1,0 +1,1 @@
+Added :class:`~pyvisgen.layouts.ArrayDisplay` class that allows visualizing any :class:`~pyvisgen.layouts.Stations` object.
