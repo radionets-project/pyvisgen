@@ -8,7 +8,7 @@ from astropy.io import fits
 from astropy.time import Time
 from astropy.utils import iers
 
-import pyvisgen.layouts.layouts as layouts
+from pyvisgen.layouts import layouts
 
 
 def create_vis_hdu(data, obs, source_name="sim-source-0") -> fits.GroupsHDU:

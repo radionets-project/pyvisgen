@@ -4,9 +4,9 @@ from .datawriters import FITSWriter, H5Writer, PTWriter, WDSShardWriter
 
 __all__ = [
     "Config",
-    "H5Writer",
+    "DataConverter",
     "FITSWriter",
+    "H5Writer",
     "PTWriter",
     "WDSShardWriter",
-    "DataConverter",
 ]

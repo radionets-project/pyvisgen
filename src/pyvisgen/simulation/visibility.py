@@ -19,10 +19,10 @@ torch.set_default_dtype(torch.float64)
 LOGGER = setup_logger(namespace=__name__)
 
 __all__ = [
-    "Visibilities",
-    "vis_loop",
     "Polarization",
+    "Visibilities",
     "generate_noise",
+    "vis_loop",
 ]
 
 
@@ -193,7 +193,7 @@ class Polarization:
 
         self.I = torch.zeros(
             (self.SI.shape[0], self.SI.shape[1], 4), dtype=torch.cdouble
-        )  # noqa: E741
+        )
 
     def linear(self) -> None:
         r"""Computes the stokes parameters I, Q, U, and V

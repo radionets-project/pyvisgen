@@ -17,7 +17,7 @@ from pyvisgen.utils.logging import setup_logger
 torch.set_default_dtype(torch.float64)
 LOGGER = setup_logger(namespace=__name__)
 
-__all__ = ["Baselines", "ValidBaselineSubset", "Observation"]
+__all__ = ["Baselines", "Observation", "ValidBaselineSubset"]
 
 
 DEFAULT_POL_KWARGS = {
@@ -456,7 +456,7 @@ class Scan:
         return Time(
             [
                 min([self.start + i * self.integration_time, self.stop])
-                for i in range(0, self.get_num_timesteps())
+                for i in range(self.get_num_timesteps())
             ]
         )
 

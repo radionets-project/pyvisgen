@@ -193,7 +193,7 @@ class DataWriter(ABC):
         None
             Returns ``None`` per default.
         """
-        return None
+        return
 
 
 class H5Writer(DataWriter):

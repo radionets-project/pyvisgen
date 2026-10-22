@@ -152,8 +152,8 @@ class TestPolarization:
     def test_init_polarization(
         self,
         pol_type: str,
-        amp_ratio: int | float,
-        delta: int | float,
+        amp_ratio: float,
+        delta: float,
         mocker,
         polarization_data: dict,
     ) -> None:
@@ -343,7 +343,7 @@ class TestPolarization:
 
     @pytest.mark.parametrize("threshold", [1e-4, 0.1, 1, 10])
     def test_rand_polarization_field_threshold(
-        self, threshold: int | float, polarization: Polarization, field_kwargs: dict
+        self, threshold: float, polarization: Polarization, field_kwargs: dict
     ) -> None:
         field_kwargs["threshold"] = threshold
 

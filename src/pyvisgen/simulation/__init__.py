@@ -8,6 +8,7 @@ __all__ = [
     "Baselines",
     "Observation",
     "Polarization",
+    "RIMEScan",
     "ValidBaselineSubset",
     "Visibilities",
     "angular_distance",
@@ -16,6 +17,5 @@ __all__ = [
     "generate_noise",
     "integrate",
     "jinc",
-    "RIMEScan",
     "vis_loop",
 ]
