@@ -1,4 +1,6 @@
+import subprocess
 from dataclasses import fields
+from pathlib import Path
 
 import astropy.units as un
 import numpy as np
@@ -6,6 +8,7 @@ import pytest
 import torch
 from astropy.coordinates import Angle
 from astropy.time import Time
+from casacore.tables import table
 
 from pyvisgen.simulation.observation import (
     Baselines,
@@ -397,3 +400,122 @@ class TestObservation:
         assert hasattr(obs, "dense_baselines_gpu")
         assert isinstance(obs.dense_baselines_gpu, ValidBaselineSubset)
         assert obs.ra.device.type == obs.dec.device.type == device
+
+    def test_from_ms(self, device) -> None:
+        url = "https://almascience.eso.org/almadata/lp/DSHARP/MSfiles/Elias24_continuum.ms.tgz"
+
+        archive = Path(f"./.test_data/{url.split('/')[-1]}")
+        ms = archive.with_suffix("")
+
+        archive.parent.mkdir(exist_ok=True)
+
+        dl_opts = dict(
+            check=True, shell=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL
+        )
+        if not archive.exists() and not ms.exists():
+            print(f"Downloading file to {archive} ...")
+            try:
+                subprocess.run(f"wget -O {archive} {url}", **dl_opts)  # noqa: PLW1510
+            except subprocess.CalledProcessError:
+                try:
+                    subprocess.run(f"curl {url} > {archive}", **dl_opts)  # noqa: PLW1510
+                except subprocess.CalledProcessError as e2:
+                    raise RuntimeError(
+                        "Neither wget nor curl are installed."
+                        "Check your installation or download the file manually "
+                        "and put it into the `data` directory."
+                    ) from e2
+
+        else:
+            print(f"File {archive} already existent ... Skipping download ...")
+
+        if archive.exists() and not ms.exists():
+            subprocess.run(
+                f"tar -xzf {archive} -C {archive.parent}", shell=True, check=False
+            )
+
+        main_tab = table(str(ms), ack=False)
+        desc_id = 7
+        sub_tab = main_tab.selectrows(
+            rownrs=np.argwhere(main_tab.getcol("DATA_DESC_ID") == desc_id).ravel()
+        )
+        times = sub_tab.getcol("TIME") / 3600 / 24
+        uv = sub_tab.getcol("UVW")[:, :2].T
+
+        with pytest.raises(NotADirectoryError):
+            test_path = Path("./.test_data/test.file")
+            test_path.touch()
+            Observation.from_ms(
+                path=test_path,
+                desc_id=desc_id,
+                fov=9,
+                image_size=3000,
+                corrupted=False,
+                device=device,
+                sefd=0,
+            )
+
+        with pytest.raises(ValueError):
+            Observation.from_ms(
+                path=ms,
+                desc_id=desc_id,
+                fov=9,
+                image_size=3000,
+                corrupted=False,
+                device=device,
+                sefd=np.ones(2),
+            )
+
+        with pytest.raises(ValueError):
+            Observation.from_ms(
+                path=ms,
+                desc_id=desc_id,
+                fov=9,
+                image_size=3000,
+                corrupted=False,
+                device=device,
+                sefd=None,
+            )
+
+        obs = Observation.from_ms(
+            path=ms,
+            desc_id=desc_id,
+            fov=9,
+            image_size=3000,
+            corrupted=False,
+            device=device,
+            sefd=0,
+        )
+
+        uv_obs = obs.baselines.u.cpu().numpy(), obs.baselines.v.cpu().numpy()
+
+        assert bool(
+            np.all(
+                (
+                    times
+                    - Time(times[0], format="mjd").mjd
+                    - (
+                        obs.baselines.time / 3600 / 24
+                        - Time(times[0], format="mjd").mjd
+                    ).numpy()
+                )
+                < 1e-4
+            )
+        )
+
+        assert len(times) == len(obs.baselines.time)
+
+        u_max = np.max([uv[0].max(), uv_obs[0].max()])
+        v_max = np.max([uv[1].max(), uv_obs[1].max()])
+        assert bool(
+            np.all(
+                np.abs(uv_obs[0][uv_obs[0].argsort()] - uv[0][uv[0].argsort()]) / u_max
+                < 0.01
+            )
+        )
+        assert bool(
+            np.all(
+                np.abs(uv_obs[1][uv_obs[1].argsort()] - uv[1][uv[1].argsort()]) / v_max
+                < 0.01
+            )
+        )
