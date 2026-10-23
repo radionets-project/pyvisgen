@@ -449,8 +449,13 @@ def vis_loop(
         ``'tsys'``: elevation-dependent noise from system temperature.
         Default: ``'sefd'``
     telescope : str, optional
-        Telescope name for elevation-dependent Tsys corrections.
-        Only used when ``noise_mode='tsys'``. Default: ``'meerkat'``
+        Telescope name of the noise config. It provides the elevation-dependent
+        Tsys corrections for ``noise_mode='tsys'`` and, in both modes, the optional
+        per-station SEFD factors (``ant_scale``). In ``'sefd'`` mode it is ignored
+        if the telescope has no noise config. Default: ``'meerkat'``
+    band : str, optional
+        Frequency band of the noise config. If ``None``, the first band of the
+        config is used. Default: ``None``
     mode : str, optional
         Select one of `'full'`, `'grid'`, or `'dense'` to get
         all valid baselines, a grid of unique baselines, or
@@ -642,9 +647,10 @@ def _batch_loop(
 
     rime = RIMEScan(ft=ft, mode=mode, obs=obs, lm=lm, rd=rd)
 
-    # Per-station SEFD factors (1.0 = nominal). obs.ant_sefd_scale takes precedence
-    # over the table in the noise config. In "sefd" mode the telescope was never
-    # needed, so the table is only looked up if the telescope has a noise config.
+    # Per-station SEFD factors (1.0 = nominal). obs.ant_sefd_scale, set when creating
+    # the Observation, takes precedence over the table in the noise config. In "sefd"
+    # mode the telescope was never needed, so the table is only looked up if the
+    # telescope has a noise config.
     ant_sefd_scale = getattr(obs, "ant_sefd_scale", None)
     if (
         ant_sefd_scale is None
