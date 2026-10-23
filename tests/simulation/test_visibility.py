@@ -263,7 +263,7 @@ class TestPolarization:
 
         mock_torch_manual_seed.assert_called_with(42)
 
-    @pytest.mark.parametrize("shape", [16, 32, [16, 16], [16, 32], (32, 32)])
+    @pytest.mark.parametrize("shape", [16, 32, [16, 16], [16, 32], (16,), (32, 32)])
     def test_rand_polarization_field_shape_instance(
         self, shape: int | list, polarization: Polarization, field_kwargs: dict
     ) -> None:
