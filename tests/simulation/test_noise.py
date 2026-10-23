@@ -478,21 +478,29 @@ class TestGenerateNoise:
         expected = weights_nominal / (s1 * s2)[:, None]
         torch.testing.assert_close(weights_scaled, expected)
 
-    def test_ant_scale_ignored_in_sefd_mode(self, obs, n_baselines: int) -> None:
-        """In ``mode='sefd'`` the SEFD is uniform and the factors are not used."""
+    def test_ant_scale_weights_sefd_mode(self, obs, n_baselines: int) -> None:
+        """In ``mode='sefd'`` the weights also scale with 1 / (s1 * s2)."""
         shape = (n_baselines, 1, 2, 2)
-        scale = torch.linspace(0.5, 2.0, n_baselines)
+        s1 = torch.linspace(0.8, 1.3, n_baselines)
+        s2 = torch.linspace(1.4, 0.9, n_baselines)
 
         _, weights_nominal = generate_noise(shape, obs, noise_value=400.0, mode="sefd")
         _, weights_scaled = generate_noise(
-            shape,
-            obs,
-            noise_value=400.0,
-            mode="sefd",
-            ant_scale1=scale,
-            ant_scale2=scale,
+            shape, obs, noise_value=400.0, mode="sefd", ant_scale1=s1, ant_scale2=s2
         )
-        torch.testing.assert_close(weights_scaled, weights_nominal)
+
+        expected = weights_nominal / (s1 * s2)[:, None]
+        torch.testing.assert_close(weights_scaled, expected)
+
+    def test_unit_ant_scale_is_nominal_sefd_mode(self, obs, n_baselines: int) -> None:
+        shape = (n_baselines, 1, 2, 2)
+        ones = torch.ones(n_baselines)
+
+        _, weights_nominal = generate_noise(shape, obs, noise_value=400.0, mode="sefd")
+        _, weights_ones = generate_noise(
+            shape, obs, noise_value=400.0, mode="sefd", ant_scale1=ones, ant_scale2=ones
+        )
+        torch.testing.assert_close(weights_ones, weights_nominal)
 
     def test_noise_mean_near_zero(self, obs) -> None:
         """Real and imaginary parts should have mean ≈ 0 for large sample count."""

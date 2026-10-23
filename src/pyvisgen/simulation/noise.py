@@ -159,6 +159,20 @@ def elevation_tsys_contribution(
     return t_atm + t_spill
 
 
+def _baseline_sefd(
+    sefd1: torch.Tensor,
+    sefd2: torch.Tensor,
+    ant_scale1: torch.Tensor | None = None,
+    ant_scale2: torch.Tensor | None = None,
+) -> torch.Tensor:
+    """Geometric-mean SEFD of a baseline after optional per-antenna scaling."""
+    if ant_scale1 is not None:
+        sefd1 = sefd1 * ant_scale1.to(sefd1.device)
+    if ant_scale2 is not None:
+        sefd2 = sefd2 * ant_scale2.to(sefd2.device)
+    return torch.sqrt(sefd1 * sefd2)
+
+
 def sefd_from_elevation(
     el1_deg: torch.Tensor,
     el2_deg: torch.Tensor,
@@ -219,12 +233,7 @@ def sefd_from_elevation(
     sefd1 = 2 * k_B * (tsys_over_eta_ref + delta1) / A_geom * 1e26
     sefd2 = 2 * k_B * (tsys_over_eta_ref + delta2) / A_geom * 1e26
 
-    # optional per-antenna sensitivity, applied before the geometric mean
-    if ant_scale1 is not None:
-        sefd1 = sefd1 * ant_scale1.to(sefd1.device)
-    if ant_scale2 is not None:
-        sefd2 = sefd2 * ant_scale2.to(sefd2.device)
-    return torch.sqrt(sefd1 * sefd2)
+    return _baseline_sefd(sefd1, sefd2, ant_scale1, ant_scale2)
 
 
 def compute_noise_std(obs, sefd: torch.Tensor) -> torch.Tensor:
@@ -284,7 +293,8 @@ def generate_noise(
     ant_scale1, ant_scale2 : torch.Tensor, optional
         Multiplicative per-antenna SEFD factors for the first and second antenna
         of each baseline, where ``1.0`` is the nominal SEFD. Shape: [n_baselines].
-        Only used for ``mode='tsys'``. Default: ``None``
+        Used in both modes. In ``mode='sefd'`` the nominal SEFD of each antenna is
+        ``noise_value``. Default: ``None``
 
     Returns
     -------
@@ -306,10 +316,16 @@ def generate_noise(
             ant_scale2=ant_scale2,
         )
     elif mode == "sefd":
-        device = el1_deg.device if el1_deg is not None else torch.device("cpu")
-        sefd = torch.full(
+        if el1_deg is not None:
+            device = el1_deg.device
+        elif ant_scale1 is not None:
+            device = ant_scale1.device
+        else:
+            device = torch.device("cpu")
+        sefd_ant = torch.full(
             (shape[0],), float(noise_value), dtype=torch.float64, device=device
         )
+        sefd = _baseline_sefd(sefd_ant, sefd_ant, ant_scale1, ant_scale2)
     else:
         raise ValueError(f"Unknown noise mode '{mode}'. Choose 'sefd' or 'tsys'.")
 

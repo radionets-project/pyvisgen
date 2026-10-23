@@ -7,7 +7,11 @@ import scipy.ndimage
 import torch
 from tqdm.auto import tqdm
 
-from pyvisgen.simulation.noise import generate_noise, get_ant_sefd_scale
+from pyvisgen.simulation.noise import (
+    available_telescopes,
+    generate_noise,
+    get_ant_sefd_scale,
+)
 from pyvisgen.simulation.scan import RIMEScan
 from pyvisgen.utils.batch_size import adaptive_batch_size
 from pyvisgen.utils.logging import setup_logger
@@ -638,10 +642,15 @@ def _batch_loop(
 
     rime = RIMEScan(ft=ft, mode=mode, obs=obs, lm=lm, rd=rd)
 
-    # Per-station SEFD factors (1.0 = nominal), only used for noise_mode="tsys".
-    # obs.ant_sefd_scale takes precedence over the table in the noise config.
+    # Per-station SEFD factors (1.0 = nominal). obs.ant_sefd_scale takes precedence
+    # over the table in the noise config. In "sefd" mode the telescope was never
+    # needed, so the table is only looked up if the telescope has a noise config.
     ant_sefd_scale = getattr(obs, "ant_sefd_scale", None)
-    if ant_sefd_scale is None and noise_level != 0 and noise_mode == "tsys":
+    if (
+        ant_sefd_scale is None
+        and noise_level != 0
+        and (noise_mode == "tsys" or telescope in available_telescopes())
+    ):
         ant_sefd_scale = get_ant_sefd_scale(telescope, band, obs.array.st_name)
 
     for p in batches:
