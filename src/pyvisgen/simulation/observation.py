@@ -992,60 +992,26 @@ class Observation:
         return q
 
     def create_lm_grid(self):
-        """Uniform, SQUARE grid in the direction cosines (l, m):
-        the SIN projection.
+        r"""Creates a uniform, square grid in the direction cosines
+        :math:`(l, m)` (SIN projection) around the phase centre.
 
-        A radio interferometer's image grid is uniform and square in (l, m)
-          -- that is what the
-        SIN convention means, it is what FITS WCS SIN encodes, and it is the
-          frame in which the
-        measurement equation is a plain Fourier transform.  RA/Dec are
-          obtained by INVERTING the
-        projection, which is why this is now built first and `create_rd_grid`
-          derives from it.
+        Returns
+        -------
+        lm_grid : :func:`torch.tensor`
+            Tensor of shape ``(img_size, img_size, 2)``. ``lm_grid[..., 0]``
+            contains :math:`l` and ``lm_grid[..., 1]`` contains :math:`m`
+            for every pixel. :math:`l` varies along the rows (axis 1),
+            :math:`m` along the columns (axis 0). Both are dimensionless
+            and have a constant step of ``fov / img_size`` in radians.
 
-        r = torch.from_numpy(
-            np.arange(
-                start=-(self.img_size / 2) * res,
-                stop=(self.img_size / 2) * res,
-                step=res,
-                dtype=np.float128,
-            ).astype(np.float64)
-        ).to(self.device)
-
-        d = r + dec
-        The previous order (uniform RA/Dec grid, then project to lm) cannot
-          produce square
-        pixels.  Projecting l = cos(Dec) * sin(dRA) over a grid uniform
-          in dRA gives
-
-        # rescale RA-axis with the cosine of the declination
-        r /= torch.cos(dec)
-
-        R, _ = torch.meshgrid((r, r), indexing="xy")
-        _, D = torch.meshgrid((d, d), indexing="xy")
-            l spacing = res * cos(dec0 + dDec) / cos(dec0)
-
-        return torch.cat([R[..., None], D[..., None]], dim=2)
-        so scaling the RA step by 1/cos(dec0) -- a single number at the
-          field centre -- cancels
-        only on the centre row.  Measured at dec = -34.96 over a 17' field,
-          l ran from 1.99652"
-        at one edge to 2.00345" at the other: a +-0.173% gradient,
-          matching the predicted
-        tan(dec0) * dDec = 0.173%, and a cumulative 0.89 px error
-          at the corner.
-
-        That error is invisible INSIDE the simulation, which is
-          self-consistent, but it means
-        the simulated sky is not in the same projection as a real image,
-          as WSClean, or as
-        w-stacking.  Subtracting the exact truth sky after cleaning
-          on square pixels then left a
-        2.116 mJy residual peak where it must leave noise, and
-          a w-stack-fitted model scored
-        BETTER than truth because it had absorbed the operator
-          mismatch.
+        Notes
+        -----
+        The image grid of an interferometer is uniform and square in
+        :math:`(l, m)`. This is the SIN convention encoded by FITS WCS,
+        and the frame in which the measurement equation is a plain
+        Fourier transform. The RA and Dec values of each pixel,
+        :attr:`Observation.rd`, are derived from this grid in
+        :meth:`Observation.create_rd_grid`.
         """
         fov = np.deg2rad(self.fov / 3600, dtype=np.float128)
         res = fov / self.img_size
@@ -1055,21 +1021,43 @@ class Observation:
             step=res,
             dtype=np.float128,
         )[: self.img_size]
-        # indexing="xy": l varies along a ROW (axis 1), m down a COLUMN (axis 0),
-        # which is the layout the previous implementation produced and that
-        # every caller assumes.
         L, M = np.meshgrid(ax, ax, indexing="xy")
         lm_grid = np.stack([L, M], axis=-1).astype(np.float64)
         return torch.from_numpy(lm_grid).to(self.device)
 
     def create_rd_grid(self):
-        """RA offset and Dec per pixel, by inverting the SIN projection of `self.lm`.
+        r"""Calculates RA and Dec values for every pixel of the grid
+        :attr:`Observation.lm` by inverting the SIN projection.
 
-        `obs.rd` is consumed by visibility.py and scan.py, so it must describe
-        exactly the same pixels as `obs.lm`; deriving it here keeps the two
-        consistent by construction. Returns rd[..., 0] = RA offset from the phase
-        centre, rd[..., 1] = absolute Dec, which is the convention the previous
-        implementation returned.
+        Returns
+        -------
+        rd_grid : :func:`torch.tensor`
+            Tensor of shape ``(img_size, img_size, 2)``. ``rd_grid[..., 0]``
+            contains the RA offset from the phase centre and
+            ``rd_grid[..., 1]`` the absolute Dec of each pixel,
+            both in radian.
+
+        Notes
+        -----
+        The pixels are obtained from :attr:`Observation.lm`, which is why
+        :meth:`Observation.create_lm_grid` has to be called first. This
+        ensures that :attr:`Observation.rd` and :attr:`Observation.lm`
+        describe exactly the same pixels. With
+
+        .. math::
+
+            n = \sqrt{1 - l^2 - m^2},
+
+        the inverse of the SIN projection is given by
+
+        .. math::
+
+            \delta = \arcsin\left(m \cos\delta_0
+            + n \sin\delta_0\right), \quad
+            \Delta\alpha = \arctan2\left(l,
+            n \cos\delta_0 - m \sin\delta_0\right),
+
+        where :math:`\delta_0` is the declination of the phase centre.
         """
         d0 = self.dec
         if torch.is_tensor(d0):
