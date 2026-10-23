@@ -1,4 +1,3 @@
-#!/usr/bin/env python3
 import datetime
 import os
 import tomllib
@@ -84,7 +83,7 @@ master_doc = "index"
 project = pyproject["project"]["name"]
 author = pyproject["project"]["authors"][0]["name"]
 copyright = "{}.  Last updated {}".format(
-    author, datetime.datetime.now().strftime("%d %b %Y %H:%M")
+    author, datetime.datetime.now().astimezone().strftime("%d %b %Y %H:%M")
 )
 python_requires = pyproject["project"]["requires-python"]
 

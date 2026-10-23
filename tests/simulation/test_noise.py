@@ -250,7 +250,7 @@ class TestGenerateNoise:
     def test_sefd_mode_no_elevations_required(self, obs, n_baselines: int) -> None:
         """SEFD mode must work without passing elevation tensors."""
         shape = (n_baselines, 1, 2, 2)
-        noise, weights = generate_noise(shape, obs, noise_value=400.0, mode="sefd")
+        noise, _ = generate_noise(shape, obs, noise_value=400.0, mode="sefd")
         assert noise.shape == torch.Size(shape)
 
     @pytest.mark.parametrize(
@@ -335,6 +335,50 @@ class TestGenerateNoise:
         )
         # weights should not all be equal since elevations span a range
         assert not torch.allclose(weights[0], weights[-1])
+
+    @pytest.mark.parametrize("mode", ["sefd", "tsys"])
+    def test_scale_scales_noise_and_weights(
+        self, obs, n_baselines: int, tsys_over_eta: float, mode: str
+    ) -> None:
+        """Scaling the visibilities scales the noise and weights as 1 / scale^2."""
+        shape = (n_baselines, 1, 2, 2)
+        el = torch.linspace(20.0, 80.0, n_baselines)
+        value = 400.0 if mode == "sefd" else tsys_over_eta
+        kwargs = {"noise_value": value, "mode": mode, "el1_deg": el, "el2_deg": el}
+
+        torch.manual_seed(42)
+        noise, weights = generate_noise(shape, obs, **kwargs)
+        torch.manual_seed(42)
+        noise_half, weights_half = generate_noise(shape, obs, scale=0.5, **kwargs)
+
+        torch.testing.assert_close(noise_half, 0.5 * noise)
+        torch.testing.assert_close(weights_half, 4 * weights)
+
+    def test_default_scale_is_one(self, obs, n_baselines: int) -> None:
+        shape = (n_baselines, 1, 2, 2)
+
+        torch.manual_seed(42)
+        noise, weights = generate_noise(shape, obs, noise_value=400.0, mode="sefd")
+        torch.manual_seed(42)
+        noise_one, weights_one = generate_noise(
+            shape, obs, noise_value=400.0, mode="sefd", scale=1.0
+        )
+
+        torch.testing.assert_close(noise_one, noise)
+        torch.testing.assert_close(weights_one, weights)
+
+    def test_noise_std_matches_radiometer_equation(self, obs) -> None:
+        """The std of a real component is the radiometer noise of one XX visibility,
+        and the weights are its inverse variance."""
+        torch.manual_seed(42)
+        shape = (4096, 1, 2, 2)
+        sefd = 400.0
+
+        noise, weights = generate_noise(shape, obs, noise_value=sefd, mode="sefd")
+
+        sigma = compute_noise_std(obs, torch.tensor(sefd)).item()
+        np.testing.assert_allclose(noise.real.std().item(), sigma, rtol=0.05)
+        np.testing.assert_allclose(weights[0, 0].item(), 1 / sigma**2, rtol=1e-6)
 
     def test_noise_mean_near_zero(self, obs) -> None:
         """Real and imaginary parts should have mean ≈ 0 for large sample count."""

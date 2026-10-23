@@ -41,31 +41,31 @@ class TestCreateObservation:
         simulate_dataset.conf = Config.from_toml("tests/test_conf.toml")
 
         # simpler sample options for test
-        simulate_dataset.samp_opts = dict(
-            src_ra=torch.tensor([180.0]),
-            src_dec=torch.tensor([45.0]),
-            start_time=np.array([datetime(2025, 1, 1, 12)]).astype(datetime),
-            scan_duration=torch.tensor([60]),
-            num_scans=torch.tensor([2]),
-            delta=torch.tensor([90]),
-            amp_ratio=torch.tensor([0.5]),
-            order=torch.tensor([0.5, 0.5]),
-            scale=torch.tensor([0.5, 1.0]),
-            threshold=None,
-        )
+        simulate_dataset.samp_opts = {
+            "src_ra": torch.tensor([180.0]),
+            "src_dec": torch.tensor([45.0]),
+            "start_time": np.array([datetime(2025, 1, 1, 12)]).astype(datetime),  # noqa: DTZ001
+            "scan_duration": torch.tensor([60]),
+            "num_scans": torch.tensor([2]),
+            "delta": torch.tensor([90]),
+            "amp_ratio": torch.tensor([0.5]),
+            "order": torch.tensor([0.5, 0.5]),
+            "scale": torch.tensor([0.5, 1.0]),
+            "threshold": None,
+        }
 
-        simulate_dataset.samp_opts_const = dict(
-            array_layout="vlba",
-            image_size=128,
-            fov=0.14,
-            integration_time=10.0,
-            scan_separation=4500,
-            ref_frequency=15e9,
-            frequency_offsets=[0.0],
-            bandwidths=[1.28e8],
-            corrupted=False,
-            polarization=None,
-        )
+        simulate_dataset.samp_opts_const = {
+            "array_layout": "vlba",
+            "image_size": 128,
+            "fov": 0.14,
+            "integration_time": 10.0,
+            "scan_separation": 4500,
+            "ref_frequency": 15e9,
+            "frequency_offsets": [0.0],
+            "bandwidths": [1.28e8],
+            "corrupted": False,
+            "polarization": None,
+        }
 
         return simulate_dataset
 
@@ -276,7 +276,7 @@ class TestDrawSamplingOpts:
         size = 5
         samp_opts = sd_sampling.draw_sampling_opts(size)
 
-        expected = datetime.strptime(date_str, DATEFMT)
+        expected = datetime.strptime(date_str, DATEFMT)  # noqa: DTZ007
         assert samp_opts["start_time"].shape == (size,)
         assert all(t == expected for t in samp_opts["start_time"])
 
@@ -523,6 +523,8 @@ class TestRun:
 
         assert mock_gridder.called
         assert mock_writer.called
+        # the default is the standard convention, so the visibilities are not scaled
+        assert mock_gridder.call_args.kwargs["normalized"] is False
 
         if amp_phase:
             assert mock_convert_amp_phase.called
@@ -532,6 +534,27 @@ class TestRun:
             assert not mock_convert_amp_phase.called
 
         assert "Successfully simulated and saved" in caplog.text
+
+    @pytest.mark.parametrize("normalize", [True, False])
+    def test_grid_passes_normalize(
+        self, normalize: bool, mocker, sd_run: SimulateDataSet
+    ) -> None:
+        """The gridder has to know whether the visibilities were halved."""
+        sd_run.grid = True
+        sd_run.stokes_comp = "I"
+        sd_run.conf.bundle.amp_phase = False
+        sd_run.conf.sampling.normalize = normalize
+
+        mock_gridder = mocker.patch.object(sd_run.gridder, "from_pyvisgen")
+        mocker.patch.object(sd_run.writer, "write")
+        mocker.patch(
+            "pyvisgen.dataset.dataset.convert_real_imag",
+            return_value=torch.zeros((10, 2, 32, 32)),
+        )
+
+        sd_run._run()
+
+        assert mock_gridder.call_args.kwargs["normalized"] is normalize
 
     @pytest.mark.parametrize("amp_phase", [True, False])
     def test_grid_raise_wrong_shape(
@@ -592,3 +615,30 @@ class TestRun:
             dataset_type=sd_run.conf.bundle.dataset_type,
         )
         assert mock_fits_instance.write.called
+
+    def test_fits_files_are_not_overwritten(
+        self, mocker, tmp_path, sd_run: SimulateDataSet
+    ) -> None:
+        """Every simulated sample gets its own FITS file, and the index is the
+        same as the one of the main writer."""
+        sd_run.grid = False
+        sd_run.stokes_comp = "I"
+        sd_run.conf.bundle.fits_out_path = tmp_path / "fits_out"
+
+        mock_writer_write = mocker.patch.object(sd_run.writer, "write")
+        mock_fits_cls = mocker.patch("pyvisgen.io.datawriters.FITSWriter")
+
+        sd_run._run()
+
+        fits_indices = [
+            call.kwargs["index"]
+            for call in mock_fits_cls.return_value.write.call_args_list
+        ]
+        writer_indices = [
+            call.kwargs["index"] for call in mock_writer_write.call_args_list
+        ]
+
+        # 2 bundles with 10 images each
+        assert len(fits_indices) == 20
+        assert len(set(fits_indices)) == 20
+        assert fits_indices == writer_indices

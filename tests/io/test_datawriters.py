@@ -394,6 +394,25 @@ class TestFITSWriter:
         # missing vis_data and obs here
         assert mock_create_hdu_list.called
 
+    @pytest.mark.parametrize("normalize", [True, False])
+    def test_write_passes_normalize(
+        self, output_dir: Path, mocker, normalize: bool
+    ) -> None:
+        mock_create_hdu_list = mocker.patch("pyvisgen.io.datawriters.create_hdu_list")
+
+        writer = FITSWriter(output_path=output_dir, dataset_type="train")
+        writer.write(None, None, index=0, normalize=normalize)
+
+        assert mock_create_hdu_list.call_args.kwargs["normalize"] is normalize
+
+    def test_write_normalize_default(self, output_dir: Path, mocker) -> None:
+        mock_create_hdu_list = mocker.patch("pyvisgen.io.datawriters.create_hdu_list")
+
+        writer = FITSWriter(output_path=output_dir, dataset_type="train")
+        writer.write(None, None, index=0)
+
+        assert mock_create_hdu_list.call_args.kwargs["normalize"] is False
+
 
 class TestWriterABC:
     @pytest.fixture

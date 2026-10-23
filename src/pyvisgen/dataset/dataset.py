@@ -100,90 +100,91 @@ class SimulateDataSet:
             sampling and testing phase. If -1 or ``'all'``,
             use all available cores. Default: 1
         """
-        cls = cls()
-        cls.conf = config
-        cls.key = image_key
-        cls.grid = grid
-        cls.slurm = slurm
-        cls.job_id = slurm_job_id
-        cls.n = slurm_n
-        cls.date_fmt = date_fmt
-        cls.num_images = num_images
-        cls.multiprocess = multiprocess
-        cls.stokes_comp = stokes
+        instance = cls()
+        instance.conf = config
+        instance.key = image_key
+        instance.grid = grid
+        instance.slurm = slurm
+        instance.job_id = slurm_job_id
+        instance.n = slurm_n
+        instance.date_fmt = date_fmt
+        instance.num_images = num_images
+        instance.multiprocess = multiprocess
+        instance.stokes_comp = stokes
 
         if multiprocess in ["all"]:
-            cls.multiprocess = -1
+            instance.multiprocess = -1
 
         if isinstance(config, (str, Path)):
-            cls.conf = Config.from_toml(config)
+            instance.conf = Config.from_toml(config)
         elif isinstance(config, Config):
-            cls.conf = config
+            instance.conf = config
         elif isinstance(config, dict):
-            cls.conf = Config.model_validate(config)
+            instance.conf = Config.model_validate(config)
         else:
-            raise ValueError(
+            # ValueError is part of the public behaviour (see tests), so keep it
+            raise ValueError(  # noqa: TRY004
                 "Expected config to be one of str, Path, dict, or pyvisgen.io.Config!"
             )
 
         LOGGER.info("Simulation Config:")
-        LOGGER.info(pretty_repr(cls.conf))
+        LOGGER.info(pretty_repr(instance.conf))
 
-        cls.device = cls.conf.sampling.device
-        cls.out_path = Path(cls.conf.bundle.out_path)
+        instance.device = instance.conf.sampling.device
+        instance.out_path = Path(instance.conf.bundle.out_path)
 
-        if not cls.out_path.is_dir():
-            cls.out_path.mkdir(parents=True)
+        if not instance.out_path.is_dir():
+            instance.out_path.mkdir(parents=True)
 
-        cls.data_paths = load_bundles(
-            cls.conf.bundle.in_path, dataset_type=cls.conf.bundle.dataset_type
+        instance.data_paths = load_bundles(
+            instance.conf.bundle.in_path, dataset_type=instance.conf.bundle.dataset_type
         )
 
-        if cls.grid:
-            cls.gridder = cls._get_gridder()
+        if instance.grid:
+            instance.gridder = instance._get_gridder()
 
-        cls.overall_task_id = overall_progress.add_task(
-            f"Simulating {cls.conf.bundle.dataset_type} dataset", total=3
+        instance.overall_task_id = overall_progress.add_task(
+            f"Simulating {instance.conf.bundle.dataset_type} dataset", total=3
         )
 
         with Live(progress_group):
-            if cls.num_images is None:
+            if instance.num_images is None:
                 # get number of random parameter draws from number of images in data
                 counting_task_id = counting_progress.add_task(
-                    "", total=len(cls.data_paths)
+                    "", total=len(instance.data_paths)
                 )
 
                 num_images_list = []
-                for bundle_id in range(len(cls.data_paths)):
-                    num_images_list.append(len(cls.get_images(bundle_id)))
+                for bundle_id in range(len(instance.data_paths)):
+                    num_images_list.append(len(instance.get_images(bundle_id)))
                     counting_progress.update(counting_task_id, advance=1)
 
-                cls.num_images = int(np.sum(num_images_list))
-                overall_progress.update(cls.overall_task_id, advance=1)
+                instance.num_images = int(np.sum(num_images_list))
+                overall_progress.update(instance.overall_task_id, advance=1)
 
-            if cls.num_images == 0:
+            if instance.num_images == 0:
                 raise ValueError(
                     "No images found in bundles! Please check your input path!"
                 )
 
         with (
             Live(progress_group),
-            cls.conf.datawriter.writer(
-                output_path=cls.out_path,
-                dataset_type=cls.conf.bundle.dataset_type,
-                total_samples=cls.num_images,
-                amp_phase=cls.conf.bundle.amp_phase,
-                **cls.conf.datawriter.model_dump(),
-            ) as cls.writer,
+            instance.conf.datawriter.writer(
+                output_path=instance.out_path,
+                dataset_type=instance.conf.bundle.dataset_type,
+                total_samples=instance.num_images,
+                amp_phase=instance.conf.bundle.amp_phase,
+                **instance.conf.datawriter.model_dump(),
+            ) as instance.writer,
         ):
             if slurm:  # pragma: no cover
-                cls._run_slurm()
+                instance._run_slurm()
             else:
                 # draw parameters beforehand, i.e. outside the simulation loop
-                cls.create_sampling_rc(cls.num_images)
-                cls._run()
+                instance.create_sampling_rc(instance.num_images)
+                instance._run()
 
-        return cls
+        return instance
 
     def _run(self) -> None:
         """Runs the simulation and saves visibility data using the
@@ -232,6 +233,7 @@ class SimulateDataSet:
                         fov=self.conf.bundle.grid_fov,
                         stokes_components=self.stokes_comp,
                         polarizations=self.conf.polarization.mode,
+                        normalized=self.conf.sampling.normalize,
                     ).grid()
 
                     sim_data.append(np.array(grid_data.get_mask_real_imag()))
@@ -276,7 +278,13 @@ class SimulateDataSet:
                     )
 
                     if fits_writer is not None:
-                        fits_writer.write(vis_data, obs, index=i, overwrite=True)
+                        fits_writer.write(
+                            vis_data,
+                            obs,
+                            index=i * bundle_length + j,
+                            overwrite=True,
+                            normalize=self.conf.sampling.normalize,
+                        )
 
                 path_msg = self.conf.bundle.out_path / Path(
                     f"samp_{self.conf.bundle.dataset_type}_<id>.fits"
@@ -370,17 +378,17 @@ class SimulateDataSet:
 
         # put the respective values inside the
         # pol_kwargs and field_kwargs dicts.
-        pol_kwargs = dict(
-            delta=rc["delta"][i],
-            amp_ratio=rc["amp_ratio"][i],
-            random_state=self.conf.sampling.seed,
-        )
-        field_kwargs = dict(
-            order=rc["order"][i],
-            scale=rc["scale"][i],
-            threshold=rc["threshold"],
-            random_state=self.conf.sampling.seed,
-        )
+        pol_kwargs = {
+            "delta": rc["delta"][i],
+            "amp_ratio": rc["amp_ratio"][i],
+            "random_state": self.conf.sampling.seed,
+        }
+        field_kwargs = {
+            "order": rc["order"][i],
+            "scale": rc["scale"][i],
+            "threshold": rc["threshold"],
+            "random_state": self.conf.sampling.seed,
+        }
 
         dense = False
         if self.conf.sampling.mode == "dense":
@@ -424,20 +432,20 @@ class SimulateDataSet:
         # Split sampling options into two dicts:
         # samps_ops_const is always the same, values in
         # samps_ops, however, will be drawn randomly.
-        self.samp_opts_const = dict(
-            array_layout=self.conf.sampling.layout,
-            image_size=self.conf.sampling.img_size,
-            fov=self.conf.sampling.fov_size,
-            integration_time=self.conf.sampling.corr_int_time,
-            scan_separation=self.conf.sampling.scan_separation,
-            ref_frequency=self.conf.sampling.ref_frequency,
-            frequency_offsets=self.conf.sampling.frequency_offsets,
-            bandwidths=self.conf.sampling.bandwidths,
-            corrupted=self.conf.sampling.corrupted,
-            device=self.conf.sampling.device,
-            sensitivity_cut=self.conf.sampling.sensitivity_cut,
-            polarization=self.conf.polarization.mode,
-        )  # NOTE: scan_separation and integration_time may change in the future
+        self.samp_opts_const = {
+            "array_layout": self.conf.sampling.layout,
+            "image_size": self.conf.sampling.img_size,
+            "fov": self.conf.sampling.fov_size,
+            "integration_time": self.conf.sampling.corr_int_time,
+            "scan_separation": self.conf.sampling.scan_separation,
+            "ref_frequency": self.conf.sampling.ref_frequency,
+            "frequency_offsets": self.conf.sampling.frequency_offsets,
+            "bandwidths": self.conf.sampling.bandwidths,
+            "corrupted": self.conf.sampling.corrupted,
+            "device": self.conf.sampling.device,
+            "sensitivity_cut": self.conf.sampling.sensitivity_cut,
+            "polarization": self.conf.polarization.mode,
+        }  # NOTE: scan_separation and integration_time may change in the future
 
         # get second half of the sampling options;
         # this is the randomly drawn, i.e. non-constant, part
@@ -486,13 +494,14 @@ class SimulateDataSet:
             else self.rng.uniform(dec_cfg[0], dec_cfg[1], size)
         )
 
-        start_time_l = datetime.strptime(
+        # naive datetimes are intended: they are interpreted as UTC downstream
+        start_time_l = datetime.strptime(  # noqa: DTZ007
             self.conf.sampling.scan_start[0], self.date_fmt
         )
         if len(self.conf.sampling.scan_start) == 1:
             scan_start = np.full(size, start_time_l)
         else:
-            start_time_h = datetime.strptime(
+            start_time_h = datetime.strptime(  # noqa: DTZ007
                 self.conf.sampling.scan_start[1], self.date_fmt
             )
             start_times = np.arange(
@@ -549,18 +558,18 @@ class SimulateDataSet:
                 b = np.repeat(1, size)
                 field_scale = np.stack((a, b), axis=1)
 
-        samp_opts = dict(
-            src_ra=torch.from_numpy(ra).to(self.device),
-            src_dec=torch.from_numpy(dec).to(self.device),
-            start_time=scan_start,
-            scan_duration=torch.from_numpy(scan_duration).to(self.device),
-            num_scans=torch.from_numpy(num_scans).to(self.device),
-            delta=torch.from_numpy(delta).to(self.device),
-            amp_ratio=torch.from_numpy(amp_ratio).to(self.device),
-            order=torch.from_numpy(field_order).to(self.device),
-            scale=torch.from_numpy(field_scale).to(self.device),
-            threshold=self.conf.polarization.field_threshold,
-        )
+        samp_opts = {
+            "src_ra": torch.from_numpy(ra).to(self.device),
+            "src_dec": torch.from_numpy(dec).to(self.device),
+            "start_time": scan_start,
+            "scan_duration": torch.from_numpy(scan_duration).to(self.device),
+            "num_scans": torch.from_numpy(num_scans).to(self.device),
+            "delta": torch.from_numpy(delta).to(self.device),
+            "amp_ratio": torch.from_numpy(amp_ratio).to(self.device),
+            "order": torch.from_numpy(field_order).to(self.device),
+            "scale": torch.from_numpy(field_scale).to(self.device),
+            "threshold": self.conf.polarization.field_threshold,
+        }
         # NOTE: We don't need to draw random values for threshold
         # as threshold=None should be suitable for almost all cases.
         # However, since threshold has to be in the field_kwargs dict
