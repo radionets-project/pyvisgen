@@ -250,7 +250,7 @@ class TestGenerateNoise:
     def test_sefd_mode_no_elevations_required(self, obs, n_baselines: int) -> None:
         """SEFD mode must work without passing elevation tensors."""
         shape = (n_baselines, 1, 2, 2)
-        noise, weights = generate_noise(shape, obs, noise_value=400.0, mode="sefd")
+        noise, _ = generate_noise(shape, obs, noise_value=400.0, mode="sefd")
         assert noise.shape == torch.Size(shape)
 
     @pytest.mark.parametrize(
