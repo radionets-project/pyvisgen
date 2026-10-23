@@ -271,6 +271,8 @@ class TestPolarization:
 
         if isinstance(shape, int):
             shape = [shape, shape]
+        if isinstance(shape, tuple) and len(shape) < 2:
+            shape *= 2  # Extend tuple shape for assertion
 
         assert im.shape == torch.Size(shape)
 
