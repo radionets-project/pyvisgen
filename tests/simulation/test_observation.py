@@ -216,6 +216,55 @@ class TestObservation:
 
         assert len(obs.scans) == 2
 
+    def test_ant_sefd_scale_default_is_none(self, obs: Observation) -> None:
+        assert obs.ant_sefd_scale is None
+
+    def test_ant_sefd_scale_array_like(self, obs_params: dict) -> None:
+        n_st = len(Observation(**obs_params).array.st_name)
+        values = np.linspace(0.8, 1.3, n_st)
+
+        obs = Observation(**{**obs_params, "ant_sefd_scale": list(values)})
+
+        assert isinstance(obs.ant_sefd_scale, torch.Tensor)
+        assert obs.ant_sefd_scale.dtype == torch.float64
+        torch.testing.assert_close(
+            obs.ant_sefd_scale, torch.tensor(values, dtype=torch.float64)
+        )
+
+    def test_ant_sefd_scale_dict(self, obs_params: dict) -> None:
+        names = [str(n) for n in Observation(**obs_params).array.st_name]
+
+        obs = Observation(
+            **{**obs_params, "ant_sefd_scale": {names[1]: 1.5, names[-1]: 0.8}}
+        )
+
+        expected = torch.ones(len(names), dtype=torch.float64)
+        expected[1] = 1.5
+        expected[-1] = 0.8
+        torch.testing.assert_close(obs.ant_sefd_scale, expected)
+
+    def test_ant_sefd_scale_unknown_station_raises(self, obs_params: dict) -> None:
+        with pytest.raises(ValueError, match="not part of the array") as excinfo:
+            Observation(**{**obs_params, "ant_sefd_scale": {"not_a_station": 1.2}})
+
+        assert "not_a_station" in str(excinfo.value)
+
+    @pytest.mark.parametrize("n_values", [1, 3])
+    def test_ant_sefd_scale_wrong_length_raises(
+        self, obs_params: dict, n_values: int
+    ) -> None:
+        with pytest.raises(ValueError, match="one value per station"):
+            Observation(**{**obs_params, "ant_sefd_scale": [1.0] * n_values})
+
+    @pytest.mark.parametrize("bad", [0.0, -1.0, float("inf"), float("nan")])
+    def test_ant_sefd_scale_invalid_values_raise(
+        self, obs_params: dict, bad: float
+    ) -> None:
+        names = [str(n) for n in Observation(**obs_params).array.st_name]
+
+        with pytest.raises(ValueError, match="finite, positive"):
+            Observation(**{**obs_params, "ant_sefd_scale": {names[0]: bad}})
+
     def test_create_lm_grid(self, obs: Observation, device) -> None:
         img_size = obs.img_size
 

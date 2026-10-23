@@ -7,7 +7,11 @@ import scipy.ndimage
 import torch
 from tqdm.auto import tqdm
 
-from pyvisgen.simulation.noise import generate_noise
+from pyvisgen.simulation.noise import (
+    available_telescopes,
+    generate_noise,
+    get_ant_sefd_scale,
+)
 from pyvisgen.simulation.scan import RIMEScan
 from pyvisgen.utils.batch_size import adaptive_batch_size
 from pyvisgen.utils.logging import setup_logger
@@ -445,8 +449,13 @@ def vis_loop(
         ``'tsys'``: elevation-dependent noise from system temperature.
         Default: ``'sefd'``
     telescope : str, optional
-        Telescope name for elevation-dependent Tsys corrections.
-        Only used when ``noise_mode='tsys'``. Default: ``'meerkat'``
+        Telescope name of the noise config. It provides the elevation-dependent
+        Tsys corrections for ``noise_mode='tsys'`` and, in both modes, the optional
+        per-station SEFD factors (``ant_scale``). In ``'sefd'`` mode it is ignored
+        if the telescope has no noise config. Default: ``'meerkat'``
+    band : str, optional
+        Frequency band of the noise config. If ``None``, the first band of the
+        config is used. Default: ``None``
     mode : str, optional
         Select one of `'full'`, `'grid'`, or `'dense'` to get
         all valid baselines, a grid of unique baselines, or
@@ -638,6 +647,18 @@ def _batch_loop(
 
     rime = RIMEScan(ft=ft, mode=mode, obs=obs, lm=lm, rd=rd)
 
+    # Per-station SEFD factors (1.0 = nominal). obs.ant_sefd_scale, set when creating
+    # the Observation, takes precedence over the table in the noise config. In "sefd"
+    # mode the telescope was never needed, so the table is only looked up if the
+    # telescope has a noise config.
+    ant_sefd_scale = getattr(obs, "ant_sefd_scale", None)
+    if (
+        ant_sefd_scale is None
+        and noise_level != 0
+        and (noise_mode == "tsys" or telescope in available_telescopes())
+    ):
+        ant_sefd_scale = get_ant_sefd_scale(telescope, band, obs.array.st_name)
+
     for p in batches:
         bas_p = bas[p]
 
@@ -663,6 +684,14 @@ def _batch_loop(
         int_values = int_values[~int_values_nans]
 
         if noise_level != 0:
+            if ant_sefd_scale is None:
+                ant_scale1 = ant_scale2 = None
+            else:
+                sc = ant_sefd_scale.to(bas_p.st_id_pairs.device)
+                st = bas_p.st_id_pairs.long()  # station ids may be float
+                ant_scale1 = sc[st[:, 0]]
+                ant_scale2 = sc[st[:, 1]]
+
             noise, weights = generate_noise(
                 int_values.shape,
                 obs,
@@ -672,6 +701,8 @@ def _batch_loop(
                 el2_deg=bas_p.el2_valid,
                 telescope=telescope,
                 band=band,
+                ant_scale1=ant_scale1,
+                ant_scale2=ant_scale2,
             )
             int_values += noise
         else:

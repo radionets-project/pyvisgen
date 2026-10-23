@@ -1,3 +1,4 @@
+from collections.abc import Mapping
 from dataclasses import dataclass, fields
 from datetime import datetime
 
@@ -347,7 +348,7 @@ class ValidBaselineSubset:
 
         indices_bucket = torch.bucketize(uv, bins)
         indices_bucket_sort = self._lexsort(indices_bucket)
-        indices_unique, indices_unique_inv, counts = torch.unique_consecutive(
+        _, indices_unique_inv, counts = torch.unique_consecutive(
             indices_bucket[:, indices_bucket_sort],
             dim=1,
             return_inverse=True,
@@ -378,7 +379,7 @@ class ValidBaselineSubset:
         assert dim == -1  # Transpose if you want differently
         assert a.ndim == 2  # Not sure what is numpy behaviour with > 2 dim
         # To be consistent with numpy, we flip the keys (sort by last row first)
-        a_unq, inv = torch.unique(a.flip(0), dim=dim, sorted=True, return_inverse=True)
+        _, inv = torch.unique(a.flip(0), dim=dim, sorted=True, return_inverse=True)
 
         return torch.argsort(inv)
 
@@ -553,6 +554,7 @@ class Observation:
         pol_kwargs: dict = DEFAULT_POL_KWARGS,
         field_kwargs: dict = DEFAULT_FIELD_KWARGS,
         show_progress: bool = False,
+        ant_sefd_scale: dict[str, float] | np.typing.ArrayLike | None = None,
     ) -> None:
         """Sets up the observation class.
 
@@ -612,6 +614,13 @@ class Observation:
         show_progress : bool, optional
             If ``True``, show a progress bar during the iteration over the
             scans. Default: ``False``
+        ant_sefd_scale : dict or ArrayLike, optional
+            Relative SEFD of each station, where ``1.0`` is the nominal SEFD.
+            Either one value per station in the order of the stations in
+            :attr:`Observation.array`, or a dict that maps station names to
+            values, in which case stations that are not listed keep ``1.0``.
+            If given, it takes precedence over the ``ant_scale`` table of the
+            noise config of the telescope. Default: ``None``
 
         Notes
         -----
@@ -657,6 +666,7 @@ class Observation:
 
         self.layout = array_layout
         self.array = layouts.get_array_layout(array_layout)
+        self.ant_sefd_scale = self._create_ant_sefd_scale(ant_sefd_scale)
         self.array_earth_loc = EarthLocation.from_geocentric(
             self.array.x, self.array.y, self.array.z, unit=un.m
         )
@@ -1031,6 +1041,59 @@ class Observation:
         _, D = torch.meshgrid((d, d), indexing="xy")
 
         return torch.cat([R[..., None], D[..., None]], dim=2)
+
+    def _create_ant_sefd_scale(
+        self, ant_sefd_scale: dict[str, float] | np.typing.ArrayLike | None
+    ) -> torch.Tensor | None:
+        """Converts and validates the per-station SEFD factors.
+
+        Parameters
+        ----------
+        ant_sefd_scale : dict or ArrayLike or None
+            One value per station, or a dict that maps station names to values.
+
+        Returns
+        -------
+        torch.Tensor or None
+            One factor per station in the order of :attr:`Observation.array`,
+            or ``None`` if ``ant_sefd_scale`` is ``None``.
+
+        Raises
+        ------
+        ValueError
+            If a dict contains station names that are not part of the array, if the
+            number of values does not match the number of stations, or if a value
+            is not finite and positive.
+        """
+        if ant_sefd_scale is None:
+            return None
+
+        st_names = [str(name) for name in self.array.st_name]
+
+        if isinstance(ant_sefd_scale, Mapping):
+            by_name = {str(name): value for name, value in ant_sefd_scale.items()}
+            unknown = sorted(set(by_name) - set(st_names))
+            if unknown:
+                raise ValueError(
+                    f"ant_sefd_scale contains stations that are not part of "
+                    f"the array '{self.layout}': {unknown}"
+                )
+            scale = torch.tensor(
+                [float(by_name.get(name, 1.0)) for name in st_names],
+                dtype=torch.float64,
+            )
+        else:
+            scale = torch.as_tensor(ant_sefd_scale, dtype=torch.float64)
+            if scale.shape != (len(st_names),):
+                raise ValueError(
+                    f"Expected ant_sefd_scale to have one value per station, i.e. "
+                    f"shape ({len(st_names)},), got {tuple(scale.shape)}."
+                )
+
+        if not (torch.isfinite(scale).all() and (scale > 0).all()):
+            raise ValueError("ant_sefd_scale must contain finite, positive values.")
+
+        return scale
 
     def create_lm_grid(self):
         """Calculates sine projection for fov
