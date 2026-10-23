@@ -65,7 +65,6 @@ class RIMEScan:
         self.ft_func = getattr(self, ft)
         self.polarization = obs.polarization
         self.corrupted = obs.corrupted
-        self.ra = obs.ra
         self.dec = obs.dec
         self.ant_diam = torch.unique(obs.array.diam)
         self.lm = lm
@@ -154,7 +153,6 @@ class RIMEScan:
                 X1,
                 X2,
                 self.rd,
-                self.ra,
                 self.dec,
                 self.ant_diam,
                 spw_low,
@@ -204,7 +202,6 @@ class RIMEScan:
                 X1,
                 X2,
                 self.rd,
-                self.ra,
                 self.dec,
                 self.ant_diam,
                 spw_low,
@@ -260,7 +257,6 @@ class RIMEScan:
                 X1,
                 X2,
                 self.rd,
-                self.ra,
                 self.dec,
                 self.ant_diam,
                 spw_low,
@@ -492,7 +488,6 @@ def calc_beam(
     X1: torch.Tensor,
     X2: torch.Tensor,
     rd: torch.Tensor,
-    ra: float | torch.Tensor,
     dec: float | torch.Tensor,
     ant_diam: torch.Tensor,
     spw_low: float | torch.Tensor,
@@ -505,7 +500,6 @@ def calc_beam(
     X1 : :func:`~torch.tensor`
     X2 : :func:`~torch.tensor`
     rd : :func:`~torch.tensor`
-    ra : float
     dec : float
     ant_diam : :func:`~torch.tensor`
     spw_low :  float
@@ -573,6 +567,7 @@ def angular_distance(rd: torch.Tensor, dec: torch.Tensor):
     The source position is assumed to be the phase centre.
     """
     dec0 = torch.deg2rad(dec.to(rd.device))
+    # rd[..., 0] is the RA *offset* from the phase centre, not an absolute RA
     ra = rd[..., 0]
     dec_pix = rd[..., 1]
     sin_half = torch.sqrt(
