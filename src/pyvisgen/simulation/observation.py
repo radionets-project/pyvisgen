@@ -129,6 +129,17 @@ class Baselines:
 
         mask = (bas_reshaped.valid[:-1].bool()) & (bas_reshaped.valid[1:].bool())
 
+        # The baselines of all scans are stacked along the time axis. An integration
+        # window spans two consecutive time steps, so the window between the last
+        # time step of one scan and the first of the next one does not belong to
+        # any measurement and has to be removed.
+        scan_lengths = getattr(self, "scan_lengths", None)
+        if scan_lengths is not None:
+            first_step_of_next_scan = torch.cumsum(torch.tensor(scan_lengths), dim=0)[
+                :-1
+            ]
+            mask[first_step_of_next_scan - 1] = False
+
         stations_1 = bas_reshaped.st1[:-1][mask].ravel()
         stations_2 = bas_reshaped.st2[:-1][mask].ravel()
         baseline_nums = (256 * (stations_1 + 1) + stations_2 + 1).to(device)
@@ -347,7 +358,7 @@ class ValidBaselineSubset:
 
         indices_bucket = torch.bucketize(uv, bins)
         indices_bucket_sort = self._lexsort(indices_bucket)
-        indices_unique, indices_unique_inv, counts = torch.unique_consecutive(
+        _, indices_unique_inv, counts = torch.unique_consecutive(
             indices_bucket[:, indices_bucket_sort],
             dim=1,
             return_inverse=True,
@@ -378,7 +389,7 @@ class ValidBaselineSubset:
         assert dim == -1  # Transpose if you want differently
         assert a.ndim == 2  # Not sure what is numpy behaviour with > 2 dim
         # To be consistent with numpy, we flip the keys (sort by last row first)
-        a_unq, inv = torch.unique(a.flip(0), dim=dim, sorted=True, return_inverse=True)
+        _, inv = torch.unique(a.flip(0), dim=dim, sorted=True, return_inverse=True)
 
         return torch.argsort(inv)
 
@@ -433,15 +444,24 @@ class Scan:
         """
         Get the number of time steps in the scan.
 
+        The time steps are spaced by the integration time and the last one is
+        the stop time of the scan, so that the whole scan is covered. If the
+        duration of the scan is not divisible by the integration time, the
+        last interval is shorter than the integration time.
+
         Returns
         -------
 
         num_timesteps: int
 
         """
-        return int(
-            ((self.stop - self.start).to(un.second) // self.integration_time).value + 1
-        )
+        duration = (self.stop - self.start).to(un.second)
+        # The tolerance absorbs rounding errors in the time difference, e.g.
+        # 359.99999999999875 s for a 360 s scan, which would otherwise be
+        # treated as a scan that is not covered completely.
+        num_intervals = np.ceil((duration / self.integration_time).value - 1e-9)
+
+        return int(num_intervals) + 1
 
     def get_timesteps(self):
         """
@@ -459,6 +479,68 @@ class Scan:
                 for i in range(self.get_num_timesteps())
             ]
         )
+
+
+def create_scans(
+    start: Time,
+    scan_duration: int | np.typing.ArrayLike,
+    num_scans: int,
+    scan_separation: int | np.typing.ArrayLike,
+    integration_time: int | np.typing.ArrayLike,
+) -> list[Scan]:
+    """Calculates the individual scans of an observation.
+
+    The first scan starts at ``start``. Every following scan starts after the
+    end of the previous scan plus the scan separation.
+
+    Parameters
+    ----------
+    start : :class:`~astropy.time.Time`
+        Start time of the first scan.
+    scan_duration : int or ArrayLike
+        Scan duration or array of scan durations in seconds
+        with size=num_scans.
+    num_scans : int
+        Number of scans.
+    scan_separation : int or ArrayLike
+        Scan separation or array of scan separations in seconds
+        with size=num_scans - 1.
+    integration_time : int or ArrayLike
+        Integration time or array of integration times in seconds
+        with size=num_scans.
+
+    Returns
+    -------
+    list[Scan]
+        List of scans with a specific start, stop and integration time.
+    """
+    scans = []
+
+    def _as_array(arr, size: int):
+        if np.isscalar(arr):
+            return np.ones(size) * arr
+        else:
+            return np.asarray(arr)
+
+    current_time = start
+
+    scan_duration = _as_array(scan_duration, size=num_scans)
+    scan_separation = np.append(_as_array(scan_separation, size=num_scans - 1), 0)
+    int_time = _as_array(integration_time, size=num_scans)
+
+    for i in range(num_scans):
+        scans.append(
+            Scan(
+                start=current_time,
+                stop=current_time + scan_duration[i] * un.second,
+                integration_time=int_time[i] * un.second,
+                separation=scan_separation[i] * un.second,
+            )
+        )
+
+        current_time = scans[-1].stop + scans[-1].separation
+
+    return scans
 
 
 class Observation:
@@ -694,36 +776,18 @@ class Observation:
         -------
         list[Scan]:
             List of scans with a specific start, stop and integration time
+
+        See Also
+        --------
+        create_scans : Function that is used to calculate the scans.
         """
-        scans = []
-
-        def _as_array(arr, size: int):
-            if np.isscalar(arr):
-                return np.ones(size) * arr
-            else:
-                return np.asarray(arr)
-
-        current_time = self.start
-
-        scan_duration = _as_array(self.scan_duration, size=self.num_scans)
-        scan_separation = np.append(
-            _as_array(self.scan_separation, size=self.num_scans - 1), 0
+        return create_scans(
+            start=self.start,
+            scan_duration=self.scan_duration,
+            num_scans=self.num_scans,
+            scan_separation=self.scan_separation,
+            integration_time=self.int_time,
         )
-        int_time = _as_array(self.int_time, size=self.num_scans)
-
-        for i in range(self.num_scans):
-            scans.append(
-                Scan(
-                    start=current_time,
-                    stop=current_time + scan_duration[i] * un.second,
-                    integration_time=int_time[i] * un.second,
-                    separation=scan_separation[i] * un.second,
-                )
-            )
-
-            current_time = scans[-1].stop + scans[-1].separation
-
-        return scans
 
     def calc_dense_baselines(self):
         """Calculates the baselines of a densely-built
@@ -797,13 +861,21 @@ class Observation:
             torch.tensor([]),  # el2
         )
 
+        scan_lengths = []
+
         for scan in tqdm(
             self.scans,
             disable=not self.show_progress,
             desc="Computing baselines",
         ):
-            bas = self.get_baselines(scan.get_timesteps())
+            timesteps = scan.get_timesteps()
+            bas = self.get_baselines(timesteps)
             self.baselines.add_baseline(bas)
+            scan_lengths.append(len(timesteps))
+
+        # Number of time steps per scan. Not a dataclass field, since the fields
+        # are concatenated and reshaped, see Baselines.get_valid_subset.
+        self.baselines.scan_lengths = scan_lengths
 
     def get_baselines(self, times):
         """Calculates baselines from source coordinates
