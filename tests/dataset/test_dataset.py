@@ -523,6 +523,8 @@ class TestRun:
 
         assert mock_gridder.called
         assert mock_writer.called
+        # the default is the standard convention, so the visibilities are not scaled
+        assert mock_gridder.call_args.kwargs["normalized"] is False
 
         if amp_phase:
             assert mock_convert_amp_phase.called
@@ -532,6 +534,27 @@ class TestRun:
             assert not mock_convert_amp_phase.called
 
         assert "Successfully simulated and saved" in caplog.text
+
+    @pytest.mark.parametrize("normalize", [True, False])
+    def test_grid_passes_normalize(
+        self, normalize: bool, mocker, sd_run: SimulateDataSet
+    ) -> None:
+        """The gridder has to know whether the visibilities were halved."""
+        sd_run.grid = True
+        sd_run.stokes_comp = "I"
+        sd_run.conf.bundle.amp_phase = False
+        sd_run.conf.sampling.normalize = normalize
+
+        mock_gridder = mocker.patch.object(sd_run.gridder, "from_pyvisgen")
+        mocker.patch.object(sd_run.writer, "write")
+        mocker.patch(
+            "pyvisgen.dataset.dataset.convert_real_imag",
+            return_value=torch.zeros((10, 2, 32, 32)),
+        )
+
+        sd_run._run()
+
+        assert mock_gridder.call_args.kwargs["normalized"] is normalize
 
     @pytest.mark.parametrize("amp_phase", [True, False])
     def test_grid_raise_wrong_shape(
@@ -592,3 +615,30 @@ class TestRun:
             dataset_type=sd_run.conf.bundle.dataset_type,
         )
         assert mock_fits_instance.write.called
+
+    def test_fits_files_are_not_overwritten(
+        self, mocker, tmp_path, sd_run: SimulateDataSet
+    ) -> None:
+        """Every simulated sample gets its own FITS file, and the index is the
+        same as the one of the main writer."""
+        sd_run.grid = False
+        sd_run.stokes_comp = "I"
+        sd_run.conf.bundle.fits_out_path = tmp_path / "fits_out"
+
+        mock_writer_write = mocker.patch.object(sd_run.writer, "write")
+        mock_fits_cls = mocker.patch("pyvisgen.io.datawriters.FITSWriter")
+
+        sd_run._run()
+
+        fits_indices = [
+            call.kwargs["index"]
+            for call in mock_fits_cls.return_value.write.call_args_list
+        ]
+        writer_indices = [
+            call.kwargs["index"] for call in mock_writer_write.call_args_list
+        ]
+
+        # 2 bundles with 10 images each
+        assert len(fits_indices) == 20
+        assert len(set(fits_indices)) == 20
+        assert fits_indices == writer_indices

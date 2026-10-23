@@ -477,6 +477,69 @@ class TestVisLoop:
 
         assert call_args[0] == batch_size
 
+    @pytest.mark.parametrize("normalize", [True, False])
+    def test_normalize_passed_to_batch_loop(
+        self, normalize: bool, vis_args: dict, mock_batch_loop
+    ) -> None:
+        vis_loop(**vis_args, normalize=normalize)
+
+        assert mock_batch_loop.call_args.kwargs["normalize"] is normalize
+
+    def test_normalize_default(self, vis_args: dict, mock_batch_loop) -> None:
+        vis_loop(**vis_args)
+
+        assert mock_batch_loop.call_args.kwargs["normalize"] is False
+
+    @pytest.fixture
+    def point_source_run(self, obs_params: dict):
+        """Simulates a 10 mJy point source at the phase centre for both
+        settings of ``normalize``, with the same noise realisation."""
+        from pyvisgen.simulation import Observation
+
+        # the source has to be visible, otherwise there are no valid baselines
+        params = {
+            **obs_params,
+            "src_dec": -35.0,
+            "array_layout": "meerkat_test",
+            "ref_frequency": 1.284e9,
+            "device": "cpu",
+        }
+        obs = Observation(**params)
+        sky = torch.zeros(1, 32, 32)
+        sky[0, 16, 16] = 0.010
+
+        def run(normalize: bool, noise_level: float) -> Visibilities:
+            torch.manual_seed(0)
+            return vis_loop(
+                obs,
+                sky,
+                noise_level=noise_level,
+                noise_mode="sefd",
+                normalize=normalize,
+            )
+
+        return run
+
+    def test_normalize_halves_unpolarised_source(self, point_source_run) -> None:
+        """Normalized visibilities hold I / 2 per parallel hand, otherwise I."""
+        norm = point_source_run(True, 0.0)
+        unnorm = point_source_run(False, 0.0)
+
+        np.testing.assert_allclose(norm.V_11.abs().mean().item(), 0.005, rtol=1e-3)
+        np.testing.assert_allclose(norm.V_22.abs().mean().item(), 0.005, rtol=1e-3)
+        np.testing.assert_allclose(unnorm.V_11.abs().mean().item(), 0.010, rtol=1e-3)
+        np.testing.assert_allclose(unnorm.V_22.abs().mean().item(), 0.010, rtol=1e-3)
+
+    def test_normalize_scales_signal_noise_and_weights(self, point_source_run) -> None:
+        """Signal and noise are scaled by the same factor, so the signal to noise
+        ratio does not depend on ``normalize``."""
+        norm = point_source_run(True, 400.0)
+        unnorm = point_source_run(False, 400.0)
+
+        for name in ["V_11", "V_22", "V_12", "V_21"]:
+            torch.testing.assert_close(getattr(norm, name), 0.5 * getattr(unnorm, name))
+        torch.testing.assert_close(norm.weights, 4 * unnorm.weights)
+
     @pytest.mark.parametrize(
         "batch_size", [0.1, 10.0, [100], [1000.0], (10000,), "invalid"]
     )

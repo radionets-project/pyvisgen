@@ -18,7 +18,13 @@ if TYPE_CHECKING:
 torch.set_default_dtype(torch.float64)
 LOGGER = setup_logger(namespace=__name__)
 
+# Factor of the normalization of the Stokes matrix, see ``normalize`` in vis_loop.
+# Normalized visibilities hold half of Stokes I in each parallel hand, whereas the
+# XX/YY (RR/LL) convention of UVFITS files has XX = YY = I for an unpolarised source.
+NORMALIZATION_FACTOR = 0.5
+
 __all__ = [
+    "NORMALIZATION_FACTOR",
     "Polarization",
     "Visibilities",
     "generate_noise",
@@ -421,7 +427,7 @@ def vis_loop(
     mode: str = "full",
     batch_size: int | Literal["auto"] = "auto",
     show_progress: bool = False,
-    normalize: bool = True,
+    normalize: bool = False,
     ft: Literal["default", "finufft", "reversed"] = "default",
 ) -> Visibilities:
     r"""Computes the visibilities of an observation.
@@ -464,8 +470,12 @@ def vis_loop(
         If `True`, show a progress bar during the iteration over the
         batches of baselines. Default: False
     normalize : bool, optional
-        If ``True``, normalize stokes matrix ``B`` by a factor 0.5.
-        Default: ``True``
+        If ``True``, normalize stokes matrix ``B`` by a factor 0.5. The noise and
+        the weights are scaled accordingly. The visibilities then hold half of
+        Stokes I in each parallel hand, i.e. ``V_11 + V_22 = I``. By default,
+        the visibilities follow the standard convention of UVFITS files and
+        measurement sets, where an unpolarised source has ``V_11 = V_22 = I`` and
+        Stokes I is ``(V_11 + V_22) / 2``. Default: ``False``
     ft : str, optional
         Sets the type of fourier transform used in the RIME.
         Choose one of ``'default'``, ``'finufft'`` (Flatiron Institute
@@ -500,10 +510,10 @@ def vis_loop(
     lm = obs.lm[mask]
     rd = obs.rd[mask]
 
-    # normalize visibilities to factor 0.5,
-    # so that the Stokes I image is normalized to 1
+    # optionally normalize the visibilities by a factor 0.5, so that
+    # V_11 + V_22 = I instead of the standard convention V_11 = V_22 = I
     if normalize:
-        B *= 0.5
+        B *= NORMALIZATION_FACTOR
 
     # calculate vis
     visibilities = Visibilities(
@@ -561,6 +571,7 @@ def vis_loop(
         show_progress=show_progress,
         mode=mode,
         ft=ft,
+        normalize=normalize,
     )
 
     visibilities.linear_dop = lin_dop.cpu()
@@ -585,6 +596,7 @@ def _batch_loop(
     show_progress: bool,
     mode: str,
     ft: Literal["default", "finufft", "reversed"] = "default",
+    normalize: bool = False,
 ):
     """Main simulation loop of pyvisgen. Computes visibilities
     batchwise.
@@ -621,6 +633,9 @@ def _batch_loop(
         Choose one of ``'default'``, ``'finufft'`` (Flatiron Institute
         Nonuniform Fast Fourier Transform) or `'reversed'`.
         Default: ``'default'``
+    normalize : bool, optional
+        Whether the Stokes matrix was normalized by a factor 0.5. If ``True``,
+        the noise and the weights are scaled accordingly. Default: ``False``
 
     Returns
     -------
@@ -672,6 +687,7 @@ def _batch_loop(
                 el2_deg=bas_p.el2_valid,
                 telescope=telescope,
                 band=band,
+                scale=NORMALIZATION_FACTOR if normalize else 1.0,
             )
             int_values += noise
         else:

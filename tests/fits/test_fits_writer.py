@@ -77,6 +77,36 @@ class TestCreateVisHDU:
         np.testing.assert_almost_equal(header["OBSRA"], 180.0)
         np.testing.assert_almost_equal(header["OBSDEC"], 45.0)
 
+    def test_normalized_data_scaled_to_xx_yy_convention(
+        self, mock_vis, mock_obs
+    ) -> None:
+        """Normalized visibilities hold half of Stokes I per parallel hand, so the
+        data are doubled and the weights, 1 / sigma^2, are divided by four."""
+        hdu = create_vis_hdu(mock_vis, mock_obs, normalize=True)
+        values = mock_vis.get_values.return_value.numpy()
+
+        data = hdu.data.data
+        np.testing.assert_allclose(data[..., 0], 2 * values.real[:, None, None, None])
+        np.testing.assert_allclose(data[..., 1], 2 * values.imag[:, None, None, None])
+        np.testing.assert_allclose(data[..., 2], 0.25)
+
+    def test_default_is_standard_convention(self, mock_vis, mock_obs) -> None:
+        """By default, the visibilities already follow XX = YY = I."""
+        default = create_vis_hdu(mock_vis, mock_obs)
+        unnormalized = create_vis_hdu(mock_vis, mock_obs, normalize=False)
+
+        np.testing.assert_array_equal(default.data.data, unnormalized.data.data)
+
+    def test_unnormalized_data_unchanged(self, mock_vis, mock_obs) -> None:
+        """Without normalization, XX = YY = I already holds."""
+        hdu = create_vis_hdu(mock_vis, mock_obs, normalize=False)
+        values = mock_vis.get_values.return_value.numpy()
+
+        data = hdu.data.data
+        np.testing.assert_allclose(data[..., 0], values.real[:, None, None, None])
+        np.testing.assert_allclose(data[..., 1], values.imag[:, None, None, None])
+        np.testing.assert_allclose(data[..., 2], 1.0)
+
     def test_custom_source_name(self, mock_vis, mock_obs) -> None:
         hdu = create_vis_hdu(mock_vis, mock_obs, source_name="M87")
 
@@ -258,10 +288,22 @@ class TestCreateHDUList:
 
         create_hdu_list(mock_vis, mock_obs)
 
-        mock_create_vis_hdu.assert_called_once_with(mock_vis, mock_obs)
+        mock_create_vis_hdu.assert_called_once_with(mock_vis, mock_obs, normalize=False)
         mock_create_time_hdu.assert_called_once_with(mock_vis)
         mock_create_frequency_hdu.assert_called_once_with(mock_obs)
         mock_create_antenna_hdu.assert_called_once_with(mock_obs)
+
+    @pytest.mark.parametrize("normalize", [True, False])
+    def test_normalize_passed_to_vis_hdu(
+        self, mock_hdus: tuple, mock_vis, mock_obs, normalize: bool
+    ) -> None:
+        mock_create_vis_hdu = mock_hdus[0]
+
+        create_hdu_list(mock_vis, mock_obs, normalize=normalize)
+
+        mock_create_vis_hdu.assert_called_once_with(
+            mock_vis, mock_obs, normalize=normalize
+        )
 
     def test_hdu_order(self, mock_vis, mock_obs) -> None:
         hdu_list = create_hdu_list(mock_vis, mock_obs)
