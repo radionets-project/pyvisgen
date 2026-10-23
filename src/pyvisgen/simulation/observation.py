@@ -347,7 +347,7 @@ class ValidBaselineSubset:
 
         indices_bucket = torch.bucketize(uv, bins)
         indices_bucket_sort = self._lexsort(indices_bucket)
-        indices_unique, indices_unique_inv, counts = torch.unique_consecutive(
+        _, indices_unique_inv, counts = torch.unique_consecutive(
             indices_bucket[:, indices_bucket_sort],
             dim=1,
             return_inverse=True,
@@ -378,7 +378,7 @@ class ValidBaselineSubset:
         assert dim == -1  # Transpose if you want differently
         assert a.ndim == 2  # Not sure what is numpy behaviour with > 2 dim
         # To be consistent with numpy, we flip the keys (sort by last row first)
-        a_unq, inv = torch.unique(a.flip(0), dim=dim, sorted=True, return_inverse=True)
+        _, inv = torch.unique(a.flip(0), dim=dim, sorted=True, return_inverse=True)
 
         return torch.argsort(inv)
 
@@ -677,8 +677,10 @@ class Observation:
             )
             self.baselines.times_unique = torch.unique(self.baselines.time)
 
-        self.rd = self.create_rd_grid()
+        # lm FIRST: the image grid is defined in the direction cosines and rd is derived
+        # from it by inverting the SIN projection (see create_lm_grid).
         self.lm = self.create_lm_grid()
+        self.rd = self.create_rd_grid()
 
         # polarization
         self.polarization = polarization
@@ -989,75 +991,92 @@ class Observation:
 
         return q
 
-    def create_rd_grid(self):
-        """Calculates RA and Dec values for a given fov around a source position
-
-        Parameters
-        ----------
-        fov : float
-            FOV size
-        samples : int
-            number of pixels
-        src_ra :
-            right ascensio of the source in deg
-        src_dec :
-            dec of the source in deg
+    def create_lm_grid(self):
+        r"""Creates a uniform, square grid in the direction cosines
+        :math:`(l, m)` (SIN projection) around the phase centre.
 
         Returns
         -------
-        rd_grid : 3d array
-            Returns a 3d array with every pixel containing a RA and Dec value
+        lm_grid : :func:`torch.tensor`
+            Tensor of shape ``(img_size, img_size, 2)``. ``lm_grid[..., 0]``
+            contains :math:`l` and ``lm_grid[..., 1]`` contains :math:`m`
+            for every pixel. :math:`l` varies along the rows (axis 1),
+            :math:`m` along the columns (axis 0). Both are dimensionless
+            and have a constant step of ``fov / img_size`` in radians.
+
+        Notes
+        -----
+        The image grid of an interferometer is uniform and square in
+        :math:`(l, m)`. This is the SIN convention encoded by FITS WCS,
+        and the frame in which the measurement equation is a plain
+        Fourier transform. The RA and Dec values of each pixel,
+        :attr:`Observation.rd`, are derived from this grid in
+        :meth:`Observation.create_rd_grid`.
         """
         fov = np.deg2rad(self.fov / 3600, dtype=np.float128)
         res = fov / self.img_size
+        ax = np.arange(
+            start=-(self.img_size / 2) * res,
+            stop=(self.img_size / 2) * res,
+            step=res,
+            dtype=np.float128,
+        )[: self.img_size]
+        L, M = np.meshgrid(ax, ax, indexing="xy")
+        lm_grid = np.stack([L, M], axis=-1).astype(np.float64)
+        return torch.from_numpy(lm_grid).to(self.device)
 
-        dec = torch.deg2rad(self.dec).to(self.device)
-
-        r = torch.from_numpy(
-            np.arange(
-                start=-(self.img_size / 2) * res,
-                stop=(self.img_size / 2) * res,
-                step=res,
-                dtype=np.float128,
-            ).astype(np.float64)
-        ).to(self.device)
-
-        d = r + dec
-
-        # rescale RA-axis with the cosine of the declination
-        r /= torch.cos(dec)
-
-        R, _ = torch.meshgrid((r, r), indexing="xy")
-        _, D = torch.meshgrid((d, d), indexing="xy")
-
-        return torch.cat([R[..., None], D[..., None]], dim=2)
-
-    def create_lm_grid(self):
-        """Calculates sine projection for fov
-
-        Parameters
-        ----------
-        rd_grid : 3d array
-            array containing a RA and Dec value in every pixel
-        src_crd : astropy SkyCoord
-            source position
+    def create_rd_grid(self):
+        r"""Calculates RA and Dec values for every pixel of the grid
+        :attr:`Observation.lm` by inverting the SIN projection.
 
         Returns
         -------
-        lm_grid : 3d array
-            Returns a 3d array with every pixel containing an l and m value
+        rd_grid : :func:`torch.tensor`
+            Tensor of shape ``(img_size, img_size, 2)``. ``rd_grid[..., 0]``
+            contains the RA offset from the phase centre and
+            ``rd_grid[..., 1]`` the absolute Dec of each pixel,
+            both in radian.
+
+        Notes
+        -----
+        The pixels are obtained from :attr:`Observation.lm`, which is why
+        :meth:`Observation.create_lm_grid` has to be called first. This
+        ensures that :attr:`Observation.rd` and :attr:`Observation.lm`
+        describe exactly the same pixels. With
+
+        .. math::
+
+            n = \sqrt{1 - l^2 - m^2},
+
+        the inverse of the SIN projection is given by
+
+        .. math::
+
+            \delta = \arcsin\left(m \cos\delta_0
+            + n \sin\delta_0\right), \quad
+            \Delta\alpha = \arctan2\left(l,
+            n \cos\delta_0 - m \sin\delta_0\right),
+
+        where :math:`\delta_0` is the declination of the phase centre.
         """
-        dec = np.deg2rad(self.dec.cpu().numpy()).astype(np.float128)
+        d0 = self.dec
+        if torch.is_tensor(d0):
+            d0 = d0.detach().cpu().numpy()
+        dec0 = np.deg2rad(np.asarray(d0, dtype=np.float64).reshape(-1)[0]).astype(
+            np.float128
+        )
 
-        rd = self.rd.cpu().numpy().astype(np.float128)
+        lm = self.lm.cpu().numpy().astype(np.float128)
+        l_coord, m_coord = lm[..., 0], lm[..., 1]
+        n = np.sqrt(np.clip(1.0 - l_coord**2 - m_coord**2, 0.0, None))
 
-        lm_grid = np.zeros(rd.shape, dtype=np.float128)
-        lm_grid[..., 0] = np.cos(rd[..., 1]) * np.sin(rd[..., 0])
-        lm_grid[..., 1] = np.sin(rd[..., 1]) * np.cos(dec) - np.cos(
-            rd[..., 1]
-        ) * np.sin(dec) * np.cos(rd[..., 0])
+        # inverse of  l = cos(Dec) sin(dRA),
+        # m = sin(Dec) cos(dec0) - cos(Dec) sin(dec0) cos(dRA)
+        dec = np.arcsin(m_coord * np.cos(dec0) + n * np.sin(dec0))
+        ra = np.arctan2(l_coord, n * np.cos(dec0) - m_coord * np.sin(dec0))
 
-        return torch.from_numpy(lm_grid.astype(np.float64)).to(self.device)
+        rd_grid = np.stack([ra, dec], axis=-1).astype(np.float64)
+        return torch.from_numpy(rd_grid).to(self.device)
 
     def calc_direction_cosines(
         self,

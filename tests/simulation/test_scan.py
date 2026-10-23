@@ -145,17 +145,17 @@ class TestJonesMatrices:
     def test_angular_distance(self, setup_test_data):
         """Test the angular_distance function."""
         rd = setup_test_data["rd"]
-        ra = setup_test_data["ra"]
         dec = setup_test_data["dec"]
         device = setup_test_data["device"]
 
-        result = angular_distance(rd, ra, dec)
+        result = angular_distance(rd, dec)
 
-        # We expect theta to be arcsin(sqrt(rd[...,0]²+rd[...,1]²)) for each point
         expected_shape = (1,)
         assert result.shape == expected_shape
 
-        # For our values (0.001, 0.001), the angular distance is approximately 0.0014
+        # At dec = 0 the cos(dec) factor is 1 and for small offsets the
+        # great-circle distance reduces to the Euclidean one. For our values
+        # (0.001, 0.001) the angular distance is approximately 0.0014
         expected_value = torch.arcsin(
             torch.sqrt(
                 torch.tensor(0.001, device=device) ** 2
@@ -163,6 +163,55 @@ class TestJonesMatrices:
             )
         )
         assert torch.allclose(result, expected_value, rtol=1e-5)
+
+    @pytest.mark.parametrize("dec_deg", [-34.96, 0.0, 60.0])
+    def test_angular_distance_matches_lm(self, setup_test_data, dec_deg):
+        """The angular distance must agree with the exact angle from the
+        direction cosines, sin(theta) = sqrt(l^2 + m^2), also away from the
+        equator, where the RA offset has to be scaled with cos(dec).
+        """
+        device = setup_test_data["device"]
+
+        n_pix = 64
+        res = torch.deg2rad(torch.tensor(2.0 / n_pix, dtype=torch.float64))
+        ax = (torch.arange(n_pix, dtype=torch.float64) - n_pix / 2) * res
+        M, L = torch.meshgrid(ax, ax, indexing="ij")
+        L, M = L.to(device), M.to(device)
+
+        # Invert the SIN projection like Observation.create_rd_grid
+        dec0 = torch.deg2rad(torch.tensor(dec_deg, dtype=torch.float64, device=device))
+        n = torch.sqrt(1 - L**2 - M**2)
+        dec = torch.arcsin(M * torch.cos(dec0) + n * torch.sin(dec0))
+        ra = torch.arctan2(L, n * torch.cos(dec0) - M * torch.sin(dec0))
+        rd = torch.stack([ra, dec], dim=-1)
+
+        result = angular_distance(
+            rd, torch.tensor(dec_deg, dtype=torch.float64, device=device)
+        )
+        expected = torch.arcsin(torch.sqrt(L**2 + M**2))
+
+        assert result.shape == (n_pix, n_pix)
+        assert torch.allclose(result, expected, rtol=0, atol=1e-12)
+
+    def test_angular_distance_ra_offset_scales_with_cos_dec(self, setup_test_data):
+        """A pure RA offset covers a smaller angle on the sky the further
+        the declination is from the equator: theta ~ dRA * cos(dec).
+        """
+        device = setup_test_data["device"]
+        dec_deg = 60.0
+        dra = 1e-3
+
+        rd = torch.tensor(
+            [[dra, torch.deg2rad(torch.tensor(dec_deg)).item()]],
+            dtype=torch.float64,
+            device=device,
+        )
+        dec = torch.tensor(dec_deg, dtype=torch.float64, device=device)
+
+        result = angular_distance(rd, dec)
+        expected = dra * torch.cos(torch.deg2rad(dec))
+
+        assert torch.allclose(result, expected.reshape(1), rtol=1e-6)
 
     def test_calc_fourier(self, setup_test_data):
         """Test the calc_fourier function."""
@@ -239,13 +288,12 @@ class TestJonesMatrices:
         X1 = torch.ones(2, 1, 2, 2, dtype=torch.complex128, device=device)
         X2 = torch.ones(2, 1, 2, 2, dtype=torch.complex128, device=device)
         rd = setup_test_data["rd"]
-        ra = setup_test_data["ra"]
         dec = setup_test_data["dec"]
         ant_diam = setup_test_data["ant_diam"]
         spw_low = setup_test_data["spw_low"]
         spw_high = setup_test_data["spw_high"]
 
-        EXE1, EXE2 = calc_beam(X1, X2, rd, ra, dec, ant_diam, spw_low, spw_high)
+        EXE1, EXE2 = calc_beam(X1, X2, rd, dec, ant_diam, spw_low, spw_high)
 
         # Check shape preservation
         assert EXE1.shape == X1.shape
