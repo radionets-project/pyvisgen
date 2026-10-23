@@ -278,7 +278,7 @@ class ArrayDisplay:
         step = self._grid_step(max_radius / 6.0)
 
         if step <= 0:
-            return None
+            return
 
         max_grid_radius = np.ceil(max_radius / step) * step
         radii = np.arange(step, max_grid_radius + 0.5 * step, step)
