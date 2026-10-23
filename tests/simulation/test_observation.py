@@ -12,6 +12,7 @@ from pyvisgen.simulation.observation import (
     Observation,
     Scan,
     ValidBaselineSubset,
+    create_scans,
 )
 
 
@@ -272,6 +273,63 @@ class TestScan:
         assert scan.integration_time.unit == un.second
         assert scan.separation == 600 * un.second
         assert scan.integration_time == 600 * un.second
+
+
+class TestCreateScans:
+    @pytest.fixture
+    def start(self) -> Time:
+        return Time("2026-01-21T00:00:00", format="isot", scale="utc")
+
+    def test_scan_starts_after_previous_scan_and_separation(self, start: Time) -> None:
+        scans = create_scans(
+            start=start,
+            scan_duration=400,
+            num_scans=3,
+            scan_separation=120,
+            integration_time=60,
+        )
+
+        starts = [(scan.start - start).to(un.second).value for scan in scans]
+        stops = [(scan.stop - start).to(un.second).value for scan in scans]
+
+        assert len(scans) == 3
+        np.testing.assert_allclose(starts, [0, 520, 1040], atol=1e-5)
+        np.testing.assert_allclose(stops, [400, 920, 1440], atol=1e-5)
+        # no waiting time after the last scan
+        assert scans[-1].separation == 0 * un.second
+
+    def test_per_scan_arrays(self, start: Time) -> None:
+        scans = create_scans(
+            start=start,
+            scan_duration=[100, 200],
+            num_scans=2,
+            scan_separation=[50],
+            integration_time=[10, 20],
+        )
+
+        assert [scan.integration_time.value for scan in scans] == [10, 20]
+        np.testing.assert_allclose(
+            [(scan.start - start).to(un.second).value for scan in scans],
+            [0, 150],
+            atol=1e-5,
+        )
+
+    def test_observation_uses_create_scans(self, obs_params: dict) -> None:
+        obs = Observation(**{**obs_params, "num_scans": 3, "scan_separation": 120})
+
+        expected = create_scans(
+            start=obs.start,
+            scan_duration=obs.scan_duration,
+            num_scans=obs.num_scans,
+            scan_separation=obs.scan_separation,
+            integration_time=obs.int_time,
+        )
+
+        assert len(obs.scans) == len(expected)
+        for scan, scan_expected in zip(obs.scans, expected):
+            assert scan.start == scan_expected.start
+            assert scan.stop == scan_expected.stop
+            assert scan.integration_time == scan_expected.integration_time
 
 
 class TestObservation:
