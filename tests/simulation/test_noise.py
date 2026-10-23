@@ -180,6 +180,38 @@ class TestSefdFromElevation:
         sefd = sefd_from_elevation(el1, el2, tsys_over_eta)
         np.testing.assert_allclose(sefd.numpy(), expected.numpy(), rtol=1e-6)
 
+    def test_unit_ant_scale_is_nominal(
+        self, el_deg: torch.Tensor, tsys_over_eta: float
+    ) -> None:
+        """Scale factors of 1.0 must reproduce the nominal SEFD."""
+        ones = torch.ones_like(el_deg)
+        nominal = sefd_from_elevation(el_deg, el_deg, tsys_over_eta)
+        scaled = sefd_from_elevation(
+            el_deg, el_deg, tsys_over_eta, ant_scale1=ones, ant_scale2=ones
+        )
+        torch.testing.assert_close(scaled, nominal)
+
+    def test_ant_scale_multiplies_geometric_mean(
+        self, el_deg: torch.Tensor, tsys_over_eta: float
+    ) -> None:
+        """A baseline SEFD scales with sqrt(s1 * s2)."""
+        s1 = torch.linspace(0.8, 1.3, len(el_deg))
+        s2 = torch.linspace(1.4, 0.9, len(el_deg))
+
+        nominal = sefd_from_elevation(el_deg, el_deg, tsys_over_eta)
+        scaled = sefd_from_elevation(
+            el_deg, el_deg, tsys_over_eta, ant_scale1=s1, ant_scale2=s2
+        )
+        torch.testing.assert_close(scaled, nominal * torch.sqrt(s1 * s2))
+
+    def test_single_ant_scale(self, el_deg: torch.Tensor, tsys_over_eta: float) -> None:
+        """Passing only one of the two scale factors is allowed."""
+        s1 = torch.full_like(el_deg, 1.6)
+
+        nominal = sefd_from_elevation(el_deg, el_deg, tsys_over_eta)
+        scaled = sefd_from_elevation(el_deg, el_deg, tsys_over_eta, ant_scale1=s1)
+        torch.testing.assert_close(scaled, nominal * torch.sqrt(s1))
+
     @pytest.mark.parametrize("telescope", available_telescopes())
     def test_registered_telescopes(
         self, el_deg: torch.Tensor, tsys_over_eta: float, telescope: str
@@ -250,7 +282,7 @@ class TestGenerateNoise:
     def test_sefd_mode_no_elevations_required(self, obs, n_baselines: int) -> None:
         """SEFD mode must work without passing elevation tensors."""
         shape = (n_baselines, 1, 2, 2)
-        noise, weights = generate_noise(shape, obs, noise_value=400.0, mode="sefd")
+        noise, _ = generate_noise(shape, obs, noise_value=400.0, mode="sefd")
         assert noise.shape == torch.Size(shape)
 
     @pytest.mark.parametrize(
@@ -335,6 +367,45 @@ class TestGenerateNoise:
         )
         # weights should not all be equal since elevations span a range
         assert not torch.allclose(weights[0], weights[-1])
+
+    def test_ant_scale_weights_tsys_mode(
+        self, obs, n_baselines: int, tsys_over_eta: float
+    ) -> None:
+        """Weights are 1 / sigma^2, so they scale with 1 / (s1 * s2)."""
+        shape = (n_baselines, 1, 2, 2)
+        el = torch.linspace(20.0, 80.0, n_baselines)
+        s1 = torch.linspace(0.8, 1.3, n_baselines)
+        s2 = torch.linspace(1.4, 0.9, n_baselines)
+        kwargs = {
+            "noise_value": tsys_over_eta,
+            "mode": "tsys",
+            "el1_deg": el,
+            "el2_deg": el,
+        }
+
+        _, weights_nominal = generate_noise(shape, obs, **kwargs)
+        _, weights_scaled = generate_noise(
+            shape, obs, ant_scale1=s1, ant_scale2=s2, **kwargs
+        )
+
+        expected = weights_nominal / (s1 * s2)[:, None]
+        torch.testing.assert_close(weights_scaled, expected)
+
+    def test_ant_scale_ignored_in_sefd_mode(self, obs, n_baselines: int) -> None:
+        """In ``mode='sefd'`` the SEFD is uniform and the factors are not used."""
+        shape = (n_baselines, 1, 2, 2)
+        scale = torch.linspace(0.5, 2.0, n_baselines)
+
+        _, weights_nominal = generate_noise(shape, obs, noise_value=400.0, mode="sefd")
+        _, weights_scaled = generate_noise(
+            shape,
+            obs,
+            noise_value=400.0,
+            mode="sefd",
+            ant_scale1=scale,
+            ant_scale2=scale,
+        )
+        torch.testing.assert_close(weights_scaled, weights_nominal)
 
     def test_noise_mean_near_zero(self, obs) -> None:
         """Real and imaginary parts should have mean ≈ 0 for large sample count."""

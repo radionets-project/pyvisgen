@@ -663,6 +663,17 @@ def _batch_loop(
         int_values = int_values[~int_values_nans]
 
         if noise_level != 0:
+            # optional per-antenna SEFD scaling: obs.ant_sefd_scale holds one factor
+            # per station (1.0 = nominal); without the attribute this is a no-op
+            ant_sefd_scale = getattr(obs, "ant_sefd_scale", None)
+            if ant_sefd_scale is None:
+                ant_scale1 = ant_scale2 = None
+            else:
+                sc = ant_sefd_scale.to(bas_p.st_id_pairs.device)
+                st = bas_p.st_id_pairs.long()  # station ids may be float
+                ant_scale1 = sc[st[:, 0]]
+                ant_scale2 = sc[st[:, 1]]
+
             noise, weights = generate_noise(
                 int_values.shape,
                 obs,
@@ -672,6 +683,8 @@ def _batch_loop(
                 el2_deg=bas_p.el2_valid,
                 telescope=telescope,
                 band=band,
+                ant_scale1=ant_scale1,
+                ant_scale2=ant_scale2,
             )
             int_values += noise
         else:
