@@ -516,7 +516,7 @@ def calc_beam(
     tuple[torch.tensor, torch.tensor]
     """
     diameters = ant_diam.to(rd.device)
-    theta = angular_distance(rd, ra, dec)
+    theta = angular_distance(rd, dec)
     tds = diameters * theta[..., None]
 
     E1 = jinc(2 * pi / c * spw_low * tds)
@@ -532,28 +532,54 @@ def calc_beam(
 
 
 @torch.compile
-def angular_distance(rd: torch.Tensor, ra: torch.Tensor, dec: torch.Tensor):
-    """Calculates angular distance from source position
+def angular_distance(rd: torch.Tensor, dec: torch.Tensor):
+    r"""Calculates the angular distance of every pixel in the ``rd`` grid
+    from the source position.
 
     Parameters
     ----------
-    rd : 3d tensor
-        every pixel containing ra and dec
-    ra : float
-        right ascension of source position
+    rd : :func:`~torch.tensor`
+        Tensor of shape ``(img_size, img_size, 2)`` as created by
+        :meth:`~pyvisgen.simulation.observation.Observation.create_rd_grid`.
+        ``rd[..., 0]`` is the RA offset from the phase centre and
+        ``rd[..., 1]`` the absolute Dec of each pixel, both in radian.
     dec : float
-        declination of source position
+        Declination of the source position in degree.
 
     Returns
     -------
-    2d array
-        Returns angular Distance for every pixel in rd grid with respect
-        to source position
+    theta : :func:`~torch.tensor`
+        Tensor of shape ``(img_size, img_size)`` containing the angular
+        distance of every pixel from the source position in radian.
+
+    Notes
+    -----
+    The RA offset in ``rd`` is a coordinate difference and not an angle
+    on the sky, which is why it cannot be used directly in a Pythagorean
+    distance. The angular distance is therefore calculated as the exact
+    great-circle separation in its haversine form,
+
+    .. math::
+
+        \theta = 2 \arcsin\sqrt{\sin^2\frac{\Delta\delta}{2}
+        + \cos\delta_0 \cos\delta \sin^2\frac{\Delta\alpha}{2}},
+
+    where :math:`\Delta\alpha` is the RA offset, :math:`\delta` the Dec
+    of the pixel, :math:`\delta_0` the Dec of the source position, and
+    :math:`\Delta\delta = \delta - \delta_0`. This requires no small-angle
+    approximation and remains well conditioned for
+    :math:`\theta \rightarrow 0`.
+
+    The source position is assumed to be the phase centre.
     """
-    r = rd[..., 0]
-    d = rd[..., 1] - torch.deg2rad(dec.to(rd.device))
-    theta = torch.arcsin(torch.sqrt(r**2 + d**2))
-    return theta
+    dec0 = torch.deg2rad(dec.to(rd.device))
+    ra = rd[..., 0]
+    dec_pix = rd[..., 1]
+    sin_half = torch.sqrt(
+        torch.sin(0.5 * (dec_pix - dec0)) ** 2
+        + torch.cos(dec0) * torch.cos(dec_pix) * torch.sin(0.5 * ra) ** 2
+    )
+    return 2.0 * torch.arcsin(torch.clamp(sin_half, max=1.0))
 
 
 @torch.compile
