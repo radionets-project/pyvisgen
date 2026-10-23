@@ -7,7 +7,7 @@ import scipy.ndimage
 import torch
 from tqdm.auto import tqdm
 
-from pyvisgen.simulation.noise import generate_noise
+from pyvisgen.simulation.noise import generate_noise, get_ant_sefd_scale
 from pyvisgen.simulation.scan import RIMEScan
 from pyvisgen.utils.batch_size import adaptive_batch_size
 from pyvisgen.utils.logging import setup_logger
@@ -638,6 +638,12 @@ def _batch_loop(
 
     rime = RIMEScan(ft=ft, mode=mode, obs=obs, lm=lm, rd=rd)
 
+    # Per-station SEFD factors (1.0 = nominal), only used for noise_mode="tsys".
+    # obs.ant_sefd_scale takes precedence over the table in the noise config.
+    ant_sefd_scale = getattr(obs, "ant_sefd_scale", None)
+    if ant_sefd_scale is None and noise_level != 0 and noise_mode == "tsys":
+        ant_sefd_scale = get_ant_sefd_scale(telescope, band, obs.array.st_name)
+
     for p in batches:
         bas_p = bas[p]
 
@@ -663,9 +669,6 @@ def _batch_loop(
         int_values = int_values[~int_values_nans]
 
         if noise_level != 0:
-            # optional per-antenna SEFD scaling: obs.ant_sefd_scale holds one factor
-            # per station (1.0 = nominal); without the attribute this is a no-op
-            ant_sefd_scale = getattr(obs, "ant_sefd_scale", None)
             if ant_sefd_scale is None:
                 ant_scale1 = ant_scale2 = None
             else:

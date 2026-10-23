@@ -1,3 +1,6 @@
+import tomllib
+from pathlib import Path
+
 import numpy as np
 import pytest
 import torch
@@ -9,6 +12,7 @@ from pyvisgen.simulation.noise import (
     compute_noise_std,
     elevation_tsys_contribution,
     generate_noise,
+    get_ant_sefd_scale,
     sefd_from_elevation,
 )
 
@@ -219,6 +223,89 @@ class TestSefdFromElevation:
         sefd = sefd_from_elevation(el_deg, el_deg, tsys_over_eta, telescope=telescope)
         assert sefd.shape == el_deg.shape
         assert (sefd > 0).all()
+
+
+# ---------------------------------------------------------------------------
+# get_ant_sefd_scale
+# ---------------------------------------------------------------------------
+
+
+@pytest.fixture
+def fake_noise_config(mocker):
+    """Patch the noise config loader with a minimal config for a fake telescope."""
+
+    def _patch(ant_scale: dict | None) -> None:
+        band = {
+            "el_knots": [15.0, 90.0],
+            "t_atm": [5.0, 1.4],
+            "t_spill_h": [2.5, 3.1],
+            "t_spill_v": [2.6, 3.2],
+        }
+        if ant_scale is not None:
+            band["ant_scale"] = ant_scale
+
+        mocker.patch(
+            "pyvisgen.simulation.noise._load_telescope_toml",
+            return_value={"dish_diameter": 13.5, "bands": {"L": band}},
+        )
+
+    return _patch
+
+
+class TestGetAntSefdScale:
+    def test_none_without_table(self, fake_noise_config) -> None:
+        fake_noise_config(None)
+        assert get_ant_sefd_scale("fake", "L", ["a", "b"]) is None
+
+    def test_none_for_empty_table(self, fake_noise_config) -> None:
+        fake_noise_config({})
+        assert get_ant_sefd_scale("fake", "L", ["a", "b"]) is None
+
+    def test_band_spec_exposes_table(self, fake_noise_config) -> None:
+        fake_noise_config({"a": 1.2})
+        assert _get_band_spec("fake", "L")["ant_scale"] == {"a": 1.2}
+
+    def test_band_spec_without_table_is_empty(self, fake_noise_config) -> None:
+        fake_noise_config(None)
+        assert _get_band_spec("fake", "L")["ant_scale"] == {}
+
+    def test_factors_follow_station_order(self, fake_noise_config) -> None:
+        fake_noise_config({"c": 0.9, "a": 1.2})
+        scale = get_ant_sefd_scale("fake", "L", ["a", "b", "c"])
+        # "b" is not listed and keeps the nominal SEFD
+        torch.testing.assert_close(scale, torch.tensor([1.2, 1.0, 0.9]))
+
+    def test_integer_station_names(self, fake_noise_config) -> None:
+        """TOML keys are strings, station names may be integers."""
+        fake_noise_config({"1": 1.5})
+        scale = get_ant_sefd_scale("fake", "L", [0, 1, 2])
+        torch.testing.assert_close(scale, torch.tensor([1.0, 1.5, 1.0]))
+
+    def test_unknown_stations_in_table_are_ignored(self, fake_noise_config) -> None:
+        fake_noise_config({"a": 1.2, "not_in_array": 3.0})
+        scale = get_ant_sefd_scale("fake", "L", ["a", "b"])
+        torch.testing.assert_close(scale, torch.tensor([1.2, 1.0]))
+
+    def test_meerkat_l_band_table_matches_layout(self) -> None:
+        """Station names in the shipped table must exist in the layout, otherwise
+        a typo would silently leave that station at the nominal SEFD."""
+        with open(Path("resources/noise_configs/meerkat.toml"), "rb") as f:
+            table = tomllib.load(f)["bands"]["L"].get("ant_scale", {})
+        with open(Path("resources/layouts/meerkat.txt")) as f:
+            layout_names = {
+                line.split()[0] for line in f.readlines()[1:] if line.strip()
+            }
+
+        assert set(table) <= layout_names
+        assert all(0 < value < float("inf") for value in table.values())
+
+    @pytest.mark.parametrize("value", [0.0, -1.0, float("inf"), float("nan"), "1.2"])
+    def test_invalid_values_raise(self, fake_noise_config, value) -> None:
+        fake_noise_config({"a": 1.1, "b": value})
+        with pytest.raises(ValueError, match="finite and positive") as excinfo:
+            get_ant_sefd_scale("fake", "L", ["a", "b"])
+        assert "'b'" in str(excinfo.value)
+        assert "'a'" not in str(excinfo.value)
 
 
 # ---------------------------------------------------------------------------

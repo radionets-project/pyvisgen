@@ -36,7 +36,9 @@ def _get_band_spec(telescope: str, band: str | None = None) -> dict:
 
     If *band* is None the first band defined in the config file is used.
     The returned dict has keys: dish_diameter, el_knots, t_atm,
-    t_spill_h, t_spill_v (all as torch.Tensor except dish_diameter).
+    t_spill_h, t_spill_v (all as torch.Tensor except dish_diameter) and
+    ant_scale (a ``dict`` mapping station names to relative SEFD factors,
+    empty if the band defines no ``[bands.<name>.ant_scale]`` table).
     """
     cfg = _load_telescope_toml(telescope)
     bands = cfg.get("bands", {})
@@ -58,7 +60,52 @@ def _get_band_spec(telescope: str, band: str | None = None) -> dict:
         "t_atm": torch.tensor(bspec["t_atm"]),
         "t_spill_h": torch.tensor(bspec["t_spill_h"]),
         "t_spill_v": torch.tensor(bspec["t_spill_v"]),
+        "ant_scale": dict(bspec.get("ant_scale", {})),
     }
+
+
+def get_ant_sefd_scale(
+    telescope: str, band: str | None, st_names
+) -> torch.Tensor | None:
+    """Per-station SEFD scale factors from the noise config of a telescope.
+
+    Parameters
+    ----------
+    telescope : str
+        Telescope name. Must match a file in the noise_configs resource directory.
+    band : str or None
+        Frequency band name. If ``None``, the first band in the config file is used.
+    st_names : iterable
+        Station names in the order of the station indices, i.e. ``obs.array.st_name``.
+
+    Returns
+    -------
+    torch.Tensor or None
+        One factor per station, where ``1.0`` is the nominal SEFD. Stations that
+        are not listed in the ``[bands.<name>.ant_scale]`` table get ``1.0``.
+        ``None`` if the band defines no such table.
+
+    Raises
+    ------
+    ValueError
+        If a factor in the table is not finite and positive.
+    """
+    table = _get_band_spec(telescope, band)["ant_scale"]
+    if not table:
+        return None
+
+    invalid = [
+        name
+        for name, value in table.items()
+        if not (isinstance(value, int | float) and 0 < value < float("inf"))
+    ]
+    if invalid:
+        raise ValueError(
+            f"ant_scale of telescope '{telescope}' must be finite and positive, "
+            f"got invalid values for stations: {invalid}"
+        )
+
+    return torch.tensor([table.get(str(name), 1.0) for name in st_names])
 
 
 def _interp1d(x: torch.Tensor, xp: torch.Tensor, fp: torch.Tensor) -> torch.Tensor:
