@@ -412,6 +412,7 @@ class TestObservation:
 
         with pytest.raises(ValueError, match="finite, positive"):
             Observation(**{**obs_params, "ant_sefd_scale": {names[0]: bad}})
+
     def test_valid_subset_stays_within_scans(self, obs_params: dict) -> None:
         """No uv point may be created in the gap between two scans."""
         # the source has to be visible, otherwise there are no valid baselines
