@@ -107,7 +107,7 @@ def obs_params() -> dict:
     return {
         "src_ra": 180.0,
         "src_dec": 45.0,
-        "start_time": datetime.datetime(2026, 1, 21, 0, 0, 0),
+        "start_time": datetime.datetime(2026, 1, 21, 0, 0, 0),  # noqa: DTZ001
         "scan_duration": 400,
         "num_scans": 6,
         "scan_separation": 120,

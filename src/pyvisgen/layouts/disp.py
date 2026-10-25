@@ -278,7 +278,7 @@ class ArrayDisplay:
         step = self._grid_step(max_radius / 6.0)
 
         if step <= 0:
-            return None
+            return
 
         max_grid_radius = np.ceil(max_radius / step) * step
         radii = np.arange(step, max_grid_radius + 0.5 * step, step)
@@ -372,13 +372,13 @@ class ArrayDisplay:
             else self.stations.st_num.numpy().astype(int)
         )
 
-        annotate_kwargs = dict(
-            fontsize=8,
-            clip_on=True,
-            ha="center",
-            va="top",
-            zorder=4,
-        )
+        annotate_kwargs = {
+            "fontsize": 8,
+            "clip_on": True,
+            "ha": "center",
+            "va": "top",
+            "zorder": 4,
+        }
         annotate_kwargs.update(**kwargs)
 
         for label, x, y, r_pt in zip(
