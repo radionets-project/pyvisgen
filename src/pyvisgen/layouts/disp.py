@@ -372,13 +372,13 @@ class ArrayDisplay:
             else self.stations.st_num.numpy().astype(int)
         )
 
-        annotate_kwargs = dict(
-            fontsize=8,
-            clip_on=True,
-            ha="center",
-            va="top",
-            zorder=4,
-        )
+        annotate_kwargs = {
+            "fontsize": 8,
+            "clip_on": True,
+            "ha": "center",
+            "va": "top",
+            "zorder": 4,
+        }
         annotate_kwargs.update(**kwargs)
 
         for label, x, y, r_pt in zip(

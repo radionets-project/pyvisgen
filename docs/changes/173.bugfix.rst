@@ -1,0 +1,1 @@
+fix primary beam calculation which was factor of 2 too narrow
