@@ -129,6 +129,17 @@ class Baselines:
 
         mask = (bas_reshaped.valid[:-1].bool()) & (bas_reshaped.valid[1:].bool())
 
+        # The baselines of all scans are stacked along the time axis. An integration
+        # window spans two consecutive time steps, so the window between the last
+        # time step of one scan and the first of the next one does not belong to
+        # any measurement and has to be removed.
+        scan_lengths = getattr(self, "scan_lengths", None)
+        if scan_lengths is not None:
+            first_step_of_next_scan = torch.cumsum(torch.tensor(scan_lengths), dim=0)[
+                :-1
+            ]
+            mask[first_step_of_next_scan - 1] = False
+
         stations_1 = bas_reshaped.st1[:-1][mask].ravel()
         stations_2 = bas_reshaped.st2[:-1][mask].ravel()
         baseline_nums = (256 * (stations_1 + 1) + stations_2 + 1).to(device)
@@ -347,7 +358,7 @@ class ValidBaselineSubset:
 
         indices_bucket = torch.bucketize(uv, bins)
         indices_bucket_sort = self._lexsort(indices_bucket)
-        indices_unique, indices_unique_inv, counts = torch.unique_consecutive(
+        _, indices_unique_inv, counts = torch.unique_consecutive(
             indices_bucket[:, indices_bucket_sort],
             dim=1,
             return_inverse=True,
@@ -378,7 +389,7 @@ class ValidBaselineSubset:
         assert dim == -1  # Transpose if you want differently
         assert a.ndim == 2  # Not sure what is numpy behaviour with > 2 dim
         # To be consistent with numpy, we flip the keys (sort by last row first)
-        a_unq, inv = torch.unique(a.flip(0), dim=dim, sorted=True, return_inverse=True)
+        _, inv = torch.unique(a.flip(0), dim=dim, sorted=True, return_inverse=True)
 
         return torch.argsort(inv)
 
@@ -433,15 +444,24 @@ class Scan:
         """
         Get the number of time steps in the scan.
 
+        The time steps are spaced by the integration time and the last one is
+        the stop time of the scan, so that the whole scan is covered. If the
+        duration of the scan is not divisible by the integration time, the
+        last interval is shorter than the integration time.
+
         Returns
         -------
 
         num_timesteps: int
 
         """
-        return int(
-            ((self.stop - self.start).to(un.second) // self.integration_time).value + 1
-        )
+        duration = (self.stop - self.start).to(un.second)
+        # The tolerance absorbs rounding errors in the time difference, e.g.
+        # 359.99999999999875 s for a 360 s scan, which would otherwise be
+        # treated as a scan that is not covered completely.
+        num_intervals = np.ceil((duration / self.integration_time).value - 1e-9)
+
+        return int(num_intervals) + 1
 
     def get_timesteps(self):
         """
@@ -797,13 +817,21 @@ class Observation:
             torch.tensor([]),  # el2
         )
 
+        scan_lengths = []
+
         for scan in tqdm(
             self.scans,
             disable=not self.show_progress,
             desc="Computing baselines",
         ):
-            bas = self.get_baselines(scan.get_timesteps())
+            timesteps = scan.get_timesteps()
+            bas = self.get_baselines(timesteps)
             self.baselines.add_baseline(bas)
+            scan_lengths.append(len(timesteps))
+
+        # Number of time steps per scan. Not a dataclass field, since the fields
+        # are concatenated and reshaped, see Baselines.get_valid_subset.
+        self.baselines.scan_lengths = scan_lengths
 
     def get_baselines(self, times):
         """Calculates baselines from source coordinates
