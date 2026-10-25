@@ -739,11 +739,11 @@ class WDSShardWriter(DataWriter):
         self.test_shapes(targets, "y")
 
         with wds.TarWriter(shard_path, compress=self.compress) as tarwriter:
-            for x, y in zip(inputs, targets):
+            for x_item, y_item in zip(inputs, targets):
                 sample = {
                     "__key__": f"{self.dataset_type}_{self.total_samples_written:08d}",
-                    "input.npy": self._serialize_numpy(x),
-                    "target.npy": self._serialize_numpy(y),
+                    "input.npy": self._serialize_numpy(x_item),
+                    "target.npy": self._serialize_numpy(y_item),
                 }
 
                 tarwriter.write(sample)

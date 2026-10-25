@@ -41,31 +41,31 @@ class TestCreateObservation:
         simulate_dataset.conf = Config.from_toml("tests/test_conf.toml")
 
         # simpler sample options for test
-        simulate_dataset.samp_opts = dict(
-            src_ra=torch.tensor([180.0]),
-            src_dec=torch.tensor([45.0]),
-            start_time=np.array([datetime(2025, 1, 1, 12)]).astype(datetime),
-            scan_duration=torch.tensor([60]),
-            num_scans=torch.tensor([2]),
-            delta=torch.tensor([90]),
-            amp_ratio=torch.tensor([0.5]),
-            order=torch.tensor([0.5, 0.5]),
-            scale=torch.tensor([0.5, 1.0]),
-            threshold=None,
-        )
+        simulate_dataset.samp_opts = {
+            "src_ra": torch.tensor([180.0]),
+            "src_dec": torch.tensor([45.0]),
+            "start_time": np.array([datetime(2025, 1, 1, 12)]).astype(datetime),  # noqa: DTZ001
+            "scan_duration": torch.tensor([60]),
+            "num_scans": torch.tensor([2]),
+            "delta": torch.tensor([90]),
+            "amp_ratio": torch.tensor([0.5]),
+            "order": torch.tensor([0.5, 0.5]),
+            "scale": torch.tensor([0.5, 1.0]),
+            "threshold": None,
+        }
 
-        simulate_dataset.samp_opts_const = dict(
-            array_layout="vlba",
-            image_size=128,
-            fov=0.14,
-            integration_time=10.0,
-            scan_separation=4500,
-            ref_frequency=15e9,
-            frequency_offsets=[0.0],
-            bandwidths=[1.28e8],
-            corrupted=False,
-            polarization=None,
-        )
+        simulate_dataset.samp_opts_const = {
+            "array_layout": "vlba",
+            "image_size": 128,
+            "fov": 0.14,
+            "integration_time": 10.0,
+            "scan_separation": 4500,
+            "ref_frequency": 15e9,
+            "frequency_offsets": [0.0],
+            "bandwidths": [1.28e8],
+            "corrupted": False,
+            "polarization": None,
+        }
 
         return simulate_dataset
 
@@ -276,7 +276,7 @@ class TestDrawSamplingOpts:
         size = 5
         samp_opts = sd_sampling.draw_sampling_opts(size)
 
-        expected = datetime.strptime(date_str, DATEFMT)
+        expected = datetime.strptime(date_str, DATEFMT)  # noqa: DTZ007
         assert samp_opts["start_time"].shape == (size,)
         assert all(t == expected for t in samp_opts["start_time"])
 
