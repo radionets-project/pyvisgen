@@ -3,7 +3,6 @@ from pathlib import Path
 
 import numpy as np
 import torch
-from astropy import units as un
 from astropy.time import Time
 from joblib import Parallel, delayed
 from rich.live import Live
@@ -17,7 +16,7 @@ from pyvisgen.dataset.utils import (
 )
 from pyvisgen.io import Config
 from pyvisgen.layouts import layouts
-from pyvisgen.simulation.observation import Observation
+from pyvisgen.simulation.observation import Observation, create_scans
 from pyvisgen.simulation.utils import create_progress_tracker
 from pyvisgen.simulation.visibility import vis_loop
 from pyvisgen.utils.data import load_bundles, open_bundles
@@ -649,21 +648,16 @@ class SimulateDataSet:
         """
         start_time = Time(self.samp_opts["start_time"][i].isoformat(), format="isot")
 
-        num_scans = self.samp_opts["num_scans"][i]
-        scan_separation = self.samp_opts_const["scan_separation"]
-        scan_duration = self.samp_opts["scan_duration"][i]
+        # use the same scans as in the simulation, see create_observation
+        scans = create_scans(
+            start=start_time,
+            scan_duration=int(self.samp_opts["scan_duration"][i]),
+            num_scans=int(self.samp_opts["num_scans"][i]),
+            scan_separation=self.samp_opts_const["scan_separation"],
+            integration_time=self.samp_opts_const["integration_time"],
+        )
 
-        int_time = self.samp_opts_const["integration_time"]
-
-        time_steps = (
-            start_time
-            + torch.arange(num_scans)[:, None] * scan_separation * un.second
-            + torch.arange(int(scan_duration / int_time) + 1)[None, :]
-            * int_time
-            * un.second
-        ).flatten()
-
-        return Time(time_steps)
+        return np.concatenate([scan.get_timesteps() for scan in scans])
 
     def _geocentric_to_spherical(
         self, x: torch.Tensor, y: torch.Tensor, z: torch.Tensor

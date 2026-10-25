@@ -481,6 +481,68 @@ class Scan:
         )
 
 
+def create_scans(
+    start: Time,
+    scan_duration: int | np.typing.ArrayLike,
+    num_scans: int,
+    scan_separation: int | np.typing.ArrayLike,
+    integration_time: int | np.typing.ArrayLike,
+) -> list[Scan]:
+    """Calculates the individual scans of an observation.
+
+    The first scan starts at ``start``. Every following scan starts after the
+    end of the previous scan plus the scan separation.
+
+    Parameters
+    ----------
+    start : :class:`~astropy.time.Time`
+        Start time of the first scan.
+    scan_duration : int or ArrayLike
+        Scan duration or array of scan durations in seconds
+        with size=num_scans.
+    num_scans : int
+        Number of scans.
+    scan_separation : int or ArrayLike
+        Scan separation or array of scan separations in seconds
+        with size=num_scans - 1.
+    integration_time : int or ArrayLike
+        Integration time or array of integration times in seconds
+        with size=num_scans.
+
+    Returns
+    -------
+    list[Scan]
+        List of scans with a specific start, stop and integration time.
+    """
+    scans = []
+
+    def _as_array(arr, size: int):
+        if np.isscalar(arr):
+            return np.ones(size) * arr
+        else:
+            return np.asarray(arr)
+
+    current_time = start
+
+    scan_duration = _as_array(scan_duration, size=num_scans)
+    scan_separation = np.append(_as_array(scan_separation, size=num_scans - 1), 0)
+    int_time = _as_array(integration_time, size=num_scans)
+
+    for i in range(num_scans):
+        scans.append(
+            Scan(
+                start=current_time,
+                stop=current_time + scan_duration[i] * un.second,
+                integration_time=int_time[i] * un.second,
+                separation=scan_separation[i] * un.second,
+            )
+        )
+
+        current_time = scans[-1].stop + scans[-1].separation
+
+    return scans
+
+
 class Observation:
     """Main observation simulation class.
     The :class:`~pyvisgen.simulation.Observation` class
@@ -714,36 +776,18 @@ class Observation:
         -------
         list[Scan]:
             List of scans with a specific start, stop and integration time
+
+        See Also
+        --------
+        create_scans : Function that is used to calculate the scans.
         """
-        scans = []
-
-        def _as_array(arr, size: int):
-            if np.isscalar(arr):
-                return np.ones(size) * arr
-            else:
-                return np.asarray(arr)
-
-        current_time = self.start
-
-        scan_duration = _as_array(self.scan_duration, size=self.num_scans)
-        scan_separation = np.append(
-            _as_array(self.scan_separation, size=self.num_scans - 1), 0
+        return create_scans(
+            start=self.start,
+            scan_duration=self.scan_duration,
+            num_scans=self.num_scans,
+            scan_separation=self.scan_separation,
+            integration_time=self.int_time,
         )
-        int_time = _as_array(self.int_time, size=self.num_scans)
-
-        for i in range(self.num_scans):
-            scans.append(
-                Scan(
-                    start=current_time,
-                    stop=current_time + scan_duration[i] * un.second,
-                    integration_time=int_time[i] * un.second,
-                    separation=scan_separation[i] * un.second,
-                )
-            )
-
-            current_time = scans[-1].stop + scans[-1].separation
-
-        return scans
 
     def calc_dense_baselines(self):
         """Calculates the baselines of a densely-built
