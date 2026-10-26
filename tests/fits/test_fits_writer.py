@@ -204,8 +204,8 @@ class TestCreateAntennaHDU:
         poltya = hdu.data["POLTYA"]
         poltyb = hdu.data["POLTYB"]
 
-        assert all([p == "X" for p in poltya])
-        assert all([p == "Y" for p in poltyb])
+        assert all(p == "X" for p in poltya)
+        assert all(p == "Y" for p in poltyb)
 
     def test_orbparm(self, mock_obs) -> None:
         hdu = create_antenna_hdu(mock_obs)

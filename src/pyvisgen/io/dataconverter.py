@@ -104,15 +104,15 @@ class DataConverter:
                 "uv pip install pyvisgen[webdataset]"
             )
 
-        cls = cls()
-        cls._FMT = "wds"
+        instance = cls()
+        instance._FMT = "wds"
 
         data_dir = Path(data_dir).expanduser().resolve()
-        dataset_split = cls._get_dataset_split(dataset_split)
+        dataset_split = instance._get_dataset_split(dataset_split)
 
-        cls.datasets = {t: data_dir.glob(f"{t}-*.tar*") for t in dataset_split}
+        instance.datasets = {t: data_dir.glob(f"{t}-*.tar*") for t in dataset_split}
 
-        return cls
+        return instance
 
     @classmethod
     def from_h5(cls, data_dir, dataset_split="all") -> Self:
@@ -131,15 +131,15 @@ class DataConverter:
         DataConverter
             Configured DataConverter instance with HDF5 source files.
         """
-        cls = cls()
-        cls._FMT = "h5"
+        instance = cls()
+        instance._FMT = "h5"
 
         data_dir = Path(data_dir).expanduser().resolve()
-        dataset_split = cls._get_dataset_split(dataset_split)
+        dataset_split = instance._get_dataset_split(dataset_split)
 
-        cls.datasets = {t: data_dir.glob(f"*{t}_*.h5") for t in dataset_split}
+        instance.datasets = {t: data_dir.glob(f"*{t}_*.h5") for t in dataset_split}
 
-        return cls
+        return instance
 
     @classmethod
     def from_pt(cls, data_dir, dataset_split="all"):
@@ -158,15 +158,15 @@ class DataConverter:
         DataConverter
             Configured DataConverter instance with PyTorch pickle source files.
         """
-        cls = cls()
-        cls._FMT = "pt"
+        instance = cls()
+        instance._FMT = "pt"
 
         data_dir = Path(data_dir).expanduser().resolve()
-        dataset_split = cls._get_dataset_split(dataset_split)
+        dataset_split = instance._get_dataset_split(dataset_split)
 
-        cls.datasets = {t: data_dir.glob(f"*{t}_*.pt") for t in dataset_split}
+        instance.datasets = {t: data_dir.glob(f"*{t}_*.pt") for t in dataset_split}
 
-        return cls
+        return instance
 
     def _get_dataset_split(self, dataset_split):
         if not isinstance(dataset_split, list):

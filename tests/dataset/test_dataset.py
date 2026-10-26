@@ -2,9 +2,11 @@ from datetime import datetime
 from logging import INFO, WARNING
 from unittest.mock import call, patch
 
+import astropy.units as un
 import numpy as np
 import pytest
 import torch
+from astropy.time import Time
 
 from pyvisgen.dataset import SimulateDataSet
 from pyvisgen.dataset.dataset import DATEFMT
@@ -41,31 +43,31 @@ class TestCreateObservation:
         simulate_dataset.conf = Config.from_toml("tests/test_conf.toml")
 
         # simpler sample options for test
-        simulate_dataset.samp_opts = dict(
-            src_ra=torch.tensor([180.0]),
-            src_dec=torch.tensor([45.0]),
-            start_time=np.array([datetime(2025, 1, 1, 12)]).astype(datetime),
-            scan_duration=torch.tensor([60]),
-            num_scans=torch.tensor([2]),
-            delta=torch.tensor([90]),
-            amp_ratio=torch.tensor([0.5]),
-            order=torch.tensor([0.5, 0.5]),
-            scale=torch.tensor([0.5, 1.0]),
-            threshold=None,
-        )
+        simulate_dataset.samp_opts = {
+            "src_ra": torch.tensor([180.0]),
+            "src_dec": torch.tensor([45.0]),
+            "start_time": np.array([datetime(2025, 1, 1, 12)]).astype(datetime),  # noqa: DTZ001
+            "scan_duration": torch.tensor([60]),
+            "num_scans": torch.tensor([2]),
+            "delta": torch.tensor([90]),
+            "amp_ratio": torch.tensor([0.5]),
+            "order": torch.tensor([0.5, 0.5]),
+            "scale": torch.tensor([0.5, 1.0]),
+            "threshold": None,
+        }
 
-        simulate_dataset.samp_opts_const = dict(
-            array_layout="vlba",
-            image_size=128,
-            fov=0.14,
-            integration_time=10.0,
-            scan_separation=4500,
-            ref_frequency=15e9,
-            frequency_offsets=[0.0],
-            bandwidths=[1.28e8],
-            corrupted=False,
-            polarization=None,
-        )
+        simulate_dataset.samp_opts_const = {
+            "array_layout": "vlba",
+            "image_size": 128,
+            "fov": 0.14,
+            "integration_time": 10.0,
+            "scan_separation": 4500,
+            "ref_frequency": 15e9,
+            "frequency_offsets": [0.0],
+            "bandwidths": [1.28e8],
+            "corrupted": False,
+            "polarization": None,
+        }
 
         return simulate_dataset
 
@@ -82,6 +84,51 @@ class TestCreateObservation:
             assert call_kwargs["src_dec"] == 45.0
             assert call_kwargs["scan_duration"] == 60
             assert call_kwargs["num_scans"] == 2
+
+    def test_calc_time_steps(self, sd: SimulateDataSet) -> None:
+        """Scan 2 starts after the end of scan 1 plus the separation."""
+        time_steps = sd.calc_time_steps(0)
+
+        # 2 scans of 60 s with 10 s integration time, 4500 s separation
+        expected = np.concatenate(
+            [np.arange(0, 70, 10), 60 + 4500 + np.arange(0, 70, 10)]
+        )
+        start = Time(datetime(2025, 1, 1, 12).isoformat(), format="isot")  # noqa: DTZ001
+
+        assert isinstance(time_steps, Time)
+        assert time_steps.shape == expected.shape
+        np.testing.assert_allclose(
+            (time_steps - start).to(un.second).value, expected, atol=1e-5
+        )
+
+    def test_calc_time_steps_not_divisible(self, sd: SimulateDataSet) -> None:
+        """The scan ends with a shorter interval and the next one starts after it."""
+        sd.samp_opts["scan_duration"] = torch.tensor([65])
+
+        time_steps = sd.calc_time_steps(0)
+
+        start = Time(datetime(2025, 1, 1, 12).isoformat(), format="isot")  # noqa: DTZ001
+        steps = (time_steps - start).to(un.second).value
+        scan_1 = np.append(np.arange(0, 65, 10), 65)
+        expected = np.concatenate([scan_1, 65 + 4500 + scan_1])
+
+        np.testing.assert_allclose(steps, expected, atol=1e-5)
+
+    def test_calc_time_steps_matches_observation(self, sd: SimulateDataSet) -> None:
+        """The times used for testing the sampling parameters must be the times
+        of the simulated observation."""
+        sd.samp_opts["num_scans"] = torch.tensor([3])
+        sd.samp_opts["scan_duration"] = torch.tensor([95])
+        sd.samp_opts_const["device"] = "cpu"
+
+        time_steps = sd.calc_time_steps(0)
+        obs = sd.create_observation(0)
+        obs_steps = np.concatenate([scan.get_timesteps() for scan in obs.scans])
+
+        assert time_steps.shape == obs_steps.shape
+        np.testing.assert_allclose(
+            (time_steps - obs_steps).to(un.second).value, 0, atol=1e-5
+        )
 
     def test_observation_dense(self, sd: SimulateDataSet) -> None:
         sd.conf.sampling.mode = "dense"
@@ -276,7 +323,7 @@ class TestDrawSamplingOpts:
         size = 5
         samp_opts = sd_sampling.draw_sampling_opts(size)
 
-        expected = datetime.strptime(date_str, DATEFMT)
+        expected = datetime.strptime(date_str, DATEFMT)  # noqa: DTZ007
         assert samp_opts["start_time"].shape == (size,)
         assert all(t == expected for t in samp_opts["start_time"])
 

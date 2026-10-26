@@ -1,0 +1,1 @@
+Fixed ``SimulateDataSet.calc_time_steps`` so that the time steps used for testing the random sampling parameters match the scans of the simulated observation. Previously, the start of each scan did not include the scan duration. The scans are now calculated by the new function ``create_scans``, which is also used by :class:`~pyvisgen.simulation.Observation`.
