@@ -12,6 +12,7 @@ from pyvisgen.simulation.observation import (
     Observation,
     Scan,
     ValidBaselineSubset,
+    create_scans,
 )
 
 
@@ -51,6 +52,66 @@ class TestBaselines:
 
         assert isinstance(subset, ValidBaselineSubset)
         assert len(subset.date) == sum(valid)
+
+    @staticmethod
+    def _stacked_scans(scan_lengths: list[int], num_baselines: int) -> Baselines:
+        """Baselines of consecutive scans, stacked along the time axis."""
+        n_steps = sum(scan_lengths)
+        step = torch.arange(n_steps, dtype=torch.float64)
+
+        def per_baseline(values: torch.Tensor) -> torch.Tensor:
+            return values[:, None].expand(n_steps, num_baselines).reshape(-1)
+
+        st = torch.arange(num_baselines, dtype=torch.float64).repeat(n_steps)
+        zeros = torch.zeros(n_steps * num_baselines, dtype=torch.float64)
+
+        baselines = Baselines(
+            st1=st,
+            st2=st + 1,
+            u=per_baseline(step),
+            v=per_baseline(step),
+            w=zeros,
+            valid=torch.ones(n_steps * num_baselines),
+            time=per_baseline(step),
+            q1=zeros,
+            q2=zeros,
+            el1=zeros,
+            el2=zeros,
+        )
+        baselines.scan_lengths = scan_lengths
+
+        return baselines
+
+    def test_get_valid_subset_no_window_across_scans(self, device: str) -> None:
+        num_baselines = 3
+        baselines = self._stacked_scans([3, 2, 4], num_baselines)
+
+        subset = baselines.get_valid_subset(num_baselines, device=device)
+
+        # rows 0-1-2 | 3-4 | 5-6-7-8: windows (0,1) (1,2) | (3,4) | (5,6) (6,7) (7,8)
+        assert len(subset.u_valid) == 6 * num_baselines
+        starts = torch.unique(subset.u_start).tolist()
+        stops = torch.unique(subset.u_stop).tolist()
+        assert starts == [0.0, 1.0, 3.0, 5.0, 6.0, 7.0]
+        assert stops == [1.0, 2.0, 4.0, 6.0, 7.0, 8.0]
+
+    def test_get_valid_subset_without_scan_lengths(self, device: str) -> None:
+        """Without the scan lengths, all consecutive time steps are paired."""
+        num_baselines = 3
+        baselines = self._stacked_scans([3, 2], num_baselines)
+        del baselines.scan_lengths
+
+        subset = baselines.get_valid_subset(num_baselines, device=device)
+
+        assert len(subset.u_valid) == 4 * num_baselines
+
+    def test_get_valid_subset_single_scan(self, device: str) -> None:
+        num_baselines = 3
+        baselines = self._stacked_scans([5], num_baselines)
+
+        subset = baselines.get_valid_subset(num_baselines, device=device)
+
+        assert len(subset.u_valid) == 4 * num_baselines
 
     def test_add_baseline_to_empty(self, baselines: Baselines) -> None:
         empty = Baselines(
@@ -156,6 +217,36 @@ class TestScan:
         assert timesteps[0] == scan.start
         assert timesteps[-1] == scan.stop
 
+    @pytest.mark.parametrize(
+        "duration,integration_time,expected",
+        [
+            (360, 60, 7),  # divisible, the endpoint is included
+            (400, 60, 8),  # not divisible, short last interval
+            (3, 0.1, 31),  # floating point integration time
+            (60, 60, 2),
+            (30, 60, 2),  # shorter than one integration time
+        ],
+    )
+    def test_timesteps_cover_whole_scan(
+        self, duration: float, integration_time: float, expected: int
+    ) -> None:
+        start = Time("2026-01-21T00:00:00", format="isot", scale="utc")
+        stop = start + duration * un.second
+        scan = Scan(
+            start=start, stop=stop, separation=0, integration_time=integration_time
+        )
+
+        timesteps = scan.get_timesteps()
+        steps = (timesteps - start).to(un.second).value
+
+        assert scan.get_num_timesteps() == expected
+        assert len(timesteps) == expected
+        assert timesteps[0] == start
+        assert timesteps[-1] == stop
+        # no duplicates, and no step is longer than the integration time
+        assert (np.diff(steps) > 0).all()
+        assert (np.diff(steps) <= integration_time + 1e-6).all()
+
     def test_post_init_cast_to_astropy_quantity(self):
         start = Time("2026-01-21T00:00:00", format="isot", scale="utc")
         stop = Time("2026-01-21T01:00:00", format="isot", scale="utc")
@@ -182,6 +273,63 @@ class TestScan:
         assert scan.integration_time.unit == un.second
         assert scan.separation == 600 * un.second
         assert scan.integration_time == 600 * un.second
+
+
+class TestCreateScans:
+    @pytest.fixture
+    def start(self) -> Time:
+        return Time("2026-01-21T00:00:00", format="isot", scale="utc")
+
+    def test_scan_starts_after_previous_scan_and_separation(self, start: Time) -> None:
+        scans = create_scans(
+            start=start,
+            scan_duration=400,
+            num_scans=3,
+            scan_separation=120,
+            integration_time=60,
+        )
+
+        starts = [(scan.start - start).to(un.second).value for scan in scans]
+        stops = [(scan.stop - start).to(un.second).value for scan in scans]
+
+        assert len(scans) == 3
+        np.testing.assert_allclose(starts, [0, 520, 1040], atol=1e-5)
+        np.testing.assert_allclose(stops, [400, 920, 1440], atol=1e-5)
+        # no waiting time after the last scan
+        assert scans[-1].separation == 0 * un.second
+
+    def test_per_scan_arrays(self, start: Time) -> None:
+        scans = create_scans(
+            start=start,
+            scan_duration=[100, 200],
+            num_scans=2,
+            scan_separation=[50],
+            integration_time=[10, 20],
+        )
+
+        assert [scan.integration_time.value for scan in scans] == [10, 20]
+        np.testing.assert_allclose(
+            [(scan.start - start).to(un.second).value for scan in scans],
+            [0, 150],
+            atol=1e-5,
+        )
+
+    def test_observation_uses_create_scans(self, obs_params: dict) -> None:
+        obs = Observation(**{**obs_params, "num_scans": 3, "scan_separation": 120})
+
+        expected = create_scans(
+            start=obs.start,
+            scan_duration=obs.scan_duration,
+            num_scans=obs.num_scans,
+            scan_separation=obs.scan_separation,
+            integration_time=obs.int_time,
+        )
+
+        assert len(obs.scans) == len(expected)
+        for scan, scan_expected in zip(obs.scans, expected):
+            assert scan.start == scan_expected.start
+            assert scan.stop == scan_expected.stop
+            assert scan.integration_time == scan_expected.integration_time
 
 
 class TestObservation:
@@ -264,6 +412,36 @@ class TestObservation:
 
         with pytest.raises(ValueError, match="finite, positive"):
             Observation(**{**obs_params, "ant_sefd_scale": {names[0]: bad}})
+
+    def test_valid_subset_stays_within_scans(self, obs_params: dict) -> None:
+        """No uv point may be created in the gap between two scans."""
+        # the source has to be visible, otherwise there are no valid baselines
+        params = {
+            **obs_params,
+            "src_dec": -35.0,
+            "array_layout": "meerkat",
+            "ref_frequency": 1.284e9,
+            "num_scans": 3,
+            "scan_duration": 400,
+            "scan_separation": 120,
+            "integration_time": 60,
+            "device": "cpu",
+        }
+        obs = Observation(**params)
+
+        assert obs.baselines.scan_lengths == [
+            sc.get_num_timesteps() for sc in obs.scans
+        ]
+
+        subset = obs.baselines.get_valid_subset(obs.num_baselines, "cpu")
+        date = subset.date.numpy()
+        in_scan = np.zeros(date.shape, dtype=bool)
+
+        for scan in obs.scans:
+            in_scan |= (date >= scan.start.jd) & (date <= scan.stop.jd)
+
+        assert subset.u_valid.numel() > 0
+        assert in_scan.all()
 
     def test_create_lm_grid(self, obs: Observation, device) -> None:
         img_size = obs.img_size
