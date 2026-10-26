@@ -1084,6 +1084,12 @@ class Observation:
         Fourier transform. The RA and Dec values of each pixel,
         :attr:`Observation.rd`, are derived from this grid in
         :meth:`Observation.create_rd_grid`.
+
+        The grid spans :math:`\pm\,\mathrm{fov}/2` in both :math:`l` and
+        :math:`m`, with ``fov`` in radian. Only pixels with
+        :math:`l^2 + m^2 \leq 1` lie on the visible hemisphere. The corner
+        pixels leave it for :math:`\mathrm{fov} > \sqrt{2}` rad
+        (:math:`\approx 81^\circ`) and a warning is logged.
         """
         fov = np.deg2rad(self.fov / 3600, dtype=np.float128)
         res = fov / self.img_size
@@ -1093,6 +1099,17 @@ class Observation:
             step=res,
             dtype=np.float128,
         )[: self.img_size]
+
+        # the corner pixels have the largest l^2 + m^2
+        if 2 * np.abs(ax).max() ** 2 > 1:
+            LOGGER.warning(
+                f"The field of view of {self.fov} arcsec is too large for the SIN "
+                "projection: pixels with l^2 + m^2 > 1 are outside of the visible "
+                "hemisphere and have no valid n = sqrt(1 - l^2 - m^2). The grid "
+                "spans +-fov/2 in l and m (fov in radians), so the field of view "
+                "must not exceed sqrt(2) rad (~81 deg)."
+            )
+
         L, M = np.meshgrid(ax, ax, indexing="xy")
         lm_grid = np.stack([L, M], axis=-1).astype(np.float64)
         return torch.from_numpy(lm_grid).to(self.device)
