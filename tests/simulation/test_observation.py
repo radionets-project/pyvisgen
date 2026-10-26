@@ -1,3 +1,4 @@
+import logging
 from dataclasses import fields
 
 import astropy.units as un
@@ -402,6 +403,29 @@ class TestObservation:
 
         assert lm.shape == (img_size, img_size, 2)
         assert lm.device.type == dev.type
+
+    @pytest.mark.parametrize(
+        "fov_deg,warns",
+        [
+            (1.0, False),
+            (80.0, False),  # sqrt(2) rad = 81.05 deg
+            (82.0, True),
+            (120.0, True),
+        ],
+    )
+    def test_create_lm_grid_warns_for_too_large_fov(
+        self, obs_params: dict, caplog, fov_deg: float, warns: bool
+    ) -> None:
+        params = {**obs_params, "fov": fov_deg * 3600, "device": "cpu"}
+
+        with caplog.at_level(logging.WARNING):
+            obs = Observation(**params)
+
+        l_m = obs.lm.numpy()
+        outside = (l_m[..., 0] ** 2 + l_m[..., 1] ** 2 > 1).any()
+
+        assert ("too large for the SIN projection" in caplog.text) == warns
+        assert outside == warns
 
     def test_create_rd_grid(self, obs: Observation, device) -> None:
         img_size = obs.img_size
