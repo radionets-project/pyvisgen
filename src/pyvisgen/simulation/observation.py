@@ -1132,7 +1132,7 @@ class Observation:
         where :math:`\delta_0` is the declination of the phase centre.
         """
         d0 = self.dec
-        if torch.is_tensor(d0):
+        if isinstance(d0, torch.Tensor):
             d0 = d0.detach().cpu().numpy()
         dec0 = np.deg2rad(np.asarray(d0, dtype=np.float64).reshape(-1)[0]).astype(
             np.float128
