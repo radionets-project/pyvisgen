@@ -519,8 +519,8 @@ def calc_beam(
     theta = angular_distance(rd, ra, dec)
     tds = diameters * theta[..., None]
 
-    E1 = jinc(2 * pi / c * spw_low * tds)
-    E2 = jinc(2 * pi / c * spw_high * tds)
+    E1 = jinc(pi / c * spw_low * tds)
+    E2 = jinc(pi / c * spw_high * tds)
     assert E1.shape == E2.shape
 
     EXE1 = E1[..., None] * X1 * E1[..., None]
