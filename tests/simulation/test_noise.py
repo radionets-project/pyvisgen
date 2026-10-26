@@ -1,3 +1,6 @@
+import tomllib
+from pathlib import Path
+
 import numpy as np
 import pytest
 import torch
@@ -9,6 +12,7 @@ from pyvisgen.simulation.noise import (
     compute_noise_std,
     elevation_tsys_contribution,
     generate_noise,
+    get_ant_sefd_scale,
     sefd_from_elevation,
 )
 
@@ -180,6 +184,38 @@ class TestSefdFromElevation:
         sefd = sefd_from_elevation(el1, el2, tsys_over_eta)
         np.testing.assert_allclose(sefd.numpy(), expected.numpy(), rtol=1e-6)
 
+    def test_unit_ant_scale_is_nominal(
+        self, el_deg: torch.Tensor, tsys_over_eta: float
+    ) -> None:
+        """Scale factors of 1.0 must reproduce the nominal SEFD."""
+        ones = torch.ones_like(el_deg)
+        nominal = sefd_from_elevation(el_deg, el_deg, tsys_over_eta)
+        scaled = sefd_from_elevation(
+            el_deg, el_deg, tsys_over_eta, ant_scale1=ones, ant_scale2=ones
+        )
+        torch.testing.assert_close(scaled, nominal)
+
+    def test_ant_scale_multiplies_geometric_mean(
+        self, el_deg: torch.Tensor, tsys_over_eta: float
+    ) -> None:
+        """A baseline SEFD scales with sqrt(s1 * s2)."""
+        s1 = torch.linspace(0.8, 1.3, len(el_deg))
+        s2 = torch.linspace(1.4, 0.9, len(el_deg))
+
+        nominal = sefd_from_elevation(el_deg, el_deg, tsys_over_eta)
+        scaled = sefd_from_elevation(
+            el_deg, el_deg, tsys_over_eta, ant_scale1=s1, ant_scale2=s2
+        )
+        torch.testing.assert_close(scaled, nominal * torch.sqrt(s1 * s2))
+
+    def test_single_ant_scale(self, el_deg: torch.Tensor, tsys_over_eta: float) -> None:
+        """Passing only one of the two scale factors is allowed."""
+        s1 = torch.full_like(el_deg, 1.6)
+
+        nominal = sefd_from_elevation(el_deg, el_deg, tsys_over_eta)
+        scaled = sefd_from_elevation(el_deg, el_deg, tsys_over_eta, ant_scale1=s1)
+        torch.testing.assert_close(scaled, nominal * torch.sqrt(s1))
+
     @pytest.mark.parametrize("telescope", available_telescopes())
     def test_registered_telescopes(
         self, el_deg: torch.Tensor, tsys_over_eta: float, telescope: str
@@ -187,6 +223,89 @@ class TestSefdFromElevation:
         sefd = sefd_from_elevation(el_deg, el_deg, tsys_over_eta, telescope=telescope)
         assert sefd.shape == el_deg.shape
         assert (sefd > 0).all()
+
+
+# ---------------------------------------------------------------------------
+# get_ant_sefd_scale
+# ---------------------------------------------------------------------------
+
+
+@pytest.fixture
+def fake_noise_config(mocker):
+    """Patch the noise config loader with a minimal config for a fake telescope."""
+
+    def _patch(ant_scale: dict | None) -> None:
+        band = {
+            "el_knots": [15.0, 90.0],
+            "t_atm": [5.0, 1.4],
+            "t_spill_h": [2.5, 3.1],
+            "t_spill_v": [2.6, 3.2],
+        }
+        if ant_scale is not None:
+            band["ant_scale"] = ant_scale
+
+        mocker.patch(
+            "pyvisgen.simulation.noise._load_telescope_toml",
+            return_value={"dish_diameter": 13.5, "bands": {"L": band}},
+        )
+
+    return _patch
+
+
+class TestGetAntSefdScale:
+    def test_none_without_table(self, fake_noise_config) -> None:
+        fake_noise_config(None)
+        assert get_ant_sefd_scale("fake", "L", ["a", "b"]) is None
+
+    def test_none_for_empty_table(self, fake_noise_config) -> None:
+        fake_noise_config({})
+        assert get_ant_sefd_scale("fake", "L", ["a", "b"]) is None
+
+    def test_band_spec_exposes_table(self, fake_noise_config) -> None:
+        fake_noise_config({"a": 1.2})
+        assert _get_band_spec("fake", "L")["ant_scale"] == {"a": 1.2}
+
+    def test_band_spec_without_table_is_empty(self, fake_noise_config) -> None:
+        fake_noise_config(None)
+        assert _get_band_spec("fake", "L")["ant_scale"] == {}
+
+    def test_factors_follow_station_order(self, fake_noise_config) -> None:
+        fake_noise_config({"c": 0.9, "a": 1.2})
+        scale = get_ant_sefd_scale("fake", "L", ["a", "b", "c"])
+        # "b" is not listed and keeps the nominal SEFD
+        torch.testing.assert_close(scale, torch.tensor([1.2, 1.0, 0.9]))
+
+    def test_integer_station_names(self, fake_noise_config) -> None:
+        """TOML keys are strings, station names may be integers."""
+        fake_noise_config({"1": 1.5})
+        scale = get_ant_sefd_scale("fake", "L", [0, 1, 2])
+        torch.testing.assert_close(scale, torch.tensor([1.0, 1.5, 1.0]))
+
+    def test_unknown_stations_in_table_are_ignored(self, fake_noise_config) -> None:
+        fake_noise_config({"a": 1.2, "not_in_array": 3.0})
+        scale = get_ant_sefd_scale("fake", "L", ["a", "b"])
+        torch.testing.assert_close(scale, torch.tensor([1.2, 1.0]))
+
+    def test_meerkat_l_band_table_matches_layout(self) -> None:
+        """Station names in the shipped table must exist in the layout, otherwise
+        a typo would silently leave that station at the nominal SEFD."""
+        with open(Path("resources/noise_configs/meerkat.toml"), "rb") as f:
+            table = tomllib.load(f)["bands"]["L"].get("ant_scale", {})
+        with open(Path("resources/layouts/meerkat.txt")) as f:
+            layout_names = {
+                line.split()[0] for line in f.readlines()[1:] if line.strip()
+            }
+
+        assert set(table) <= layout_names
+        assert all(0 < value < float("inf") for value in table.values())
+
+    @pytest.mark.parametrize("value", [0.0, -1.0, float("inf"), float("nan"), "1.2"])
+    def test_invalid_values_raise(self, fake_noise_config, value) -> None:
+        fake_noise_config({"a": 1.1, "b": value})
+        with pytest.raises(ValueError, match="finite and positive") as excinfo:
+            get_ant_sefd_scale("fake", "L", ["a", "b"])
+        assert "'b'" in str(excinfo.value)
+        assert "'a'" not in str(excinfo.value)
 
 
 # ---------------------------------------------------------------------------
@@ -335,6 +454,53 @@ class TestGenerateNoise:
         )
         # weights should not all be equal since elevations span a range
         assert not torch.allclose(weights[0], weights[-1])
+
+    def test_ant_scale_weights_tsys_mode(
+        self, obs, n_baselines: int, tsys_over_eta: float
+    ) -> None:
+        """Weights are 1 / sigma^2, so they scale with 1 / (s1 * s2)."""
+        shape = (n_baselines, 1, 2, 2)
+        el = torch.linspace(20.0, 80.0, n_baselines)
+        s1 = torch.linspace(0.8, 1.3, n_baselines)
+        s2 = torch.linspace(1.4, 0.9, n_baselines)
+        kwargs = {
+            "noise_value": tsys_over_eta,
+            "mode": "tsys",
+            "el1_deg": el,
+            "el2_deg": el,
+        }
+
+        _, weights_nominal = generate_noise(shape, obs, **kwargs)
+        _, weights_scaled = generate_noise(
+            shape, obs, ant_scale1=s1, ant_scale2=s2, **kwargs
+        )
+
+        expected = weights_nominal / (s1 * s2)[:, None]
+        torch.testing.assert_close(weights_scaled, expected)
+
+    def test_ant_scale_weights_sefd_mode(self, obs, n_baselines: int) -> None:
+        """In ``mode='sefd'`` the weights also scale with 1 / (s1 * s2)."""
+        shape = (n_baselines, 1, 2, 2)
+        s1 = torch.linspace(0.8, 1.3, n_baselines)
+        s2 = torch.linspace(1.4, 0.9, n_baselines)
+
+        _, weights_nominal = generate_noise(shape, obs, noise_value=400.0, mode="sefd")
+        _, weights_scaled = generate_noise(
+            shape, obs, noise_value=400.0, mode="sefd", ant_scale1=s1, ant_scale2=s2
+        )
+
+        expected = weights_nominal / (s1 * s2)[:, None]
+        torch.testing.assert_close(weights_scaled, expected)
+
+    def test_unit_ant_scale_is_nominal_sefd_mode(self, obs, n_baselines: int) -> None:
+        shape = (n_baselines, 1, 2, 2)
+        ones = torch.ones(n_baselines)
+
+        _, weights_nominal = generate_noise(shape, obs, noise_value=400.0, mode="sefd")
+        _, weights_ones = generate_noise(
+            shape, obs, noise_value=400.0, mode="sefd", ant_scale1=ones, ant_scale2=ones
+        )
+        torch.testing.assert_close(weights_ones, weights_nominal)
 
     def test_noise_mean_near_zero(self, obs) -> None:
         """Real and imaginary parts should have mean ≈ 0 for large sample count."""
