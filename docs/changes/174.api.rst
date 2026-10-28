@@ -1,0 +1,1 @@
+Removed the unused ``ra`` argument from :func:`~pyvisgen.simulation.angular_distance` and :func:`~pyvisgen.simulation.calc_beam`, as well as the ``RIMEScan.ra`` attribute. The beam is centred on the phase centre and the RA offset in ``rd`` is already given relative to it.
