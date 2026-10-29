@@ -187,6 +187,7 @@ def generate_noise(
     el2_deg: torch.Tensor | None = None,
     telescope: str = "meerkat",
     band: str | None = None,
+    scale: float = 1.0,
 ) -> tuple[torch.Tensor, torch.Tensor]:
     """Generate complex Gaussian visibility noise and natural weights.
 
@@ -209,6 +210,12 @@ def generate_noise(
     band : str, optional
         Frequency band name defined in the telescope config. Defaults to the
         first band in the config file. Only used for ``mode='tsys'``.
+    scale : float, optional
+        Factor by which the visibilities are scaled relative to the XX/YY (or
+        RR/LL) convention, in which an unpolarised source has XX = YY = I. The
+        noise standard deviation and the weights are adapted accordingly, e.g.
+        ``scale=0.5`` for visibilities that are normalised by a factor 0.5.
+        Default: ``1.0``
 
     Returns
     -------
@@ -216,6 +223,13 @@ def generate_noise(
         Complex noise array of the given shape.
     weights : torch.Tensor
         Natural weights (1/σ²) of shape (n_baselines, n_channels).
+
+    Notes
+    -----
+    The noise standard deviation of one XX or YY visibility is given by the
+    radiometer equation, see :func:`compute_noise_std`. If the visibilities
+    are scaled by ``scale``, the noise is scaled by the same factor, which
+    gives the weights :math:`1 / (\\mathrm{scale} \\cdot \\sigma)^2`.
     """
     if mode == "tsys":
         if el1_deg is None or el2_deg is None:
@@ -231,7 +245,7 @@ def generate_noise(
     else:
         raise ValueError(f"Unknown noise mode '{mode}'. Choose 'sefd' or 'tsys'.")
 
-    std = compute_noise_std(obs, sefd)
+    std = scale * compute_noise_std(obs, sefd)
     weights = (1.0 / std**2).unsqueeze(-1).expand(shape[0], shape[1])
     std = std.reshape(-1, *([1] * (len(shape) - 1)))
     std_expanded = std.expand(shape)
