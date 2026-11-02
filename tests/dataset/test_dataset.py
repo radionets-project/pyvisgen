@@ -46,7 +46,7 @@ class TestCreateObservation:
         simulate_dataset.samp_opts = {
             "src_ra": torch.tensor([180.0]),
             "src_dec": torch.tensor([45.0]),
-            "start_time": np.array([datetime(2025, 1, 1, 12)]).astype(datetime),  # noqa: DTZ001
+            "start_time": np.array([datetime(2025, 1, 1, 12)]).astype(datetime),
             "scan_duration": torch.tensor([60]),
             "num_scans": torch.tensor([2]),
             "delta": torch.tensor([90]),
@@ -93,7 +93,7 @@ class TestCreateObservation:
         expected = np.concatenate(
             [np.arange(0, 70, 10), 60 + 4500 + np.arange(0, 70, 10)]
         )
-        start = Time(datetime(2025, 1, 1, 12).isoformat(), format="isot")  # noqa: DTZ001
+        start = Time(datetime(2025, 1, 1, 12).isoformat(), format="isot")
 
         assert isinstance(time_steps, Time)
         assert time_steps.shape == expected.shape
@@ -107,7 +107,7 @@ class TestCreateObservation:
 
         time_steps = sd.calc_time_steps(0)
 
-        start = Time(datetime(2025, 1, 1, 12).isoformat(), format="isot")  # noqa: DTZ001
+        start = Time(datetime(2025, 1, 1, 12).isoformat(), format="isot")
         steps = (time_steps - start).to(un.second).value
         scan_1 = np.append(np.arange(0, 65, 10), 65)
         expected = np.concatenate([scan_1, 65 + 4500 + scan_1])
@@ -323,7 +323,7 @@ class TestDrawSamplingOpts:
         size = 5
         samp_opts = sd_sampling.draw_sampling_opts(size)
 
-        expected = datetime.strptime(date_str, DATEFMT)  # noqa: DTZ007
+        expected = datetime.strptime(date_str, DATEFMT)
         assert samp_opts["start_time"].shape == (size,)
         assert all(t == expected for t in samp_opts["start_time"])
 

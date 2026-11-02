@@ -487,13 +487,13 @@ class SimulateDataSet:
         )
 
         # naive datetimes are intended: they are interpreted as UTC downstream
-        start_time_l = datetime.strptime(  # noqa: DTZ007
+        start_time_l = datetime.strptime(
             self.conf.sampling.scan_start[0], self.date_fmt
         )
         if len(self.conf.sampling.scan_start) == 1:
             scan_start = np.full(size, start_time_l)
         else:
-            start_time_h = datetime.strptime(  # noqa: DTZ007
+            start_time_h = datetime.strptime(
                 self.conf.sampling.scan_start[1], self.date_fmt
             )
             start_times = np.arange(
