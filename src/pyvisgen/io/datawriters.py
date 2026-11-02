@@ -357,6 +357,7 @@ class FITSWriter(DataWriter):
         obs,
         index,
         overwrite=True,
+        normalize=False,
         **kwargs,
     ) -> None:
         """Write visibility data and observation metadata to a FITS file.
@@ -376,6 +377,11 @@ class FITSWriter(DataWriter):
             If ``True``, overwrite the output file if it already exists,
             otherwise an error is raised.
             Default: ``True``.
+        normalize : bool, optional
+            Set to ``True`` if the visibilities were simulated with a normalized
+            Stokes matrix, see :func:`~pyvisgen.simulation.vis_loop`. The data in
+            the file are then scaled to the XX = YY = I convention.
+            Default: ``False``.
 
         See Also
         --------
@@ -394,7 +400,7 @@ class FITSWriter(DataWriter):
         output_file = self.output_path / Path(
             f"vis_{self.dataset_type}_" + str(index) + ".fits"
         )
-        hdu_list = create_hdu_list(vis_data, obs)
+        hdu_list = create_hdu_list(vis_data, obs, normalize=normalize)
         hdu_list.writeto(output_file, overwrite=overwrite)
 
 
@@ -469,7 +475,7 @@ class UVH5Writer(DataWriter):
         obs,
         index: int,
         sky=None,
-        normalize: bool = True,
+        normalize: bool = False,
         **kwargs,
     ) -> None:
         """Write simulation data to an HDF5 file.
@@ -493,6 +499,12 @@ class UVH5Writer(DataWriter):
             Sky intensity distribution (SI) passed to the visibility
             simulation, with shape ``(C, H, W)``. If ``None``, the
             ``sky/`` group is omitted from the output file.
+        normalize : bool, optional
+            Set to ``True`` if the visibilities were simulated with
+            ``normalize=True``, i.e. if they were multiplied by a factor 0.5.
+            The flag is stored in the file, so that readers can scale the
+            visibilities back to the standard convention, where an unpolarised
+            source has ``V_11 = V_22 = I``. Default: ``False``.
 
         Examples
         --------

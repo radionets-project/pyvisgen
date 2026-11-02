@@ -232,6 +232,7 @@ class SimulateDataSet:
                         fov=self.conf.bundle.grid_fov,
                         stokes_components=self.stokes_comp,
                         polarizations=self.conf.polarization.mode,
+                        normalized=self.conf.sampling.normalize,
                     ).grid()
 
                     sim_data.append(np.array(grid_data.get_mask_real_imag()))
@@ -276,7 +277,13 @@ class SimulateDataSet:
                     )
 
                     if fits_writer is not None:
-                        fits_writer.write(vis_data, obs, index=i, overwrite=True)
+                        fits_writer.write(
+                            vis_data,
+                            obs,
+                            index=i * bundle_length + j,
+                            overwrite=True,
+                            normalize=self.conf.sampling.normalize,
+                        )
 
                 path_msg = self.conf.bundle.out_path / Path(
                     f"samp_{self.conf.bundle.dataset_type}_<id>.fits"

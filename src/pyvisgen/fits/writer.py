@@ -9,9 +9,12 @@ from astropy.time import Time
 from astropy.utils import iers
 
 from pyvisgen.layouts import layouts
+from pyvisgen.simulation.visibility import NORMALIZATION_FACTOR
 
 
-def create_vis_hdu(data, obs, source_name="sim-source-0") -> fits.GroupsHDU:
+def create_vis_hdu(
+    data, obs, source_name="sim-source-0", normalize=False
+) -> fits.GroupsHDU:
     """Creates the visibility HDU for the given visibility
     data and observation.
 
@@ -27,12 +30,25 @@ def create_vis_hdu(data, obs, source_name="sim-source-0") -> fits.GroupsHDU:
     source_name : str, optional
         Source name saved to the ``OBJECT`` key inside the
         FITS file. Default: ``'sim-source-0'``
+    normalize : bool, optional
+        Set to ``True`` if the visibilities were simulated with a normalized
+        Stokes matrix (see :func:`~pyvisgen.simulation.vis_loop`).
+        Default: ``False``
 
     Returns
     -------
     hdu_vis : :class:`~astropy.io.fits.GroupsHDU`
         :class:`~astropy.io.fits.GroupsHDU` containing visibility
         data for the FITS file.
+
+    Notes
+    -----
+    The polarisation axis of the file is XX/YY for linear and RR/LL otherwise,
+    where an unpolarised source has XX = YY = I and I = (XX + YY) / 2. Normalized
+    visibilities hold only half of Stokes I in each parallel hand. They are
+    therefore divided by the normalization factor, so that the flux in the file
+    follows the convention of the header. The weights, :math:`w = 1 / \\sigma^2`,
+    are scaled by the square of the same factor.
     """
     u = data.u
 
@@ -48,14 +64,19 @@ def create_vis_hdu(data, obs, source_name="sim-source-0") -> fits.GroupsHDU:
 
     FREQSEL = np.repeat(np.array([1.0], dtype=">f4"), len(u))
 
-    # visibility data
+    # visibility data, scaled to XX = YY = I for an unpolarised source
     values = data.get_values()
+    weights = data.weights
+
+    if normalize:
+        values = values / NORMALIZATION_FACTOR
+        weights = weights * NORMALIZATION_FACTOR**2
 
     vis = np.stack(
         [
             values.real,
             values.imag,
-            data.weights.unsqueeze(2).expand(values.real.shape),
+            weights.unsqueeze(2).expand(values.real.shape),
         ],  # real, imag, weights [n, freqs, pol]
         axis=3,
     )[:, None, None, None, ...]
@@ -431,7 +452,7 @@ def create_antenna_hdu(obs) -> fits.BinTableHDU:
     return hdu_ant
 
 
-def create_hdu_list(data, obs) -> fits.HDUList:
+def create_hdu_list(data, obs, normalize=False) -> fits.HDUList:
     """Creates a :class:`~astropy.io.fits.HDUList` as the
     top-level object for the FITS file.
 
@@ -444,6 +465,10 @@ def create_hdu_list(data, obs) -> fits.HDUList:
         :class:`~pyvisgen.simulation.Observation` object containing
         data on the source position, baselines, antenna configuration,
         and frequencies.
+    normalize : bool, optional
+        Set to ``True`` if the visibilities were simulated with a normalized
+        Stokes matrix, see :func:`~pyvisgen.fits.writer.create_vis_hdu`.
+        Default: ``False``
 
     Returns
     -------
@@ -452,7 +477,7 @@ def create_hdu_list(data, obs) -> fits.HDUList:
         HDU objects.
     """
     warnings.filterwarnings("ignore", module="astropy.io.fits")
-    vis_hdu = create_vis_hdu(data, obs)
+    vis_hdu = create_vis_hdu(data, obs, normalize=normalize)
     time_hdu = create_time_hdu(data)
     freq_hdu = create_frequency_hdu(obs)
     ant_hdu = create_antenna_hdu(obs)
