@@ -1,0 +1,1 @@
+Fixed a bug where :class:`~pyvisgen.simulation.Observation` would receive the same set of parameters for every image in a bundle in :class:`~pyvisgen.dataset.SimulateDataSet`.
