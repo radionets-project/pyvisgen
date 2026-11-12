@@ -200,6 +200,10 @@ class SimulateDataSet:
             )
 
         bundles_task_id = bundles_progress.add_task("", total=len(self.data_paths))
+
+        # Ensure that we actually use all drawn parameters even with
+        # bundles of different sizes
+        bundle_offset = 0
         for i in range(len(self.data_paths)):
             SIs = self.get_images(i)
             bundle_length = len(SIs)
@@ -210,8 +214,8 @@ class SimulateDataSet:
             current_bundle_task_id = current_bundle_progress.add_task(
                 "", total=len(SIs), name=i + 1
             )
-            for SI in SIs:
-                obs = self.create_observation(i)
+            for img_idx, SI in enumerate(SIs):
+                obs = self.create_observation(bundle_offset + img_idx)
                 vis = vis_loop(
                     obs,
                     SI,
@@ -239,6 +243,7 @@ class SimulateDataSet:
                     sim_data.append(vis)
 
                 current_bundle_progress.update(current_bundle_task_id, advance=1)
+                bundle_offset += bundle_length
 
             if self.grid:
                 sim_data = np.array(sim_data)
