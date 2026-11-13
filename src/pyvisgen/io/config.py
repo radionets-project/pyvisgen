@@ -38,7 +38,7 @@ class SamplingConfig(BaseModel, validate_assignment=True):
     ref_frequency: float = Field(default=15.17600e9, gt=0)
     frequency_offsets: list[float] = [0e8, 1.28e8, 2.56e8, 3.84e8]
     bandwidths: list[float] = [1.28e8, 1.28e8, 1.28e8, 1.28e8]
-    normalize: bool = True
+    normalize: bool = False
     corrupted: bool = False
     sensitivity_cut: float = Field(default=1e-6, ge=0)
 

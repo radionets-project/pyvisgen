@@ -200,6 +200,10 @@ class TestPolarizationConfig:
 
 
 class TestSamplingConfig:
+    def test_normalize_default_is_standard_convention(self) -> None:
+        """Visibilities follow the standard convention V_11 = V_22 = I by default."""
+        assert SamplingConfig().normalize is False
+
     def test_keys(self) -> None:
         cfg = SamplingConfig()
         expected_keys = {
