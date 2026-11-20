@@ -243,7 +243,7 @@ class SimulateDataSet:
                     sim_data.append(vis)
 
                 current_bundle_progress.update(current_bundle_task_id, advance=1)
-            
+
             bundle_offset += bundle_length
 
             if self.grid:
