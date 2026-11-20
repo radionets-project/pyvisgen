@@ -23,6 +23,12 @@ __all__ = [
 
 
 @dataclass
+class UVH5ValidBaselines:
+    date: torch.Tensor
+    st_id_pairs: torch.Tensor
+
+
+@dataclass
 class UVH5Baselines:
     """Baseline information stored in a UVH5 file.
 
@@ -45,7 +51,7 @@ class UVH5Baselines:
         self,
         num_baselines,
         device: str | torch.device = "cpu",
-    ) -> "UVH5Baselines":
+    ) -> "UVH5ValidBaselines":
         """Return the stored rows and move them to ``device``.
 
         The UVH5 file format already contains only valid baselines, so no selection
@@ -53,8 +59,8 @@ class UVH5Baselines:
         :meth:`~pyvisgen.simulation.observation.Baselines.get_valid_subset`
         and is thus ignored.
         """
-        return UVH5Baselines(
-            time=self.time.to(device), st_id_pairs=self.st_id_pairs.to(device)
+        return UVH5ValidBaselines(
+            date=self.time.to(device), st_id_pairs=self.st_id_pairs.to(device)
         )
 
 
@@ -277,7 +283,7 @@ def read_uvh5(path: str | Path, layout: str | Path | None = None) -> UVH5Data:
             bandwidths=torch.from_numpy(f["channel_widths"][()]),
             layout=layout,
             lm=lm,
-            baselines=UVH5Baselines(date=date, st_id_pairs=st_id_pairs),
+            baselines=UVH5Baselines(time=date, st_id_pairs=st_id_pairs),
             normalize=bool(f["normalize"][()]),
         )
 
