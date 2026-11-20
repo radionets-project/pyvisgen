@@ -1,4 +1,5 @@
 from pathlib import Path
+from types import SimpleNamespace
 
 import h5py
 import numpy as np
@@ -129,6 +130,55 @@ class TestReadUVH5:
 
         with pytest.raises(KeyError, match="no 'obs' group"):
             read_uvh5(uvh5_file)
+
+    def test_directory_of_multiple_files(self, output_dir, uvh5_obs) -> None:
+        rng = torch.Generator().manual_seed(0)
+        expected = {}
+        with UVH5Writer(output_path=output_dir, dataset_type="train") as writer:
+            for i, n_rows in enumerate((3, 5, 8, 13)):
+                vis = SimpleNamespace(
+                    V_11=torch.randn(n_rows, 2, dtype=torch.complex128, generator=rng),
+                    V_22=torch.randn(n_rows, 2, dtype=torch.complex128, generator=rng),
+                    V_12=torch.randn(n_rows, 2, dtype=torch.complex128, generator=rng),
+                    V_21=torch.randn(n_rows, 2, dtype=torch.complex128, generator=rng),
+                    weights=torch.rand(n_rows, 2, dtype=torch.float64, generator=rng),
+                    u=torch.randn(n_rows, dtype=torch.float64, generator=rng),
+                    v=torch.randn(n_rows, dtype=torch.float64, generator=rng),
+                    w=torch.randn(n_rows, dtype=torch.float64, generator=rng),
+                    st_id_pairs=torch.randint(0, 10, (n_rows, 2), generator=rng),
+                    date=2461000.5 + torch.rand(n_rows, generator=rng),
+                )
+                uvh5_obs.ra = torch.tensor([10.0 * i])
+                sky = torch.rand(1, 16, 16, generator=rng)
+                writer.write(vis, uvh5_obs, index=i, sky=sky)
+                expected[f"train_{i}.uvh5"] = (vis, uvh5_obs.ra.clone(), sky)
+
+        # files that must be ignored: other extensions and subdirectories
+        (output_dir / "notes.txt").write_text("not a uvh5 file")
+        (output_dir / "sub").mkdir()
+        (output_dir / "sub" / "train_99.uvh5").touch()
+
+        reader = UVH5Reader(output_dir, layout=TEST_LAYOUT)
+
+        assert len(reader) == len(expected)
+        assert [f.name for f in reader.files] == list(expected)
+
+        by_index = [reader[i] for i in range(len(reader))]
+        by_iter = list(reader)
+
+        for data_i, data_it in zip(by_index, by_iter, strict=True):
+            assert data_i.path == data_it.path
+            vis, ra, sky = expected[data_i.path.name]
+
+            for data in (data_i, data_it):
+                for name in ("V_11", "V_22", "V_12", "V_21", "weights", "u", "v"):
+                    assert torch.equal(getattr(data.vis, name), getattr(vis, name))
+                assert torch.equal(data.vis.date, vis.date)
+                assert torch.equal(data.vis.st_id_pairs, vis.st_id_pairs)
+                assert torch.equal(data.obs.baselines.get_valid_subset().date, vis.date)
+                assert torch.equal(data.obs.ra, ra)
+                assert torch.equal(data.sky, sky)  # ty: ignore[invalid-argument-type]
+                assert data.obs.layout == TEST_LAYOUT
 
 
 class TestUVH5Reader:
