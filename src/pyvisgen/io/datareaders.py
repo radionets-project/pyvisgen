@@ -32,13 +32,13 @@ class UVH5Baselines:
 
     Attributes
     ----------
-    date : :class:`~torch.Tensor`, shape ``(n_vis,)``
+    time : :class:`~torch.Tensor`, shape ``(n_vis,)``
         Time of each visibility row in JD.
     st_id_pairs : :class:`~torch.Tensor`, shape ``(n_vis, 2)``
         Station indices of each row.
     """
 
-    date: torch.Tensor
+    time: torch.Tensor
     st_id_pairs: torch.Tensor
 
     def get_valid_subset(
@@ -54,7 +54,7 @@ class UVH5Baselines:
         and is thus ignored.
         """
         return UVH5Baselines(
-            date=self.date.to(device), st_id_pairs=self.st_id_pairs.to(device)
+            time=self.time.to(device), st_id_pairs=self.st_id_pairs.to(device)
         )
 
 
