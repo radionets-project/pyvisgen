@@ -1,0 +1,1 @@
+Added UVH5 file reader :class:`~pyvisgen.io.datareaders.UVH5Reader` that allows reading UVH5 data quickly as pyvisgen/pyvisgrid-compatible dataclass objects
