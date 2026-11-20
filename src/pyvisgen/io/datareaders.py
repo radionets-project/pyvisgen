@@ -49,7 +49,7 @@ class UVH5Baselines:
 
     def get_valid_subset(
         self,
-        num_baselines,
+        num_baselines: int | None = None,
         device: str | torch.device = "cpu",
     ) -> "UVH5ValidBaselines":
         """Return the stored rows and move them to ``device``.
